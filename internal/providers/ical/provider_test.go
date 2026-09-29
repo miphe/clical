@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
+
 	"github.com/miphe/clical/internal/domain"
 )
 
@@ -45,6 +47,7 @@ func newFeedServer(t *testing.T, etag string) *feedServer {
 func testProvider(feedURL string, now *time.Time) *Provider {
 	p := New(func(string) (string, error) { return feedURL, nil })
 	p.now = func() time.Time { return *now }
+	p.newBackOff = func() backoff.BackOff { return backoff.NewConstantBackOff(time.Millisecond) }
 	return p
 }
 
@@ -165,5 +168,82 @@ func TestNormalizeURL(t *testing.T) {
 		if (err != nil) != c.wantErr || got != c.want {
 			t.Errorf("NormalizeURL(%q) = %q, %v; want %q, err=%v", c.in, got, err, c.want, c.wantErr)
 		}
+	}
+}
+
+// statusServer answers with codes in order, repeating the last one, and
+// serves the fixture feed on 200.
+func statusServer(t *testing.T, codes ...int) (*httptest.Server, *int) {
+	t.Helper()
+	requests := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		code := codes[min(requests, len(codes)-1)]
+		requests++
+		if code != http.StatusOK {
+			w.WriteHeader(code)
+			return
+		}
+		w.Write([]byte(strings.Join(fixtureLines, "\r\n") + "\r\n"))
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &requests
+}
+
+func TestSyncEventsRetries(t *testing.T) {
+	now := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name            string
+		codes           []int
+		wantErr         bool
+		wantUnavailable bool
+		wantRequests    int
+	}{
+		{"transient 503 then ok", []int{503, 503, 200}, false, false, 3},
+		{"rate limited then ok", []int{429, 200}, false, false, 2},
+		{"persistent 500 gives up", []int{500}, true, false, 4},
+		{"404 is unavailable, no retry", []int{404}, true, true, 1},
+		{"410 is unavailable, no retry", []int{410}, true, true, 1},
+		{"401 is unavailable, no retry", []int{401}, true, true, 1},
+		{"400 fails, no retry", []int{400}, true, false, 1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srv, requests := statusServer(t, c.codes...)
+			_, err := testProvider(srv.URL, &now).SyncEvents(context.Background(), domain.Calendar{ID: "cal1"}, "")
+
+			if (err != nil) != c.wantErr {
+				t.Fatalf("error = %v, wantErr %v", err, c.wantErr)
+			}
+			var unavailable *domain.CalendarUnavailableError
+			if got := errors.As(err, &unavailable); got != c.wantUnavailable {
+				t.Errorf("CalendarUnavailableError = %v, want %v (err: %v)", got, c.wantUnavailable, err)
+			}
+			if c.wantUnavailable && unavailable.CalendarID != "cal1" {
+				t.Errorf("CalendarID = %q, want cal1", unavailable.CalendarID)
+			}
+			if *requests != c.wantRequests {
+				t.Errorf("requests = %d, want %d", *requests, c.wantRequests)
+			}
+		})
+	}
+}
+
+func TestSyncEventsStopsRetryingWhenContextCancelled(t *testing.T) {
+	srv, requests := statusServer(t, 503)
+	now := time.Now()
+	p := testProvider(srv.URL, &now)
+	p.newBackOff = func() backoff.BackOff { return backoff.NewConstantBackOff(time.Hour) }
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if _, err := p.SyncEvents(ctx, domain.Calendar{ID: "cal1"}, ""); err == nil {
+		t.Fatal("error = nil, want context error")
+	}
+	if time.Since(start) > 5*time.Second {
+		t.Errorf("took %v, want prompt return on cancellation", time.Since(start))
+	}
+	if *requests != 1 {
+		t.Errorf("requests = %d, want 1", *requests)
 	}
 }

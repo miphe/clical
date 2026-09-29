@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
+
 	"github.com/miphe/clical/internal/domain"
 )
 
@@ -32,6 +34,9 @@ type Provider struct {
 
 	// Occurrences outside [now-past, now+future) are not materialized.
 	past, future time.Duration
+
+	newBackOff func() backoff.BackOff
+	maxTries   uint
 }
 
 var _ domain.CalendarProvider = (*Provider)(nil)
@@ -44,6 +49,9 @@ func New(lookupURL func(calendarID string) (string, error)) *Provider {
 		now:       time.Now,
 		past:      30 * 24 * time.Hour,
 		future:    365 * 24 * time.Hour,
+
+		newBackOff: defaultBackOff,
+		maxTries:   4,
 	}
 }
 
@@ -85,6 +93,11 @@ func (p *Provider) SyncEvents(ctx context.Context, cal domain.Calendar, token st
 
 	resp, err := p.get(ctx, feedURL, prev)
 	if err != nil {
+		var unavailable *domain.CalendarUnavailableError
+		if errors.As(err, &unavailable) {
+			unavailable.CalendarID = cal.ID
+			return domain.SyncResult{}, unavailable
+		}
 		return domain.SyncResult{}, fmt.Errorf("ical: fetch %s: %w", cal.ID, err)
 	}
 	defer resp.Body.Close()
@@ -153,7 +166,10 @@ func (p *Provider) Probe(ctx context.Context, feedURL string) (int, error) {
 }
 
 // get issues a (possibly conditional) GET. The returned response is either
-// 200 or 304; anything else is an error. Errors never contain the URL.
+// 200 or 304. Network errors, 429 and 5xx are retried with jittered
+// exponential backoff; 401/403/404/410 become *domain.CalendarUnavailableError
+// straight away; other statuses fail without retrying. Errors never contain
+// the URL.
 func (p *Provider) get(ctx context.Context, feedURL string, cond syncState) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, nil)
 	if err != nil {
@@ -167,15 +183,41 @@ func (p *Provider) get(ctx context.Context, feedURL string, cond syncState) (*ht
 		req.Header.Set("If-Modified-Since", cond.LastModified)
 	}
 
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return nil, redact(err)
+	attempt := func() (*http.Response, error) {
+		resp, err := p.client.Do(req)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, backoff.Permanent(ctx.Err())
+			}
+			return nil, redact(err)
+		}
+		switch code := resp.StatusCode; {
+		case code == http.StatusOK || code == http.StatusNotModified:
+			return resp, nil
+		case code == http.StatusUnauthorized || code == http.StatusForbidden ||
+			code == http.StatusNotFound || code == http.StatusGone:
+			resp.Body.Close()
+			return nil, backoff.Permanent(&domain.CalendarUnavailableError{Reason: "HTTP " + resp.Status})
+		case code == http.StatusTooManyRequests || code >= 500:
+			resp.Body.Close()
+			return nil, fmt.Errorf("server returned HTTP %s", resp.Status)
+		default:
+			resp.Body.Close()
+			return nil, backoff.Permanent(fmt.Errorf("unexpected HTTP status %s", resp.Status))
+		}
 	}
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotModified {
-		resp.Body.Close()
-		return nil, fmt.Errorf("unexpected HTTP status %s", resp.Status)
-	}
-	return resp, nil
+
+	return backoff.Retry(ctx, attempt,
+		backoff.WithBackOff(p.newBackOff()),
+		backoff.WithMaxTries(p.maxTries),
+	)
+}
+
+func defaultBackOff() backoff.BackOff {
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = time.Second
+	b.MaxInterval = 10 * time.Second
+	return b
 }
 
 // redact strips the request URL out of an HTTP client error, since the URL is

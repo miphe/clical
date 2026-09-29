@@ -72,8 +72,25 @@ func Open(dir string, prompt func() (string, error)) (*Vault, error) {
 	return v, nil
 }
 
+// Exists reports whether a vault with at least one secret exists at dir —
+// i.e. whether a passphrase has already been chosen for it.
+func Exists(dir string) (bool, error) {
+	key, err := anyKey(dir)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("secrets: read vault dir: %w", err)
+	}
+	return key != "", nil
+}
+
 func (v *Vault) anyExistingKey() (string, error) {
-	entries, err := os.ReadDir(v.dir)
+	return anyKey(v.dir)
+}
+
+func anyKey(dir string) (string, error) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", err
 	}

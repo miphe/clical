@@ -28,12 +28,13 @@ multi-account merge → config/themes → in-process background polling.
 | M1 | Vault + account/calendar store | Done |
 | M2 | iCal provider + `calendars add` / `calendars list` | Done — live-checked with a real secret URL |
 | M3 | `clical sync` into SQLite + plain-text `clical agenda` | Done |
-| M4 | Feed error handling (revoked/deleted URL, backoff) | Not started |
+| M4 | Feed errors, backoff, `calendars remove`/`set-url`, new-vault passphrase confirmation | Done |
 | M5–M11 | TUI, config/themes, polling | Not started |
 
-Open question: whether the **work** (Google Workspace) calendar exposes a secret
-iCal address — admins can disable it. If it doesn't, that calendar needs the
-shelved OAuth path revived (see "Google OAuth (shelved)").
+Deferred (2026-09-29): the **work** (Google Workspace) calendar. Focus is the
+personal calendar for now. Whether the work calendar exposes a secret iCal
+address (admins can disable it) decides whether the shelved OAuth path is
+revived or deleted — see "Google OAuth (shelved)".
 
 ## Decisions
 
@@ -122,8 +123,11 @@ type SyncResult struct {
 }
 ```
 
-`ReauthRequiredError` (`errors.go`) exists for the shelved OAuth path. M4
-adds the iCal equivalent (feed revoked/deleted).
+`errors.go`: `CalendarUnavailableError{CalendarID, Reason}` — the source
+refuses access or no longer exists (for iCal: HTTP 401/403/404/410, i.e. the
+secret URL was reset or the calendar deleted). Retrying won't help; the fix is
+`calendars set-url` or `remove`. `ReauthRequiredError` is the shelved OAuth
+path's equivalent.
 
 ## iCal provider (`internal/providers/ical`) — done
 
@@ -136,6 +140,12 @@ adds the iCal equivalent (feed revoked/deleted).
   `SyncEvents` (conditional GET + hash no-op + full parse); `Probe` (fetch and
   count occurrences, used to validate a URL before saving). 30s HTTP timeout,
   64 MiB body limit.
+- Retries (`github.com/cenkalti/backoff/v5` — the current major version,
+  in place of the v4 the original spec named): network errors, 429 and 5xx
+  are retried with jittered exponential backoff (1s initial, 10s max, 4
+  attempts in all); 401/403/404/410 return `CalendarUnavailableError`
+  immediately; other statuses fail without retry; a cancelled context stops
+  retrying at once. `Retry-After` is not honored yet.
 - Tests: fixture feed (TZID, single- and multi-day all-day, weekly RRULE with
   EXDATE and a RECURRENCE-ID override, cancelled event), httptest server for
   304 / no-validator hash no-op / new-day refetch / URL never in errors.
@@ -224,6 +234,23 @@ title. Used by `clical agenda` now and by the TUI Agenda view in M5.
 
 - `calendars add --account --name` (hidden URL prompt, probe, save),
   `calendars list` (no passphrase).
+- `calendars remove <name|id> [--account] [--yes]`: y/N confirmation, then
+  deletes the calendar, its events, its stored URL, and its account if that
+  leaves it empty. Store first, vault second — a leftover encrypted URL is
+  harmless; a calendar without its URL would fail every sync.
+- `calendars set-url <name|id> [--account]`: hidden prompt, probe, replace the
+  stored URL, reset the sync token. The calendar keeps its ID (so it stays
+  derived from the *original* URL; re-adding the new URL with `add` would
+  create a duplicate).
+- Calendars are referenced by ID or case-insensitive name; an ambiguous name
+  lists the matches and asks for the ID or `--account`.
+- New vault: the first command that needs the vault warns that the
+  passphrase can't be recovered and asks for it twice (must match, must be
+  non-empty). `sync` skips the passphrase entirely when there are no
+  calendars.
+- Rejected URLs in `add`/`set-url` produce advice ("check you copied the whole
+  secret address, or that it hasn't been reset") rather than a raw HTTP error;
+  `sync` points at `calendars set-url <id>`.
 - `sync`: unlocks the vault, syncs everything, prints per calendar "N events"
   / "unchanged" / error; exits non-zero if any calendar failed.
 - `agenda [--days 14]`: plain-text upcoming events from the cache (no
@@ -238,7 +265,7 @@ title. Used by `clical agenda` now and by the TUI Agenda view in M5.
 type TickMsg struct{ CalendarID string }
 type SyncCompletedMsg struct{ CalendarID string; Upserted, Deleted int }
 type SyncErrorMsg struct{ CalendarID string; Err error }
-type FeedRevokedMsg struct{ CalendarID string } // M4: 401/403/404/410 from the feed
+type CalendarUnavailableMsg struct{ CalendarID, Reason string } // from domain.CalendarUnavailableError
 
 func PollCmd(cal domain.Calendar, after time.Duration) tea.Cmd
 func SyncCmd(e *engine.Engine, acct domain.Account, cal domain.Calendar) tea.Cmd
@@ -249,7 +276,7 @@ Since every iCal poll is a full download, the default poll interval for
 iCal calendars should be longer than the original 60s — **5 minutes**,
 configurable. `Update`: `TickMsg` → `tea.Batch(SyncCmd, PollCmd)`;
 `SyncCompletedMsg` → reload the visible range from the store (skip if
-nothing changed); `FeedRevokedMsg` → flag that calendar in the sidebar and
+nothing changed); `CalendarUnavailableMsg` → flag that calendar in the sidebar and
 footer; Enter on it prompts for a new URL — no restart, other calendars keep
 syncing.
 
@@ -319,7 +346,7 @@ to the first match, Esc clears.
 | M1 | Vault (generic secrets), account/calendar store | `internal/secrets/vault.go`, `internal/store/` | Done |
 | M2 | iCal provider; `calendars add` (hidden URL prompt, probe, save) / `calendars list` | `internal/providers/ical/`, `cmd/clical/calendars.go` | Done |
 | M3 | `clical sync` into SQLite via `ApplySync`; `EventsInRange`; plain-text `clical agenda` | `internal/store/events.go`, `internal/engine/`, `internal/agenda/`, `cmd/clical/sync.go`, `cmd/clical/agenda.go` | Done |
-| M4 | Feed errors: typed revoked/deleted error for 401/403/404/410, backoff on 429/5xx, `calendars remove`, `calendars set-url`; confirm-passphrase prompt when creating a new vault | `internal/providers/ical/`, `internal/engine/`, `cmd/clical/` | |
+| M4 | Feed errors: `CalendarUnavailableError` for 401/403/404/410, backoff on 429/5xx/network, `calendars remove`, `calendars set-url`; confirm-passphrase prompt when creating a new vault | `internal/domain/errors.go`, `internal/providers/ical/provider.go`, `internal/store/calendars.go`, `cmd/clical/calendars.go`, `cmd/clical/prompt.go` | Done |
 | M5 | Bubble Tea shell: sidebar + main pane + footer; Agenda; event detail; `teatest` goldens | `internal/ui/app.go`, `sidebar.go`, `agenda.go`, `detail.go`, `keymap.go`, `footer.go` | |
 | M6 | Week view (day-list columns) | `internal/ui/week.go` | |
 | M7 | Month view ("+N more", Enter → Agenda); shared `uniseg` width/truncation helper | `internal/ui/month.go`, `internal/ui/textwidth.go` | |
@@ -337,4 +364,4 @@ to the first match, Esc clears.
 - Manual check of each CLI milestone against real feeds (your personal and
   work calendars) before building UI on top.
 - Cross-compile: `GOOS={darwin,linux} GOARCH={arm64,amd64} go build ./...`
-  (last passed at M3).
+  (last passed at M4).

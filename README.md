@@ -48,8 +48,20 @@ For each Google calendar you want in clical:
 
 The full-screen TUI isn't built yet; `agenda` is a plain-text stand-in.
 
-If a secret address leaks, use "Reset" next to it in Google Calendar and add
-the calendar again with the new URL.
+The first time, clical creates the vault and asks for a new passphrase twice.
+It can't be recovered if forgotten; the fix is to delete
+`~/.local/share/clical/vault/` and add your calendars again.
+
+## Managing calendars
+
+    clical calendars list
+    clical calendars set-url Main       # after resetting a secret address
+    clical calendars remove Main        # asks y/N; --yes to skip
+
+Calendars are referenced by name or by the ID shown in `list`; add
+`--account Work` if the name exists in more than one account. If a secret
+address leaks, use "Reset" next to it in Google Calendar, then
+`clical calendars set-url` with the new one.
 
 ## Layout
 
@@ -67,7 +79,7 @@ the calendar again with the new URL.
 
 ## Status
 
-M0–M3 done: domain types, vault, store, iCal provider, `calendars add`/`list`,
-`sync`, and a plain-text `agenda`. Next: feed error handling (M4), then the
-TUI. Milestone table in
+M0–M4 done: domain types, vault, store, iCal provider with retries and
+revoked-feed detection, `calendars add`/`list`/`remove`/`set-url`, `sync`, and
+a plain-text `agenda`. Next: the TUI (M5). Milestone table in
 [`docs/PLAN.md`](docs/PLAN.md).

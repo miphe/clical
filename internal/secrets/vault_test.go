@@ -117,3 +117,26 @@ func TestSecretKeyRejectsPathTraversal(t *testing.T) {
 		}
 	}
 }
+
+func TestExists(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "vault")
+
+	if ok, err := Exists(dir); err != nil || ok {
+		t.Errorf("Exists(missing dir) = %v, %v; want false, nil", ok, err)
+	}
+
+	v, err := Open(dir, fixedPrompt("passphrase"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	if ok, err := Exists(dir); err != nil || ok {
+		t.Errorf("Exists(empty vault) = %v, %v; want false, nil", ok, err)
+	}
+
+	if err := v.SaveSecret("k", []byte("x")); err != nil {
+		t.Fatalf("SaveSecret() error = %v", err)
+	}
+	if ok, err := Exists(dir); err != nil || !ok {
+		t.Errorf("Exists(vault with secret) = %v, %v; want true, nil", ok, err)
+	}
+}

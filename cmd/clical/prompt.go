@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"golang.org/x/term"
 
@@ -30,15 +32,62 @@ func fixedPassphrase(passphrase string) func() (string, error) {
 	return func() (string, error) { return passphrase, nil }
 }
 
-// unlockVault prompts for the passphrase and opens the vault.
+// unlockVault opens the vault, prompting for its passphrase. If no vault
+// exists yet, the user chooses a new passphrase and must type it twice.
 func unlockVault() (*secrets.Vault, error) {
-	passphrase, err := promptHidden("Vault passphrase: ")
+	exists, err := secrets.Exists(vaultDir())
 	if err != nil {
 		return nil, err
 	}
+
+	var passphrase string
+	if exists {
+		passphrase, err = promptHidden("Vault passphrase: ")
+	} else {
+		fmt.Fprintln(os.Stderr, "Creating a new vault. Choose a passphrase — it can't be recovered if forgotten.")
+		passphrase, err = choosePassphrase(promptHidden)
+	}
+	if err != nil {
+		return nil, err
+	}
+
 	vault, err := secrets.Open(vaultDir(), fixedPassphrase(passphrase))
 	if err != nil {
 		return nil, fmt.Errorf("open vault: %w", err)
 	}
 	return vault, nil
+}
+
+// choosePassphrase asks for a new passphrase twice and requires both to
+// match and be non-empty.
+func choosePassphrase(prompt func(string) (string, error)) (string, error) {
+	first, err := prompt("New vault passphrase: ")
+	if err != nil {
+		return "", err
+	}
+	if first == "" {
+		return "", errors.New("passphrase must not be empty")
+	}
+	second, err := prompt("Confirm passphrase: ")
+	if err != nil {
+		return "", err
+	}
+	if first != second {
+		return "", errors.New("passphrases don't match")
+	}
+	return first, nil
+}
+
+// confirm asks a yes/no question on the terminal; anything but y/yes is no.
+func confirm(question string) (bool, error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return false, errors.New("a terminal is required to confirm; pass --yes to skip")
+	}
+	fmt.Fprintf(os.Stderr, "%s [y/N] ", question)
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && line == "" {
+		return false, fmt.Errorf("read answer: %w", err)
+	}
+	answer := strings.ToLower(strings.TrimSpace(line))
+	return answer == "y" || answer == "yes", nil
 }
