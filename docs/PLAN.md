@@ -1,101 +1,116 @@
 # clical — Phase 1 (MVP) design & implementation plan
 
-This is the living design doc for Phase 1. It's a mirror of a Claude Code plan
-file (`~/.claude/plans/steady-crunching-willow.md` at time of writing) copied
-into the repo so it survives independently of any particular chat session —
-update this file, not just the chat, when decisions change.
+The living design doc for Phase 1, kept in the repo so the project can be
+resumed from a fresh session. Update this file, not just chat history, when
+decisions change.
 
 ## Context
 
-`clical` is a terminal calendar app (Go, Bubble Tea/Elm architecture),
-read-only against Google Calendar in v1, architected so CalDAV/Microsoft
-Graph can drop in later behind a `CalendarProvider` interface. Phase 1 is:
-OAuth → encrypted token storage → incremental sync into SQLite →
-agenda/week/month TUI views → multi-account merge → config/themes →
-in-process background polling.
+`clical` is a terminal calendar app (Go, Bubble Tea/Elm architecture), read-only
+in v1. It shows calendars from several sources — today, Google Calendar
+personal and work accounts — merged into one agenda/week/month view.
+
+The integration is **iCal secret URLs**: every Google calendar exposes a private
+read-only feed ("Secret address in iCal format"). clical fetches that over
+HTTPS. No Google Cloud project, no OAuth, no token expiry. Other providers
+(Outlook, iCloud, Fastmail, CalDAV) publish the same kind of feed, so the same
+provider covers them. Google OAuth was the original plan; it's shelved (see
+Decisions) and kept only as a fallback.
+
+Phase 1: add calendars → sync feeds into SQLite → agenda/week/month TUI →
+multi-account merge → config/themes → in-process background polling.
 
 ## Status (update this as milestones land)
 
-- **M0** (domain skeleton) — done.
-- **M1** (OAuth loopback, vault, accounts store) — code done; end-to-end
-  `auth add` against a real Google account not yet confirmed.
-- **M2–M11** — not started. See Milestones below.
+| # | Milestone | Status |
+|---|---|---|
+| M0 | Domain skeleton | Done |
+| M1 | Vault + account/calendar store | Done |
+| M2 | iCal provider + `calendars add` / `calendars list` | Done — live-checked with a real secret URL |
+| M3 | `clical sync` into SQLite + plain-text `clical agenda` | Done |
+| M4 | Feed error handling (revoked/deleted URL, backoff) | Not started |
+| M5–M11 | TUI, config/themes, polling | Not started |
 
-## Decisions made during planning (deviations/clarifications from the original spec)
+Open question: whether the **work** (Google Workspace) calendar exposes a secret
+iCal address — admins can disable it. If it doesn't, that calendar needs the
+shelved OAuth path revived (see "Google OAuth (shelved)").
 
-- **Vault KDF simplified**: no separate argon2id layer. age's passphrase mode
-  (`age.NewScryptRecipient`/`ScryptIdentity`) already does audited
-  scrypt-based key derivation — layering argon2id on top added complexity
-  with no security benefit, and this way the encrypted files stay openable
-  with the standard `age` CLI for manual recovery. `golang.org/x/crypto/argon2`
-  is not a dependency.
-- **`Account.ID`** = a stable hash of `provider:label` (e.g.
-  `sha256("google:c-adrougge@gmail.com")[:16]`, hex-encoded). Deterministic,
-  so re-running `auth add` for an account that's already added is detected
-  instead of silently creating a duplicate — but the vault filename and logs
-  don't expose the raw email.
-- **Passphrase caching scope** = one long-running TUI process only.
-  Short-lived CLI subcommands (`auth add`, `sync`) are separate processes and
-  re-prompt each time. No ssh-agent-style daemon for Phase 1.
-- **Cancelled recurring instances** (Google returns `status: "cancelled"`
-  items, not a separate deletions list) are translated straight into
-  `SyncResult.DeletedIDs` — they disappear from the local view like any other
-  deletion. No distinct "declined/cancelled but visible" state in Phase 1.
-- **BYO-OAuth onboarding** is README documentation only for Phase 1 (see
-  README's "Setting up your Google OAuth client"). No in-app setup wizard.
-- **`SyncResult` gains one field**, `FullResync bool`, versus the originally
-  reviewed struct — represents the Google `410 Gone` case (full resync;
-  deletions aren't enumerable) distinctly from a normal incremental delta.
-- **OAuth scopes requested are `calendar.readonly` + `openid` + `email`**, not
-  just `calendar.readonly` as the very first spec draft implied. The extra
-  two scopes are used once, right after token exchange, to call Google's
-  userinfo endpoint and populate `Account.Label` with the real email address
-  — `CalendarProvider.Authenticate` has no other way to learn it, since the
-  interface takes no label input. (`internal/providers/google/oauth.go`,
-  `fetchEmail`.)
-- **Dependency stack note**: `github.com/samber/lo` is fine to reach for on
-  slice map/filter/groupBy operations over events; `github.com/samber/mo`
-  (Option/Result monads) was explicitly rejected in review as fighting
-  idiomatic Go error handling for no clear benefit — don't add it.
+## Decisions
 
-## Domain model (`internal/domain`)
+### Integration
+- **iCal secret URLs are the primary integration** (decided 2026-09-29).
+  Google OAuth required a Cloud project, consent screen and OAuth client per
+  user, plus 7-day refresh-token expiry in "Testing" mode — too much setup.
+  Trade-offs accepted: one URL per calendar, no incremental sync, recurrence
+  expanded client-side, and read-only forever on this path (writes would need
+  OAuth or CalDAV).
+- **`CalendarProvider` is slimmed to `SyncEvents` only.** `Authenticate` and
+  `ListCalendars` were dropped from the interface: iCal has no login and no
+  calendar discovery, so they'd be no-op stubs. Onboarding (adding a
+  calendar, logging in) is a provider-specific CLI flow.
+- **Accounts are user-named groups** ("Personal", "Work"). A calendar is one
+  feed URL under a group. `Account.ID = NewAccountID("ical", label)`;
+  `Calendar.ID = sha256(normalized URL)[:16]`, so re-adding the same feed is
+  recognized and the ID never reveals the URL.
+- **The feed URL is a credential.** It's stored only in the age vault (key
+  `ical-url-<calendarID>`), never in the DB, config, logs or errors
+  (`ical.redact` strips it from HTTP client errors). `calendars add` reads it
+  from a hidden prompt, not a flag, so it stays out of shell history. Only
+  `https://` (or `webcal://`, rewritten to https) is accepted.
+- **Sync = full download, skipped when unchanged.** Google's feeds send
+  neither `ETag` nor `Last-Modified`, so conditional GET never applies to
+  them. The sync token (JSON) records `day`, `etag`, `lastModified` and a
+  sha256 `hash` of the *parsed events* (ID, title, span, location, notes):
+  the same events on the same day is a no-op (no DB rewrite, no UI refresh),
+  though it still costs a download. It hashes events, not the raw body,
+  because Google rewrites every event's `DTSTAMP` to the download time — a
+  body hash never matches. A new day forces re-expansion because the window
+  slides forward.
+- **Expansion window**: occurrences within now −30 days … now +365 days.
+  Every changed fetch returns `FullResync: true`, replacing the calendar's
+  events in the store.
+- **Event IDs** are `UID + "/" + start` (RFC 3339 UTC for timed, `YYYY-MM-DD`
+  for all-day), since every occurrence of a recurring event shares one UID.
+- **All-day end dates are exclusive.** gocal reports an all-day event's end as
+  the last second of its final day (inclusive); `parse.go` converts that to
+  the exclusive `CivilDate` convention. Caught by the multi-day fixture test.
+- **Cancelled events** (`STATUS:CANCELLED`) are dropped at parse time.
+- **Library**: `github.com/apognu/gocal` v0.9.1 — parses feeds, expands
+  RRULEs within a window, honors EXDATE and RECURRENCE-ID overrides.
+
+### Carried over from the original plan
+- **Vault KDF**: age's native scrypt passphrase mode; no separate argon2id
+  layer (redundant). Files stay openable with the standard `age` CLI.
+- **Passphrase caching scope** = one long-running TUI process. Short-lived
+  CLI subcommands re-prompt each time. No agent/daemon.
+- **Dependencies**: `github.com/samber/lo` is fine for slice ops over events;
+  `github.com/samber/mo` was rejected (fights idiomatic Go error handling).
+- **Commits**: authored solely by the user; never any AI attribution or
+  trailers. Conventional Commits (Commitizen) format.
+
+## Domain model (`internal/domain`) — done
 
 ```go
 type Account struct {
-    ID       string // sha256("provider:label")[:16], hex
-    Provider string // "google"
-    Label    string // e.g. the email address
+    ID       string // NewAccountID(provider, label): sha256("provider:label")[:16], hex
+    Provider string // "ical" (or "google" for the shelved path)
+    Label    string // user-chosen group name, e.g. "Work"
 }
 
 type Calendar struct {
-    ID, AccountID, Name, Color string // Color is hex
+    ID, AccountID, Name, Color string // Color empty until M8 assigns from theme
 }
 
-// CivilDate: timezone-less date, used for AllDay events specifically to avoid
-// the UTC-midnight date-shift bug. Never represent all-day events as time.Time.
+// CivilDate: timezone-less date for all-day events. Never time.Time.
 type CivilDate struct{ Year, Month, Day int }
-func NewCivilDate(y, m, d int) CivilDate
-func CivilDateFromTime(t time.Time) CivilDate
-func (d CivilDate) Before(o CivilDate) bool
-func (d CivilDate) AddDays(n int) CivilDate
-func (d CivilDate) String() string // "2026-09-09"
 
-// Event: unexported time fields + constructors + ok-returning accessors, so
-// "which field pair is populated" can't be gotten wrong by a caller.
-type Event struct {
-    ID, CalendarID, Title, Location, Notes string
-    AllDay                                 bool
-    start, end                             time.Time // unexported, UTC
-    startDate, endDate                     CivilDate // unexported
-}
+// Event: unexported time fields + constructors + ok-returning accessors.
 func NewTimedEvent(id, calID, title string, start, end time.Time, loc, notes string) Event
 func NewAllDayEvent(id, calID, title string, start, end CivilDate, loc, notes string) Event
 func (e Event) TimeRange() (start, end time.Time, ok bool)
-func (e Event) DateRange() (start, end CivilDate, ok bool)
+func (e Event) DateRange() (start, end CivilDate, ok bool) // end exclusive
 
 type CalendarProvider interface {
-    Authenticate(ctx context.Context) (Account, error)
-    ListCalendars(ctx context.Context, acct Account) ([]Calendar, error)
     SyncEvents(ctx context.Context, cal Calendar, token string) (SyncResult, error)
 }
 
@@ -103,69 +118,63 @@ type SyncResult struct {
     Upserted   []Event
     DeletedIDs []string
     NextToken  string
-    FullResync bool // true on a post-410 full resync: replace-all, not a partial delta
+    FullResync bool // replace all of cal's events rather than apply a delta
 }
 ```
 
-`internal/domain/errors.go` closes the re-auth gap without changing the
-3-method interface:
+`ReauthRequiredError` (`errors.go`) exists for the shelved OAuth path. M4
+adds the iCal equivalent (feed revoked/deleted).
 
-```go
-type ReauthRequiredError struct {
-    AccountID string
-    Err       error
-}
-func (e *ReauthRequiredError) Error() string { return fmt.Sprintf("account %s needs re-authentication: %v", e.AccountID, e.Err) }
-func (e *ReauthRequiredError) Unwrap() error  { return e.Err }
-```
+## iCal provider (`internal/providers/ical`) — done
 
-## Google provider (`internal/providers/google`)
+- `url.go`: `NormalizeURL` (trim, webcal→https, https only), `CalendarID`,
+  `SecretKey`.
+- `parse.go`: gocal → `domain.Event`, all-day detection via `VALUE=DATE`,
+  inclusive→exclusive end conversion, cancelled events skipped.
+- `provider.go`: `New(lookupURL func(calendarID) (string, error))` — the
+  provider never holds URLs itself; the caller resolves them from the vault.
+  `SyncEvents` (conditional GET + hash no-op + full parse); `Probe` (fetch and
+  count occurrences, used to validate a URL before saving). 30s HTTP timeout,
+  64 MiB body limit.
+- Tests: fixture feed (TZID, single- and multi-day all-day, weekly RRULE with
+  EXDATE and a RECURRENCE-ID override, cancelled event), httptest server for
+  304 / no-validator hash no-op / new-day refetch / URL never in errors.
+  Also verified manually against Google's public US-holidays feed.
 
-- `oauth.go` (done): loopback OAuth flow — local redirect server, browser
-  launch, code exchange, `fetchEmail` via the userinfo endpoint for the
-  account label, token handed straight to the vault (never exposed through
-  the `CalendarProvider` interface).
-- `tokensource.go` (not yet written): wraps `oauth2.TokenSource`. On
-  `Token()` failure, checks `errors.As(err, &oauth2.RetrieveError{})` for
-  `ErrorCode == "invalid_grant"` and returns `*domain.ReauthRequiredError`
-  instead — this propagates up through `googleapi` calls via normal error
-  wrapping, so `ListCalendars`/`SyncEvents` just need one `errors.As` check
-  each. On successful refresh, persists the new token via the vault
-  (`SaveToken`).
-- `calendars.go` (M2): `ListCalendars` loops on `resp.NextPageToken`
-  internally — pagination never reaches the `CalendarProvider` interface.
-- `events.go` (M3): `SyncEvents` loops pages the same way; `Events.List` uses
-  `SingleEvents=true`, `SyncToken` when present else `TimeMin/TimeMax`; items
-  with `Status == "cancelled"` go to `DeletedIDs`, everything else to
-  `Upserted`; `NextSyncToken` is only read off the *last* page. A `410 Gone`
-  triggers a full resync (`FullResync: true`, no `DeletedIDs`).
-- `backoff.go` (M4): wraps calls needing retry (403 `rateLimitExceeded`, 429)
-  with `cenkalti/backoff/v4`, jittered exponential backoff.
+## Google OAuth (shelved) — `internal/providers/google`
+
+The loopback OAuth flow from the original plan (`oauth.go`: local redirect
+server, code exchange, `openid`+`email` scopes to read the account email,
+token saved to the vault). It no longer implements `CalendarProvider`. CLI:
+`clical auth add/list`, hidden from help. Revive only if a Workspace calendar
+has no secret iCal address; otherwise delete it. Its Google Cloud setup steps
+were in the README as of commit `4ab3788`.
 
 ## Secrets vault (`internal/secrets`) — done
 
-Disk layout under `xdg.DataHome/clical/vault/` (dir `0700`):
-```
-vault/<accountID>.age  # one age-encrypted blob per account (marshaled oauth2.Token)
-```
-One file per account — refreshing account A's token only rewrites `A.age`;
-adding account B never touches A's file or requires re-entering anything
-beyond the existing cached passphrase.
+One age-encrypted file per key under `$XDG_DATA_HOME/clical/vault/` (dir
+`0700`, files `0600`). Keys are restricted to `[A-Za-z0-9_-]` (no path
+traversal).
 
 ```go
-type Vault struct { /* dir string; recipient/identity from age.NewScryptRecipient/Identity */ }
-func Open(dir string, prompt func() (string, error)) (*Vault, error) // ErrWrongPassphrase on mismatch against an existing account file
-func (v *Vault) SaveToken(accountID string, tok *oauth2.Token) error
-func (v *Vault) LoadToken(accountID string) (*oauth2.Token, error)
-func (v *Vault) DeleteToken(accountID string) error
+func Open(dir string, prompt func() (string, error)) (*Vault, error) // ErrWrongPassphrase if it can't decrypt an existing secret
+func (v *Vault) SaveSecret(key string, data []byte) error
+func (v *Vault) LoadSecret(key string) ([]byte, error)
+func (v *Vault) DeleteSecret(key string) error
+// SaveToken/LoadToken/DeleteToken: JSON oauth2.Token wrappers, shelved path only.
 ```
 
-## Local cache (`internal/store`) — SQLite schema (accounts table done; calendars/events tables created but unused until M2/M3)
+## Local cache (`internal/store`) — SQLite
+
+Accounts and calendars CRUD done (`UpsertAccount`, `ListAccounts`,
+`GetAccount`, `UpsertCalendar` — keeps `sync_token` on rename,
+`ListCalendars` — ordered by account label then name), plus `SyncToken`,
+`ApplySync` and `EventsInRange(from, to)` (timed events overlapping the
+window, zero-length ones starting in it; all-day events overlapping the
+window's local dates).
 
 ```sql
-CREATE TABLE accounts (
-    id TEXT PRIMARY KEY, provider TEXT NOT NULL, label TEXT NOT NULL
-);
+CREATE TABLE accounts (id TEXT PRIMARY KEY, provider TEXT NOT NULL, label TEXT NOT NULL);
 CREATE TABLE calendars (
     id TEXT NOT NULL, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
     name TEXT NOT NULL, color TEXT NOT NULL,
@@ -175,8 +184,8 @@ CREATE TABLE calendars (
 CREATE TABLE events (
     id TEXT NOT NULL, calendar_id TEXT NOT NULL, account_id TEXT NOT NULL,
     title TEXT NOT NULL, all_day INTEGER NOT NULL,
-    start_utc INTEGER, end_utc INTEGER,        -- NULL if all_day
-    start_date TEXT, end_date TEXT,            -- "YYYY-MM-DD", NULL if !all_day
+    start_utc INTEGER, end_utc INTEGER,   -- NULL if all_day
+    start_date TEXT, end_date TEXT,       -- "YYYY-MM-DD", NULL if !all_day
     location TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (account_id, calendar_id, id),
     FOREIGN KEY (account_id, calendar_id) REFERENCES calendars(account_id, id) ON DELETE CASCADE
@@ -185,164 +194,147 @@ CREATE INDEX idx_events_range       ON events (calendar_id, start_utc, end_utc);
 CREATE INDEX idx_events_alldayrange ON events (calendar_id, start_date, end_date);
 ```
 
-DSN: `file:<path>?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(on)`
-(modernc.org/sqlite's DSN pragma syntax). All writes go through
-`Store.writeMu sync.Mutex` + a single transaction per sync result, so the
-delta and the sync-token update commit atomically:
+DSN (modernc.org/sqlite pragma syntax):
+`file:<path>?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(on)`.
+All writes go through `Store.writeMu` + one transaction per sync result, so
+the delta and the sync-token update commit atomically:
 
-```go
-func (s *Store) ApplySync(ctx context.Context, cal domain.Calendar, r domain.SyncResult) error {
-    s.writeMu.Lock(); defer s.writeMu.Unlock()
-    return s.withTx(ctx, func(tx *sql.Tx) error {
-        if r.FullResync {
-            /* DELETE FROM events WHERE account_id=? AND calendar_id=? */
-        } else {
-            /* DELETE ... for each r.DeletedIDs */
-        }
-        /* INSERT OR REPLACE ... for each r.Upserted */
-        /* UPDATE calendars SET sync_token=?, last_synced_at=? WHERE ... */
-        return nil
-    })
-}
-```
-(`ApplySync` itself is not yet written — lands with M3.)
+`ApplySync`: on `FullResync` delete all of the calendar's events, else
+delete `DeletedIDs`; `INSERT OR REPLACE` `Upserted`; update `sync_token` and
+`last_synced_at`. A no-op result only updates the last two.
 
-## Sync engine ↔ UI message flow (`internal/sync`, `internal/ui`) — not yet written (M5, M10)
+## Sync engine (`internal/engine`) — done; UI wiring M5/M10
+
+Named `engine`, not `sync`, to avoid clashing with the stdlib package.
+`engine.New(store, providers map[provider name]CalendarProvider)`;
+`SyncOne(ctx, acct, cal) Result` reads the calendar's token, calls the
+provider, applies the result via `ApplySync`; `SyncAll` does every calendar
+sequentially, one failure not stopping the rest. `Result{Account, Calendar,
+Changed, Events, Err}`.
+
+## Agenda layout (`internal/agenda`) — done
+
+Pure `Build(events, from CivilDate, days int, loc) []Day`: each event on every
+local day it overlaps (all-day by date range; timed by local-day overlap;
+zero-length on its start day; an event ending exactly at midnight does not
+spill into the next day). Within a day: all-day first, then by start, then
+title. Used by `clical agenda` now and by the TUI Agenda view in M5.
+
+## CLI (`cmd/clical`)
+
+- `calendars add --account --name` (hidden URL prompt, probe, save),
+  `calendars list` (no passphrase).
+- `sync`: unlocks the vault, syncs everything, prints per calendar "N events"
+  / "unchanged" / error; exits non-zero if any calendar failed.
+- `agenda [--days 14]`: plain-text upcoming events from the cache (no
+  passphrase, no network). Times render as `HH:MM–HH:MM`, with `…` where an
+  event continues from or into another day, `24:00` for a midnight end.
+  Columns padded by display width (`uniseg`) so emoji/CJK titles align.
+- `auth add/list`: shelved OAuth, hidden from help.
+
+## Sync engine ↔ UI message flow — M5/M10
 
 ```go
 type TickMsg struct{ CalendarID string }
 type SyncCompletedMsg struct{ CalendarID string; Upserted, Deleted int }
 type SyncErrorMsg struct{ CalendarID string; Err error }
-type ReauthRequiredMsg struct{ AccountID string }
+type FeedRevokedMsg struct{ CalendarID string } // M4: 401/403/404/410 from the feed
 
 func PollCmd(cal domain.Calendar, after time.Duration) tea.Cmd
-func SyncCmd(e *Engine, acct domain.Account, cal domain.Calendar) tea.Cmd // runs SyncOne, maps errors.As(*ReauthRequiredError) -> ReauthRequiredMsg
+func SyncCmd(e *engine.Engine, acct domain.Account, cal domain.Calendar) tea.Cmd
+func InitialDelay(calendarID string, interval time.Duration) time.Duration // FNV-hash phase offset
 ```
 
-Per-calendar jitter is a deterministic phase offset (FNV hash of calendar ID
-→ fraction of the interval), so restarts don't re-randomize and multiple
-calendars don't all poll in lockstep against a no-batch-API backend:
+Since every iCal poll is a full download, the default poll interval for
+iCal calendars should be longer than the original 60s — **5 minutes**,
+configurable. `Update`: `TickMsg` → `tea.Batch(SyncCmd, PollCmd)`;
+`SyncCompletedMsg` → reload the visible range from the store (skip if
+nothing changed); `FeedRevokedMsg` → flag that calendar in the sidebar and
+footer; Enter on it prompts for a new URL — no restart, other calendars keep
+syncing.
 
-```go
-func InitialDelay(calendarID string, interval time.Duration) time.Duration
-```
-
-`Update` handling: `TickMsg` → `tea.Batch(SyncCmd(...), PollCmd(...))`
-(re-arm); `SyncCompletedMsg` → issue a store-read `Cmd` to refresh the
-visible range; `ReauthRequiredMsg` → flag that account degraded, show a
-banner, a keypress triggers `AuthenticateCmd` (re-runs the loopback flow for
-just that account) — no app restart, and other accounts keep syncing
-normally.
-
-## TUI / UX design (M5–M11) — not yet written
-
-Decided in a design conversation ahead of writing any `internal/ui` code, so
-M5–M8 have a concrete target rather than just message types and file names.
+## TUI / UX design (M5–M11)
 
 **Layout**: persistent left sidebar + main pane + two-line footer
 (lazygit-style).
-- Sidebar: tree of accounts → their calendars, one color swatch + toggle per
-  calendar to show/hide it in the merged view. Collapsible while focused
-  down to a narrow strip showing only the color swatches — the legend stays
-  visible even collapsed, just without labels.
-- Main pane: exactly one of Agenda / Week / Month visible at a time (no
-  persistent mini-calendar split — kept simple, matches the
-  agenda→week→month build order).
-- Footer: top line = context-sensitive keybinding hints (changes with focus,
-  like lazygit); bottom line = current date/time, sync status ("Synced 12s
-  ago" / spinner while syncing), and the re-auth banner when an account is
-  degraded.
+- Sidebar: tree of accounts (groups) → calendars, one color swatch + toggle
+  per calendar to show/hide it in the merged view. Collapsible while focused
+  down to a narrow strip of color swatches only.
+- Main pane: exactly one of Agenda / Week / Month at a time.
+- Footer: top line = context-sensitive keybinding hints; bottom line =
+  date/time, sync status ("Synced 12s ago" / spinner), and a banner when a
+  calendar's feed is revoked.
 
-**Agenda view**: rolling window forward from today (default configurable,
-e.g. 14 days), events grouped under day headers; scrolling past the end
-extends the window via a further store query. A jump-to-date action seeks
-directly to an arbitrary day. A subtle "── now ──" marker is inserted at the
-correct position among today's events, re-rendered on a lightweight UI-only
-ticker (no network).
+**Agenda**: rolling window forward from today (default e.g. 14 days) grouped
+under day headers; scrolling past the end extends it; jump-to-date; a subtle
+"── now ──" marker among today's events, re-rendered on a UI-only ticker.
 
-**Week view**: 7 day-list columns, *not* an hourly time-grid — each column is
-that day's events in chronological order with a leading time. Avoids
-positional/overlap-layout math entirely; better suited to narrow terminal
-columns than a graphical hour-grid would be.
+**Week**: 7 day-list columns, not an hourly grid — each column is that day's
+events in order with a leading time.
 
-**Month view**: the fixed-width grid with "+N more" overflow (the hard piece,
-built last). Selecting a day and pressing Enter switches to Agenda focused on
-that day — month is primarily a navigation aid into Agenda, not a place to
-read full event details.
+**Month**: fixed-width grid with "+N more" overflow (built last). Enter on a
+day switches to Agenda focused on that day.
 
-**Event detail**: Enter on a selected event (in any view) opens a
-full-screen detail popup — title, time range, location, notes,
-calendar/account — plus a keybind to open the event in Google Calendar's web
-UI. Esc closes any popup (detail, search, help) uniformly.
+**Event detail**: Enter on an event opens a full-screen popup — title, time
+range, location, notes, calendar/account. (The original "open in Google
+Calendar web UI" action depends on the feed exposing a URL per event; drop it
+if it doesn't.) Esc closes any popup.
 
-**Colors**: calendar colors are auto-assigned from the active theme's palette
-(via go-colorful for contrast), not pulled from each calendar's own Google
-color — deliberately trading "matches your existing Google Calendar colors"
-for guaranteed cross-theme contrast/consistency.
+**Colors**: auto-assigned from the active theme's palette (go-colorful for
+contrast), not from Google's per-calendar colors — the iCal feed doesn't
+carry them reliably anyway.
 
-**Time format**: 24-hour by default; configurable to 12-hour in YAML (M9).
+**Time format**: 24-hour default, 12-hour configurable (M9).
+**Search**: "/" live-filters the current view by title/location; Enter jumps
+to the first match, Esc clears.
+**Mouse**: none in v1 (scroll wheel works via `bubbles/viewport`).
+**Help**: "?" opens a full-screen modal of all bindings (`bubbles/help`).
 
-**Search**: "/" starts a live filter of the *current* view's visible events
-by title/location match-as-you-type; Enter jumps to the first match, Esc
-clears.
-
-**Mouse**: none in v1 — keyboard-only, though scroll-wheel scrolling still
-works for free via `bubbles/viewport` with no explicit handling.
-
-**Help**: "?" opens a full-screen modal listing every keybinding grouped by
-context (`bubbles/help` in full mode).
-
-**Keymap sketch** (illustrative; `internal/ui/keymap.go` owns the exact
-bindings, all remappable later via YAML in M9):
+**Keymap sketch** (`internal/ui/keymap.go` owns exact bindings; remappable in M9):
 
 | Key(s) | Action |
 |---|---|
-| `h` / `l` (or Left/Right) | Move focus to sidebar / back to main pane |
-| `j` / `k` (or Down/Up) | Move selection within the focused pane |
-| `[` / `]` (or PgUp/PgDn) | Previous/next period (day in Agenda, week in Week, month in Month) |
-| `Tab` | Cycle main view: Agenda → Week → Month → Agenda |
-| `1` / `2` / `3` | Jump directly to Agenda / Week / Month |
-| `c` (sidebar focused) | Collapse/expand the sidebar |
-| `Space` or `Enter` (calendar row focused) | Toggle that calendar's visibility |
-| `Enter` (degraded account row focused) | Trigger re-auth for that account |
-| `Enter` (event focused, main pane) | Open event detail popup |
+| `h` / `l` (or Left/Right) | Focus sidebar / main pane |
+| `j` / `k` (or Down/Up) | Move selection in the focused pane |
+| `[` / `]` (or PgUp/PgDn) | Previous/next period (day / week / month) |
+| `Tab` | Cycle Agenda → Week → Month |
+| `1` / `2` / `3` | Jump to Agenda / Week / Month |
+| `c` (sidebar focused) | Collapse/expand sidebar |
+| `Space` or `Enter` (calendar row) | Toggle calendar visibility |
+| `Enter` (revoked calendar row) | Prompt for a new feed URL |
+| `Enter` (event, main pane) | Open event detail |
 | `t` | Jump to today |
-| `T` | Cycle theme (moved off `t`, which the original spec had, since "jump to today" is far more frequent) |
-| `/` | Live filter current view |
-| `r` | Manual sync refresh (superseded by automatic polling at M10, kept as a manual override) |
-| `?` | Full keybinding help |
+| `T` | Cycle theme |
+| `/` | Live filter |
+| `r` | Sync now |
+| `?` | Help |
 | `Esc` | Close popup/filter |
-| `q` | Quit (top level only — closes a popup instead if one is open) |
+| `q` | Quit (closes a popup instead if one is open) |
 
-## Milestones (each independently runnable/demoable)
+## Milestones
 
 | # | Deliverable | Representative files | Status |
 |---|---|---|---|
-| M0 | Domain skeleton + unit tests (CivilDate arithmetic, Event constructors), `clical --version` via kong | `internal/domain/domain.go`, `cmd/clical/main.go` | **Done** |
-| M1 | `clical auth add` runs OAuth loopback, writes token to vault, writes account row; `clical auth list` decrypts + prints | `internal/providers/google/oauth.go`, `internal/secrets/vault.go`, `internal/store/accounts.go` | Code done; live end-to-end check pending |
-| M2 | `clical calendars list` — `CalendarList.List` + pagination, persisted | `internal/providers/google/calendars.go`, `internal/store/calendars.go` | Not started |
-| M3 | `clical sync --debug` — incremental `Events.List` sync into SQLite, sync token persisted atomically | `internal/providers/google/events.go`, `internal/sync/engine.go`, `internal/store/events.go` | Not started |
-| M4 | Re-auth + backoff exercised headless (fake provider returning `ReauthRequiredError`; 403/429 retried) | `internal/providers/google/tokensource.go`, `internal/providers/google/backoff.go`, `internal/sync/engine_test.go` | Not started |
-| M5 | Bubble Tea shell: sidebar (collapsible) + main pane + two-line footer; Agenda view (rolling window, day headers, now-marker) over cached data; manual `r` refresh; event detail popup; first `teatest` golden tests | `internal/ui/app.go`, `internal/ui/sidebar.go`, `internal/ui/agenda.go`, `internal/ui/detail.go`, `internal/ui/keymap.go`, `internal/ui/footer.go` | Not started |
-| M6 | Week view: 7 day-list columns (no time-grid), reusing Agenda's per-event line rendering | `internal/ui/week.go` | Not started |
-| M7 | Month view (fixed-width grid, "+N more" overflow — hardest UI piece); Enter drills into Agenda for the selected day; shared grapheme-width/truncation helper (`uniseg`) reused by Week/Agenda's line rendering | `internal/ui/month.go`, `internal/ui/textwidth.go` | Not started |
-| M8 | Multi-account merge; per-calendar colors auto-assigned from the active theme's palette; sidebar calendar toggles; "/" live filter; "?" help modal | `internal/theme/resolve.go` (go-colorful contrast/assignment), `internal/ui/search.go`, `internal/ui/help.go` | Not started |
-| M9 | YAML config + themes, mergo defaults, fsnotify hot-reload (config/theme only — never vault/account list) | `internal/config/config.go`, `internal/theme/theme.go` | Not started |
-| M10 | In-process background polling replaces M5's manual refresh, jittered per calendar | `internal/sync/scheduler.go`, `internal/sync/jitter.go` | Not started |
-| M11 | In-TUI re-auth flow (degraded account shown in sidebar + footer banner, Enter on that row re-runs the loopback flow for just that account), `--logs` tail, cross-compile check | `internal/ui/reauth.go`, `cmd/clical/logs.go` | Not started |
+| M0 | Domain types + tests, `clical --version` | `internal/domain/` | Done |
+| M1 | Vault (generic secrets), account/calendar store | `internal/secrets/vault.go`, `internal/store/` | Done |
+| M2 | iCal provider; `calendars add` (hidden URL prompt, probe, save) / `calendars list` | `internal/providers/ical/`, `cmd/clical/calendars.go` | Done |
+| M3 | `clical sync` into SQLite via `ApplySync`; `EventsInRange`; plain-text `clical agenda` | `internal/store/events.go`, `internal/engine/`, `internal/agenda/`, `cmd/clical/sync.go`, `cmd/clical/agenda.go` | Done |
+| M4 | Feed errors: typed revoked/deleted error for 401/403/404/410, backoff on 429/5xx, `calendars remove`, `calendars set-url`; confirm-passphrase prompt when creating a new vault | `internal/providers/ical/`, `internal/engine/`, `cmd/clical/` | |
+| M5 | Bubble Tea shell: sidebar + main pane + footer; Agenda; event detail; `teatest` goldens | `internal/ui/app.go`, `sidebar.go`, `agenda.go`, `detail.go`, `keymap.go`, `footer.go` | |
+| M6 | Week view (day-list columns) | `internal/ui/week.go` | |
+| M7 | Month view ("+N more", Enter → Agenda); shared `uniseg` width/truncation helper | `internal/ui/month.go`, `internal/ui/textwidth.go` | |
+| M8 | Multi-account merge, theme-assigned colors, calendar toggles, "/" filter, "?" help | `internal/theme/resolve.go`, `internal/ui/search.go`, `internal/ui/help.go` | |
+| M9 | YAML config + themes, mergo defaults, fsnotify hot-reload (config/theme only) | `internal/config/`, `internal/theme/` | |
+| M10 | In-process polling (default 5 min for iCal), jittered per calendar | `internal/engine/scheduler.go`, `internal/engine/jitter.go` | |
+| M11 | Revoked-feed flow in the TUI, `--logs` tail, cross-compile check | `internal/ui/revoked.go`, `cmd/clical/logs.go` | |
 
 ## Verification
 
-- `go build ./...` and `go vet ./...` clean after every milestone.
-- `go test ./...`: unit tests for `domain` (CivilDate, Event accessors),
-  `store` (ApplySync atomicity, FullResync replace-all path), `sync` (jitter
-  determinism, reauth error mapping), and `teatest` golden-file snapshots for
-  each UI view starting at M5.
-- Manual end-to-end check at M1–M4 via the CLI subcommands against a real
-  Google account (with a self-registered Desktop OAuth client) before any UI
-  code exists, so provider/auth/sync issues surface before UI work masks
-  them.
-- Cross-compile check (already done once, during M0/M1 — re-run after
-  significant changes, definitely before M11 wraps up):
-  `GOOS=darwin GOARCH=arm64 go build ./...` and the same for darwin/amd64,
-  linux/amd64, linux/arm64.
+- `go build ./...`, `go vet ./...`, `go test ./...` clean after every
+  milestone; `gofmt -l .` empty.
+- Unit tests per package (domain, vault, store, iCal parse/sync); `teatest`
+  golden snapshots per view from M5.
+- Manual check of each CLI milestone against real feeds (your personal and
+  work calendars) before building UI on top.
+- Cross-compile: `GOOS={darwin,linux} GOARCH={arm64,amd64} go build ./...`
+  (last passed at M3).

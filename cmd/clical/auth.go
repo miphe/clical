@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"os"
 
-	"golang.org/x/term"
-
 	"github.com/miphe/clical/internal/providers/google"
 	"github.com/miphe/clical/internal/secrets"
 	"github.com/miphe/clical/internal/store"
 )
 
-// AuthCmd groups account-management subcommands.
+// AuthCmd is the shelved Google OAuth flow, hidden from help. It's kept as the
+// fallback for calendars whose Workspace admin has disabled secret iCal URLs.
 type AuthCmd struct {
 	Add  AuthAddCmd  `cmd:"" help:"Authenticate a new Google account."`
 	List AuthListCmd `cmd:"" help:"List connected accounts."`
@@ -26,7 +25,7 @@ type AuthAddCmd struct {
 }
 
 func (c *AuthAddCmd) Run() error {
-	passphrase, err := promptPassphrase("Vault passphrase: ")
+	passphrase, err := promptHidden("Vault passphrase: ")
 	if err != nil {
 		return err
 	}
@@ -79,7 +78,7 @@ func (c *AuthListCmd) Run() error {
 		return nil
 	}
 
-	passphrase, err := promptPassphrase("Vault passphrase: ")
+	passphrase, err := promptHidden("Vault passphrase: ")
 	if err != nil {
 		return err
 	}
@@ -97,18 +96,4 @@ func (c *AuthListCmd) Run() error {
 		fmt.Printf("%s\t%s\ttoken expires %s\n", acct.Provider, acct.Label, tok.Expiry.Local())
 	}
 	return nil
-}
-
-func fixedPassphrase(passphrase string) func() (string, error) {
-	return func() (string, error) { return passphrase, nil }
-}
-
-func promptPassphrase(prompt string) (string, error) {
-	fmt.Fprint(os.Stderr, prompt)
-	b, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Fprintln(os.Stderr)
-	if err != nil {
-		return "", fmt.Errorf("read passphrase: %w", err)
-	}
-	return string(b), nil
 }

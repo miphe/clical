@@ -8,11 +8,13 @@ import (
 // version is overridden at build time via -ldflags "-X main.version=...".
 var version = "0.1.0-dev"
 
-// CLI is the root command structure. Subcommands (auth, calendars, sync, ...)
-// are added as Phase 1 progresses.
+// CLI is the root command structure.
 type CLI struct {
-	Version kong.VersionFlag `help:"Print version and exit."`
-	Auth    AuthCmd          `cmd:"" help:"Manage connected accounts."`
+	Version   kong.VersionFlag `help:"Print version and exit."`
+	Agenda    AgendaCmd        `cmd:"" help:"Print upcoming events from the local cache."`
+	Sync      SyncCmd          `cmd:"" help:"Fetch the latest events for every calendar."`
+	Calendars CalendarsCmd     `cmd:"" help:"Manage calendars."`
+	Auth      AuthCmd          `cmd:"" hidden:"" help:"Google OAuth accounts (fallback when a secret iCal URL isn't available)."`
 }
 
 func main() {

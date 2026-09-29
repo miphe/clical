@@ -84,3 +84,36 @@ func TestOpenEmptyVaultAcceptsAnyPassphrase(t *testing.T) {
 		t.Errorf("Open() on empty vault error = %v, want nil", err)
 	}
 }
+
+func TestSaveLoadSecretRoundTrip(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "vault")
+	v, err := Open(dir, fixedPrompt("passphrase"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	want := "https://calendar.google.com/calendar/ical/x/private-abc/basic.ics"
+	if err := v.SaveSecret("ical-url-abc123", []byte(want)); err != nil {
+		t.Fatalf("SaveSecret() error = %v", err)
+	}
+	got, err := v.LoadSecret("ical-url-abc123")
+	if err != nil {
+		t.Fatalf("LoadSecret() error = %v", err)
+	}
+	if string(got) != want {
+		t.Errorf("LoadSecret() = %q, want %q", got, want)
+	}
+}
+
+func TestSecretKeyRejectsPathTraversal(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "vault")
+	v, err := Open(dir, fixedPrompt("passphrase"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	for _, key := range []string{"../escape", "a/b", "", "a.b"} {
+		if err := v.SaveSecret(key, []byte("x")); err == nil {
+			t.Errorf("SaveSecret(%q) error = nil, want invalid key", key)
+		}
+	}
+}

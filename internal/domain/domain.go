@@ -73,6 +73,20 @@ func (d CivilDate) AddDays(n int) CivilDate {
 	return CivilDateFromTime(t)
 }
 
+// ParseCivilDate parses a "YYYY-MM-DD" date as produced by String.
+func ParseCivilDate(s string) (CivilDate, error) {
+	t, err := time.Parse(time.DateOnly, s)
+	if err != nil {
+		return CivilDate{}, fmt.Errorf("domain: parse date %q: %w", s, err)
+	}
+	return CivilDateFromTime(t), nil
+}
+
+// In returns midnight at the start of d in loc.
+func (d CivilDate) In(loc *time.Location) time.Time {
+	return time.Date(d.Year, time.Month(d.Month), d.Day, 0, 0, 0, 0, loc)
+}
+
 // String renders d as "YYYY-MM-DD".
 func (d CivilDate) String() string {
 	return fmt.Sprintf("%04d-%02d-%02d", d.Year, d.Month, d.Day)
@@ -154,11 +168,12 @@ type SyncResult struct {
 	FullResync bool
 }
 
-// CalendarProvider is the seam every calendar backend (Google, CalDAV, ...)
-// implements. Everything above this layer speaks only in domain types.
+// CalendarProvider is the seam every calendar backend (iCal feeds, Google,
+// CalDAV, ...) implements. Everything above this layer speaks only in domain
+// types. Onboarding (logging in, discovering or adding calendars) differs too
+// much between backends to share an interface, so it lives in each
+// provider's own package and CLI flow.
 type CalendarProvider interface {
-	Authenticate(ctx context.Context) (Account, error)
-	ListCalendars(ctx context.Context, acct Account) ([]Calendar, error)
 	// SyncEvents fetches a delta for cal. token is the opaque sync cursor
 	// persisted from the previous call's SyncResult.NextToken; "" means
 	// full sync.

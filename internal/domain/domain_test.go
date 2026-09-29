@@ -130,3 +130,25 @@ func TestReauthRequiredErrorUnwrap(t *testing.T) {
 		t.Errorf("AccountID = %q, want %q", target.AccountID, "acct1")
 	}
 }
+
+func TestParseCivilDateRoundTrip(t *testing.T) {
+	d := NewCivilDate(2026, 2, 3)
+	got, err := ParseCivilDate(d.String())
+	if err != nil {
+		t.Fatalf("ParseCivilDate() error = %v", err)
+	}
+	if got != d {
+		t.Errorf("ParseCivilDate(%q) = %s, want %s", d.String(), got, d)
+	}
+	if _, err := ParseCivilDate("2026-13-01"); err == nil {
+		t.Error("ParseCivilDate(invalid) error = nil, want error")
+	}
+}
+
+func TestCivilDateIn(t *testing.T) {
+	loc := time.FixedZone("test", 3*3600)
+	got := NewCivilDate(2026, 9, 29).In(loc)
+	if want := time.Date(2026, 9, 29, 0, 0, 0, 0, loc); !got.Equal(want) {
+		t.Errorf("In() = %v, want %v", got, want)
+	}
+}

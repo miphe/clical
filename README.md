@@ -1,70 +1,73 @@
 # clical
 
-Terminal calendar app for macOS and Arch Linux, read-only against Google Calendar in v1.
-Elm-architecture TUI (Bubble Tea), pure-Go SQLite cache, age-encrypted OAuth tokens.
-Architected so other providers (CalDAV, Microsoft Graph) drop in later behind
-`internal/domain.CalendarProvider`.
+Terminal calendar app for macOS and Arch Linux. Read-only in v1: it pulls your
+calendars (e.g. Google Calendar, personal and work) from their secret iCal
+feeds and shows them merged in one agenda/week/month view. Elm-architecture TUI
+(Bubble Tea), pure-Go SQLite cache, age-encrypted secrets.
 
-## Locked decisions
+## Key decisions
 
-- Go 1.25+, single static binary, darwin+linux only (never Windows).
+Full rationale in [`docs/PLAN.md`](docs/PLAN.md).
+
+- Go, single static binary, darwin+linux only (never Windows).
 - Elm architecture: immutable model, pure `Update`, all I/O as `tea.Cmd`.
-- Background sync is in-process polling (`tea.Tick`) while the TUI is running —
-  not a system daemon/service.
-- Secrets: OAuth tokens in an age-encrypted file (one per account), keyed by a
-  passphrase prompted at launch and held in memory for the session. Uses age's
-  native scrypt-based passphrase KDF directly — no OS keychain, no separate
-  argon2 layer (redundant on top of age's own KDF).
-- Config: YAML, hot-reloaded via fsnotify. Themes are YAML too, embedded defaults
-  plus user overrides in `~/.config/clical/themes/`.
-- All-day events are stored as a civil date (year/month/day, no timezone), not
-  as a UTC `time.Time`, to avoid the classic date-shift bug.
-- OAuth: users bring their own Google Cloud OAuth client (Desktop type) and
-  supply client ID/secret via config, matching `gcalcli`'s approach. This avoids
-  Google's sensitive-scope verification process; see "Setting up your Google
-  OAuth client" below.
+- Integration: iCal secret URLs — no Google Cloud project or OAuth. Google
+  OAuth code is kept but shelved as a fallback.
+- Secrets (feed URLs) live only in an age-encrypted vault, keyed by a
+  passphrase held in memory for the session. No OS keychain.
+- Background sync is in-process polling while the TUI runs — no daemon.
+- All-day events are civil dates (no timezone), never UTC timestamps.
+- Config and themes: YAML, hot-reloaded.
 
-## Setting up your Google OAuth client
+## Adding a calendar
 
-`clical` doesn't ship a shared Google API client — every user creates their own,
-free, in a couple of minutes:
+Until there's a release, run clical from the repo with `go run ./cmd/clical`
+(or `go install ./cmd/clical` to get a `clical` binary on your `PATH`).
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/), create
-   a project (or reuse one), and enable the **Google Calendar API** for it.
-2. Under **APIs & Services → OAuth consent screen**, configure it for
-   **External** users and add your own Google account as a test user. You can
-   leave the app in "Testing" mode — Phase 1 only ever needs one or a handful
-   of accounts.
-3. Under **APIs & Services → Credentials**, create an **OAuth client ID** of
-   type **Desktop app**. Note the generated client ID and client secret.
-4. Run `clical auth add --client-id=<id> --client-secret=<secret>` and follow
-   the printed URL to grant access.
+For each Google calendar you want in clical:
 
-Note: while the consent screen is in "Testing" mode, Google expires refresh
-tokens after 7 days, so you'll need to re-run `auth add` periodically. Moving
-the consent screen to "Production" removes this limit but is not required
-otherwise.
+1. Open [Google Calendar](https://calendar.google.com/) → **Settings** → pick
+   the calendar under "Settings for my calendars" → **Integrate calendar**.
+2. Copy **Secret address in iCal format**. Treat it like a password: anyone
+   with it can read the calendar. (If it's missing on a work account, your
+   Workspace admin has disabled it.)
+3. Run:
+
+       clical calendars add --account Work --name "Team"
+
+   Paste the URL at the hidden prompt, then enter your vault passphrase (the
+   first time, this sets it — remember it). clical fetches the feed once to
+   check it before saving.
+4. `clical calendars list` shows what's been added.
+
+## Syncing and viewing
+
+    clical sync            # fetch the latest events (asks for the passphrase)
+    clical agenda          # print the next 14 days from the local cache
+    clical agenda --days 30
+
+The full-screen TUI isn't built yet; `agenda` is a plain-text stand-in.
+
+If a secret address leaks, use "Reset" next to it in Google Calendar and add
+the calendar again with the new URL.
 
 ## Layout
 
     cmd/clical/                  entry point, CLI wiring (kong)
     internal/domain/             provider-agnostic models + CalendarProvider interface
-    internal/providers/google/   Google Calendar API implementation
+    internal/providers/ical/     iCal feed provider (primary)
+    internal/providers/google/   Google OAuth flow (shelved fallback)
     internal/store/              SQLite cache + sync-token persistence
-    internal/sync/               scheduler, delta application, backoff
-    internal/secrets/            age-encrypted token vault + argon2id passphrase
+    internal/engine/             sync engine: provider → store
+    internal/agenda/             pure day-grouping of events (CLI + TUI)
+    internal/secrets/            age-encrypted secret vault
     internal/config/             YAML load/merge/watch
     internal/theme/              theme structs, embedded defaults, resolver
     internal/ui/                 Bubble Tea models: app, agenda, week, month; keymap; help
 
 ## Status
 
-See [`docs/PLAN.md`](docs/PLAN.md) for the full design/implementation plan —
-domain model, provider/vault/store design, TUI/UX decisions (layout, views,
-keymap), and a milestone-by-milestone status table. Keep that file, not just
-chat history, up to date as decisions change — it's what makes this project
-resumable in a fresh session.
-
-Short version: M0 (domain types) done; M1 (OAuth loopback, vault, account
-store) code done, live end-to-end check pending. Everything else — calendar
-listing, event sync, the TUI, config/themes, background polling — not started.
+M0–M3 done: domain types, vault, store, iCal provider, `calendars add`/`list`,
+`sync`, and a plain-text `agenda`. Next: feed error handling (M4), then the
+TUI. Milestone table in
+[`docs/PLAN.md`](docs/PLAN.md).

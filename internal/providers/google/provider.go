@@ -1,15 +1,13 @@
-// Package google implements domain.CalendarProvider against the Google
-// Calendar API.
+// Package google holds the Google OAuth onboarding flow. It's shelved while
+// iCal secret URLs (internal/providers/ical) are the primary integration, and
+// is kept only as the fallback for calendars whose Workspace admin has
+// disabled secret addresses. It does not implement domain.CalendarProvider.
 package google
 
 import (
-	"context"
-	"errors"
-
 	"golang.org/x/oauth2"
 	oauth2google "golang.org/x/oauth2/google"
 
-	"github.com/miphe/clical/internal/domain"
 	"github.com/miphe/clical/internal/secrets"
 )
 
@@ -25,10 +23,9 @@ type OAuthConfig struct {
 	ClientSecret string
 }
 
-// Provider implements domain.CalendarProvider against the Google Calendar
-// API for a single OAuth client configuration. Tokens for authenticated
-// accounts are persisted directly to vault; the CalendarProvider interface
-// never exposes a raw token to its caller.
+// Provider runs Google OAuth for a single client configuration. Tokens for
+// authenticated accounts are persisted directly to vault and never returned
+// to the caller.
 type Provider struct {
 	cfg   OAuthConfig
 	vault *secrets.Vault
@@ -38,8 +35,6 @@ type Provider struct {
 	promptURL   func(url string)
 	openBrowser func(url string) error
 }
-
-var _ domain.CalendarProvider = (*Provider)(nil)
 
 // New builds a Provider. vault is used to persist tokens obtained during
 // Authenticate and to refresh tokens transparently during later calls.
@@ -60,14 +55,4 @@ func (p *Provider) oauth2Config(redirectURL string) *oauth2.Config {
 		RedirectURL:  redirectURL,
 		Scopes:       []string{ReadOnlyScope, "openid", "email"},
 	}
-}
-
-// ListCalendars is implemented in calendars.go, added in milestone M2.
-func (p *Provider) ListCalendars(ctx context.Context, acct domain.Account) ([]domain.Calendar, error) {
-	return nil, errors.New("google: ListCalendars not implemented yet")
-}
-
-// SyncEvents is implemented in events.go, added in milestone M3.
-func (p *Provider) SyncEvents(ctx context.Context, cal domain.Calendar, token string) (domain.SyncResult, error) {
-	return domain.SyncResult{}, errors.New("google: SyncEvents not implemented yet")
 }
