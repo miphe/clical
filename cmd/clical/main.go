@@ -11,6 +11,7 @@ var version = "0.1.0-dev"
 // CLI is the root command structure.
 type CLI struct {
 	Version   kong.VersionFlag `help:"Print version and exit."`
+	TUI       TUICmd           `cmd:"" name:"open" default:"1" help:"Open the calendar (the default when no command is given)."`
 	Agenda    AgendaCmd        `cmd:"" help:"Print upcoming events from the local cache."`
 	Sync      SyncCmd          `cmd:"" help:"Fetch the latest events for every calendar."`
 	Calendars CalendarsCmd     `cmd:"" help:"Manage calendars."`

@@ -65,7 +65,7 @@ func (c *AgendaCmd) Run() error {
 			sec.header += " (today)"
 		}
 		for _, it := range day.Items {
-			r := row{timeLabel(day.Date, it, loc), it.Event.Title, labels[it.Event.CalendarID]}
+			r := row{it.TimeLabel(day.Date, loc), it.Event.Title, labels[it.Event.CalendarID]}
 			titleWidth = max(titleWidth, uniseg.StringWidth(r.title))
 			sec.rows = append(sec.rows, r)
 		}
@@ -90,31 +90,6 @@ func (c *AgendaCmd) Run() error {
 // padRight pads s with spaces to width terminal cells.
 func padRight(s string, width int) string {
 	return s + strings.Repeat(" ", max(0, width-uniseg.StringWidth(s)))
-}
-
-// timeLabel renders an item's time as seen on one day: "all day", or
-// "HH:MM–HH:MM" with "…" where the event continues from or into another day.
-func timeLabel(date domain.CivilDate, it agenda.Item, loc *time.Location) string {
-	if it.Event.AllDay {
-		return "all day"
-	}
-	dayStart, dayEnd := date.In(loc), date.AddDays(1).In(loc)
-
-	start := "…"
-	if !it.Start.Before(dayStart) {
-		start = it.Start.Format("15:04")
-	}
-	end := "…"
-	switch {
-	case it.End.Equal(dayEnd):
-		end = "24:00"
-	case !it.End.After(dayEnd):
-		end = it.End.Format("15:04")
-	}
-	if it.Start.Equal(it.End) {
-		return start
-	}
-	return start + "–" + end
 }
 
 // calendarLabels maps calendar ID to "Account · Calendar".

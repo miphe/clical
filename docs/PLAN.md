@@ -29,7 +29,8 @@ multi-account merge → config/themes → in-process background polling.
 | M2 | iCal provider + `calendars add` / `calendars list` | Done — live-checked with a real secret URL |
 | M3 | `clical sync` into SQLite + plain-text `clical agenda` | Done |
 | M4 | Feed errors, backoff, `calendars remove`/`set-url`, new-vault passphrase confirmation | Done |
-| M5–M11 | TUI, config/themes, polling | Not started |
+| M5 | TUI shell, Agenda view, event detail, calendar toggles | Done |
+| M6–M11 | Week/Month views, help, filter, config/themes, polling | Not started |
 
 Deferred (2026-09-29): the **work** (Google Workspace) calendar. Focus is the
 personal calendar for now. Whether the work calendar exposes a secret iCal
@@ -280,7 +281,64 @@ nothing changed); `CalendarUnavailableMsg` → flag that calendar in the sidebar
 footer; Enter on it prompts for a new URL — no restart, other calendars keep
 syncing.
 
-## TUI / UX design (M5–M11)
+## TUI (`internal/ui`) — M5 done
+
+`clical` with no command opens it (kong default command `open`). The vault is
+unlocked with a plain prompt *before* the TUI takes the screen; the passphrase
+then lives in memory for the session. No calendars → a hint instead of an
+empty screen. One sync runs at startup, `r` syncs again; the footer shows
+"Syncing…", "Synced HH:MM", or the first failure (a dead feed reads
+"Personal · Main: feed URL no longer works").
+
+Implementation decisions:
+- **Bubble Tea v2** (`charm.land/bubbletea/v2` v2.0.10, `lipgloss/v2`,
+  `bubbles/v2`) — the current stable line; the spec predates it. v2's `View()`
+  returns `tea.View` (alt screen and window title are fields on it) and keys
+  arrive as `KeyPressMsg`.
+- **Pure Update, I/O via `ui.Source`** (`Calendars`, `Events(from, to)`,
+  `Sync`), called only from `tea.Cmd`s. `cmd/clical/tui.go` adapts the store
+  and engine to it. The clock is model state advanced by a 30s tick, so tests
+  are deterministic.
+- **Golden tests call `View()` directly** after feeding messages to `Update`,
+  instead of `teatest`: the Elm split makes the program runtime unnecessary
+  for snapshots, and it avoids timing flakiness. Goldens (`testdata/*.golden`,
+  ANSI stripped, refresh with `go test ./internal/ui -update`) cover the agenda
+  at 100×24 and 56×16, the focused and collapsed sidebar, and the detail view.
+  A separate test asserts every line is exactly the window width.
+- **Rows** (`rows.go`, pure): *every* day in the window gets a header, then
+  its events or a selectable "nothing scheduled" line; today also gets a
+  `── now HH:MM ──` marker before its first event starting after now. The
+  selection is keyed by date+event ID (empty ID for an empty day), so it
+  survives reloads.
+- **Current day** = the selected row's day. Its header is marked `▸` and
+  underlined; today keeps its own blue "· today" label so the two stay
+  distinguishable. Default selection: today's first event after now, else
+  today's last row (so late in the evening you stay on today).
+- **Day navigation**: `]`/`[` select the first row of the day after/before the
+  *current day* — not the agenda's start, which was the M5 first-cut bug
+  (after scrolling to Thursday, `]` jumped back to Wednesday, and empty days
+  were invisible so steps looked like no-ops). Stepping past the loaded
+  window's start moves the start back a day; past its end loads 30 more days;
+  either way the target day is selected when the load lands. `t` reloads from
+  today. Rolling window: 30 days, `j` past the last row loads 30 more. Loads
+  carry their window, so a stale result is dropped.
+- **Calendar toggles** (planned for M8) landed now: without them the sidebar
+  had nothing to do. Hidden calendars show `○` and dimmed; their events are
+  filtered in `rebuild`, not re-queried.
+- **Styling** uses the terminal's 16-color palette so it follows the user's
+  light/dark terminal theme until real themes land (M9). Selected row:
+  reverse video (underline while the sidebar has focus); ended events dimmed.
+  Calendar colors cycle blue, green, magenta, yellow, cyan, red by sidebar
+  order.
+- **Widths**: `x/ansi` truncation/width everywhere (grapheme-aware), labels in
+  a fixed column sized to the longest label (max 28), label column dropped
+  under 60 columns, sidebar starts collapsed under 70 columns.
+- **Event detail**: full-screen box — title, date/time with duration,
+  calendar, location, wrapped notes; `esc`/`q` close. The "open in Google
+  Calendar" action is dropped: the iCal feed carries no per-event link.
+- `agenda.Item.TimeLabel` is shared by the TUI and `clical agenda`.
+
+## TUI / UX design (M6–M11)
 
 **Layout**: persistent left sidebar + main pane + two-line footer
 (lazygit-style).
@@ -321,9 +379,10 @@ to the first match, Esc clears.
 
 | Key(s) | Action |
 |---|---|
-| `h` / `l` (or Left/Right) | Focus sidebar / main pane |
+| `h` / `l` (or Left/Right) | Focus sidebar / main pane (done) |
+| `g` / `G` (or Home/End) | First / last event (done) |
 | `j` / `k` (or Down/Up) | Move selection in the focused pane |
-| `[` / `]` (or PgUp/PgDn) | Previous/next period (day / week / month) |
+| `[` / `]` (or PgUp/PgDn) | Previous/next period (Agenda: day before/after the current day — done) |
 | `Tab` | Cycle Agenda → Week → Month |
 | `1` / `2` / `3` | Jump to Agenda / Week / Month |
 | `c` (sidebar focused) | Collapse/expand sidebar |
@@ -347,10 +406,10 @@ to the first match, Esc clears.
 | M2 | iCal provider; `calendars add` (hidden URL prompt, probe, save) / `calendars list` | `internal/providers/ical/`, `cmd/clical/calendars.go` | Done |
 | M3 | `clical sync` into SQLite via `ApplySync`; `EventsInRange`; plain-text `clical agenda` | `internal/store/events.go`, `internal/engine/`, `internal/agenda/`, `cmd/clical/sync.go`, `cmd/clical/agenda.go` | Done |
 | M4 | Feed errors: `CalendarUnavailableError` for 401/403/404/410, backoff on 429/5xx/network, `calendars remove`, `calendars set-url`; confirm-passphrase prompt when creating a new vault | `internal/domain/errors.go`, `internal/providers/ical/provider.go`, `internal/store/calendars.go`, `cmd/clical/calendars.go`, `cmd/clical/prompt.go` | Done |
-| M5 | Bubble Tea shell: sidebar + main pane + footer; Agenda; event detail; `teatest` goldens | `internal/ui/app.go`, `sidebar.go`, `agenda.go`, `detail.go`, `keymap.go`, `footer.go` | |
+| M5 | Bubble Tea shell: sidebar + main pane + footer; Agenda; event detail; calendar toggles; golden snapshots | `internal/ui/model.go`, `view.go`, `rows.go`, `keymap.go`, `styles.go`, `cmd/clical/tui.go` | Done |
 | M6 | Week view (day-list columns) | `internal/ui/week.go` | |
 | M7 | Month view ("+N more", Enter → Agenda); shared `uniseg` width/truncation helper | `internal/ui/month.go`, `internal/ui/textwidth.go` | |
-| M8 | Multi-account merge, theme-assigned colors, calendar toggles, "/" filter, "?" help | `internal/theme/resolve.go`, `internal/ui/search.go`, `internal/ui/help.go` | |
+| M8 | Theme-assigned colors, "/" filter, "?" help (multi-account merge and toggles already work) | `internal/theme/resolve.go`, `internal/ui/search.go`, `internal/ui/help.go` | |
 | M9 | YAML config + themes, mergo defaults, fsnotify hot-reload (config/theme only) | `internal/config/`, `internal/theme/` | |
 | M10 | In-process polling (default 5 min for iCal), jittered per calendar | `internal/engine/scheduler.go`, `internal/engine/jitter.go` | |
 | M11 | Revoked-feed flow in the TUI, `--logs` tail, cross-compile check | `internal/ui/revoked.go`, `cmd/clical/logs.go` | |
@@ -359,9 +418,14 @@ to the first match, Esc clears.
 
 - `go build ./...`, `go vet ./...`, `go test ./...` clean after every
   milestone; `gofmt -l .` empty.
-- Unit tests per package (domain, vault, store, iCal parse/sync); `teatest`
-  golden snapshots per view from M5.
+- Unit tests per package (domain, vault, store, iCal parse/sync, engine,
+  agenda, CLI helpers); UI golden snapshots of `View()` plus Update-driven
+  behaviour tests.
+- Drive the real binary in a pty with `expect` (isolated `XDG_DATA_HOME`,
+  Google's public holidays feed) for anything touching prompts or the TUI —
+  macOS `script` sends EOF before line-based reads, so it can't test y/N
+  prompts.
 - Manual check of each CLI milestone against real feeds (your personal and
   work calendars) before building UI on top.
 - Cross-compile: `GOOS={darwin,linux} GOARCH={arm64,amd64} go build ./...`
-  (last passed at M4).
+  (last passed at M5).

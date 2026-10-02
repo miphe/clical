@@ -40,13 +40,28 @@ For each Google calendar you want in clical:
    check it before saving.
 4. `clical calendars list` shows what's been added.
 
-## Syncing and viewing
+## Using it
 
-    clical sync            # fetch the latest events (asks for the passphrase)
+    clical                 # open the calendar (asks for the passphrase, then syncs)
+
+| Key | Action |
+|---|---|
+| `j` / `k`, arrows | Move between events |
+| `g` / `G` | First / last event |
+| `enter` | Event details (`esc` or `q` to close) |
+| `[` / `]` | Previous / next day (the current day is marked ▸) |
+| `t` | Back to today |
+| `r` | Sync now |
+| `h` / `l` | Focus the calendar list / the agenda |
+| `space` (calendar list) | Show or hide a calendar |
+| `c` (calendar list) | Collapse or expand the calendar list |
+| `q` | Quit |
+
+Without the full screen:
+
+    clical sync            # fetch the latest events
     clical agenda          # print the next 14 days from the local cache
     clical agenda --days 30
-
-The full-screen TUI isn't built yet; `agenda` is a plain-text stand-in.
 
 The first time, clical creates the vault and asks for a new passphrase twice.
 It can't be recovered if forgotten; the fix is to delete
@@ -75,11 +90,11 @@ address leaks, use "Reset" next to it in Google Calendar, then
     internal/secrets/            age-encrypted secret vault
     internal/config/             YAML load/merge/watch
     internal/theme/              theme structs, embedded defaults, resolver
-    internal/ui/                 Bubble Tea models: app, agenda, week, month; keymap; help
+    internal/ui/                 Bubble Tea v2 TUI: model, view, agenda rows, keymap
 
 ## Status
 
-M0–M4 done: domain types, vault, store, iCal provider with retries and
-revoked-feed detection, `calendars add`/`list`/`remove`/`set-url`, `sync`, and
-a plain-text `agenda`. Next: the TUI (M5). Milestone table in
+M0–M5 done: iCal provider with retries and dead-feed detection, calendar
+management, `sync`, plain-text `agenda`, and the full-screen TUI with the
+Agenda view, event details and calendar toggles. Next: the Week view (M6). Milestone table in
 [`docs/PLAN.md`](docs/PLAN.md).

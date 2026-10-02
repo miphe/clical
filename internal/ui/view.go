@@ -1,0 +1,368 @@
+package ui
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/miphe/clical/internal/domain"
+)
+
+const (
+	sidebarWidth          = 24
+	collapsedSidebarWidth = 3
+	timeColumn            = 11 // display width of "00:00–00:00"
+	// itemIndent puts event bullets one column in from day-header text, which
+	// sits after a two-column gutter holding the current-day marker.
+	itemIndent          = "   "
+	minWidth, minHeight = 30, 6
+)
+
+// View renders the whole screen.
+func (m Model) View() tea.View {
+	v := tea.NewView(m.render())
+	v.AltScreen = true
+	v.WindowTitle = "clical"
+	return v
+}
+
+func (m Model) render() string {
+	if m.width == 0 {
+		return ""
+	}
+	if m.width < minWidth || m.height < minHeight {
+		return "Terminal too small for clical."
+	}
+
+	bodyH := m.paneHeight()
+	var body []string
+	if m.detail != nil {
+		body = m.renderDetail(m.width, bodyH)
+	} else {
+		side := m.renderSidebar(bodyH)
+		sideW := lipgloss.Width(side[0])
+		main := m.renderAgenda(m.width-sideW, bodyH)
+		body = make([]string, bodyH)
+		for i := range body {
+			body[i] = side[i] + main[i]
+		}
+	}
+
+	return strings.Join(append(body, m.renderFooter()...), "\n")
+}
+
+// fit truncates or pads s to exactly width terminal cells.
+func fit(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	s = ansi.Truncate(s, width, "…")
+	return s + strings.Repeat(" ", width-ansi.StringWidth(s))
+}
+
+func padLines(lines []string, height, width int) []string {
+	for len(lines) < height {
+		lines = append(lines, strings.Repeat(" ", width))
+	}
+	return lines[:height]
+}
+
+// Sidebar.
+
+func (m Model) renderSidebar(height int) []string {
+	width := sidebarWidth
+	if m.sidebarCollapsed {
+		width = collapsedSidebarWidth
+	}
+	focused := m.focus == focusSidebar
+
+	var lines []string
+	if !m.sidebarCollapsed {
+		header := boldStyle
+		if focused {
+			header = todayStyle
+		}
+		lines = append(lines, fit(header.Render("Calendars"), width))
+	}
+
+	lastAccount := ""
+	for i, cr := range m.calendars {
+		if !m.sidebarCollapsed && cr.Account.ID != lastAccount {
+			lines = append(lines, fit(dimStyle.Render(cr.Account.Label), width))
+			lastAccount = cr.Account.ID
+		}
+		swatch, name := "●", cr.Calendar.Name
+		if m.hidden[cr.Calendar.ID] {
+			swatch = "○"
+		}
+		text := " " + swatch + " " + name
+		if m.sidebarCollapsed {
+			text = " " + swatch + " "
+		}
+
+		var line string
+		switch {
+		case focused && i == m.sidebarCursor:
+			line = selectedStyle.Render(fit(text, width))
+		case m.hidden[cr.Calendar.ID]:
+			line = dimStyle.Render(fit(text, width))
+		default:
+			sw := lipgloss.NewStyle().Foreground(calendarColor(m.colors[cr.Calendar.ID])).Render(swatch)
+			line = fit(strings.Replace(text, swatch, sw, 1), width)
+		}
+		lines = append(lines, line)
+	}
+
+	lines = padLines(lines, height, width)
+	for i := range lines {
+		lines[i] += borderStyle.Render("│")
+	}
+	return lines
+}
+
+// Agenda.
+
+func (m Model) renderAgenda(width, height int) []string {
+	// One column of breathing room after the sidebar border.
+	inner := width - 1
+	var lines []string
+	switch {
+	case m.loadErr != nil && len(m.rows) == 0:
+		lines = []string{errorStyle.Render("Can't read the local cache: " + m.loadErr.Error())}
+	case len(m.rows) == 0 && m.loading:
+		lines = []string{dimStyle.Render("Loading…")}
+	case len(m.rows) == 0:
+		lines = []string{dimStyle.Render(fmt.Sprintf("Nothing scheduled in the %d days from %s.",
+			m.days, m.from.In(m.loc).Format("Mon 2 Jan")))}
+	default:
+		sel := m.selIndex()
+		end := min(m.offset+height, len(m.rows))
+		for i := m.offset; i < end; i++ {
+			lines = append(lines, m.renderRow(m.rows[i], i == sel, inner))
+		}
+	}
+
+	for i := range lines {
+		lines[i] = " " + fit(lines[i], inner)
+	}
+	return padLines(lines, height, width)
+}
+
+func (m Model) renderRow(r row, selected bool, width int) string {
+	switch r.kind {
+	case rowDay:
+		label := r.date.In(m.loc).Format("Mon 2 Jan")
+		style := boldStyle
+		if r.date == m.today() {
+			label += " · today"
+			style = todayStyle
+		}
+		if r.date == m.currentDay() {
+			return style.Render("▸ ") + style.Underline(true).Render(label)
+		}
+		return "  " + style.Render(label)
+	case rowNothing:
+		text := itemIndent + "nothing scheduled"
+		switch {
+		case selected && m.focus == focusMain:
+			return itemIndent + selectedStyle.Render("nothing scheduled")
+		case selected:
+			return itemIndent + inactiveSelStyle.Render("nothing scheduled")
+		}
+		return dimStyle.Render(text)
+	case rowNow:
+		label := itemIndent + "── now " + m.now.In(m.loc).Format("15:04") + " "
+		return nowStyle.Render(label + strings.Repeat("─", max(0, width-ansi.StringWidth(label))))
+	case rowItem:
+		return m.renderItem(r, selected, width)
+	}
+	return ""
+}
+
+func (m Model) renderItem(r row, selected bool, width int) string {
+	it := r.item
+	when := it.TimeLabel(r.date, m.loc)
+
+	label := m.calendarLabel(it.Event.CalendarID)
+	labelW := 0
+	if width >= 60 {
+		labelW = m.labelWidth()
+	}
+	titleW := width - ansi.StringWidth(itemIndent) - 2 - timeColumn - 2
+	if labelW > 0 {
+		titleW -= labelW + 2
+	}
+
+	plain := func(swatch string) string {
+		s := itemIndent + swatch + " " + fit(when, timeColumn) + "  " + fit(it.Event.Title, titleW)
+		if labelW > 0 {
+			s += "  " + fit(label, labelW)
+		}
+		return s
+	}
+
+	switch {
+	case selected && m.focus == focusMain:
+		return itemIndent + selectedStyle.Render(fit(strings.TrimPrefix(plain("●"), itemIndent), width-ansi.StringWidth(itemIndent)))
+	case selected:
+		return itemIndent + inactiveSelStyle.Render(fit(strings.TrimPrefix(plain("●"), itemIndent), width-ansi.StringWidth(itemIndent)))
+	}
+
+	ended := !it.Event.AllDay && !it.End.After(m.now)
+	swatch := lipgloss.NewStyle().Foreground(calendarColor(m.colors[it.Event.CalendarID])).Render("●")
+	s := itemIndent + swatch + " " + fit(when, timeColumn) + "  " + fit(it.Event.Title, titleW)
+	if labelW > 0 {
+		s += "  " + dimStyle.Render(fit(label, labelW))
+	}
+	if ended {
+		return dimStyle.Render(ansi.Strip(s))
+	}
+	return s
+}
+
+// labelWidth is the width of the calendar-label column: the longest label,
+// capped so titles keep most of the room.
+func (m Model) labelWidth() int {
+	w := 0
+	for _, cr := range m.calendars {
+		w = max(w, ansi.StringWidth(cr.Account.Label+" · "+cr.Calendar.Name))
+	}
+	return min(w, 28)
+}
+
+func (m Model) calendarLabel(calendarID string) string {
+	i, ok := m.colors[calendarID]
+	if !ok || i >= len(m.calendars) {
+		return ""
+	}
+	cr := m.calendars[i]
+	return cr.Account.Label + " · " + cr.Calendar.Name
+}
+
+// Event detail.
+
+func (m Model) renderDetail(width, height int) []string {
+	e := m.detail.Event
+	boxW := min(width-2, 78)
+	textW := boxW - 4 // border + padding
+
+	var parts []string
+	parts = append(parts, boldStyle.Render(e.Title))
+	parts = append(parts, m.detailWhen())
+	if label := m.calendarLabel(e.CalendarID); label != "" {
+		sw := lipgloss.NewStyle().Foreground(calendarColor(m.colors[e.CalendarID])).Render("●")
+		parts = append(parts, sw+" "+label)
+	}
+	if e.Location != "" {
+		parts = append(parts, "", dimStyle.Render("Location")+"  "+e.Location)
+	}
+	if notes := strings.TrimSpace(e.Notes); notes != "" {
+		parts = append(parts, "", lipgloss.NewStyle().Width(textW).Render(notes))
+	}
+
+	box := detailBoxStyle.Width(boxW).Render(strings.Join(parts, "\n"))
+	lines := strings.Split(box, "\n")
+	for i := range lines {
+		lines[i] = " " + lines[i]
+	}
+	lines = append([]string{""}, lines...)
+	for i := range lines {
+		lines[i] = fit(lines[i], width)
+	}
+	return padLines(lines, height, width)
+}
+
+func (m Model) detailWhen() string {
+	e := m.detail.Event
+	if ds, de, ok := e.DateRange(); ok {
+		last := de.AddDays(-1)
+		if last == ds || de == ds {
+			return ds.In(m.loc).Format("Mon 2 Jan 2006") + " · all day"
+		}
+		return ds.In(m.loc).Format("Mon 2 Jan") + " – " + last.In(m.loc).Format("Mon 2 Jan 2006") + " · all day"
+	}
+	start, end := m.detail.Start, m.detail.End
+	dur := formatDuration(end.Sub(start))
+	if domain.CivilDateFromTime(start) == domain.CivilDateFromTime(end) || end.Equal(start) {
+		s := start.Format("Mon 2 Jan 2006") + " · " + start.Format("15:04")
+		if !end.Equal(start) {
+			s += "–" + end.Format("15:04") + " (" + dur + ")"
+		}
+		return s
+	}
+	return start.Format("Mon 2 Jan 15:04") + " – " + end.Format("Mon 2 Jan 2006 15:04") + " (" + dur + ")"
+}
+
+func formatDuration(d time.Duration) string {
+	d = d.Round(time.Minute)
+	days, hours, mins := int(d/(24*time.Hour)), int(d%(24*time.Hour)/time.Hour), int(d%time.Hour/time.Minute)
+	var parts []string
+	if days > 0 {
+		parts = append(parts, fmt.Sprintf("%dd", days))
+	}
+	if hours > 0 {
+		parts = append(parts, fmt.Sprintf("%dh", hours))
+	}
+	if mins > 0 || len(parts) == 0 {
+		parts = append(parts, fmt.Sprintf("%dm", mins))
+	}
+	return strings.Join(parts, " ")
+}
+
+// Footer.
+
+func (m Model) renderFooter() []string {
+	move := key.NewBinding(key.WithHelp("j/k", "move"))
+	day := key.NewBinding(key.WithHelp("[/]", "day"))
+	var bindings []key.Binding
+	switch {
+	case m.detail != nil:
+		bindings = []key.Binding{m.keys.Close}
+	case m.focus == focusSidebar:
+		bindings = []key.Binding{move, m.keys.Toggle, m.keys.Collapse, m.keys.FocusMain, m.keys.Quit}
+	default:
+		bindings = []key.Binding{move, m.keys.Open, day, m.keys.Today, m.keys.Sync, m.keys.FocusSidebar, m.keys.Quit}
+	}
+	var hints []string
+	for _, b := range bindings {
+		h := b.Help()
+		hints = append(hints, boldStyle.Render(h.Key)+" "+dimStyle.Render(h.Desc))
+	}
+	hintLine := fit(" "+strings.Join(hints, dimStyle.Render(" · ")), m.width)
+
+	left := " " + m.now.In(m.loc).Format("Mon 2 Jan 15:04")
+	right := m.status()
+	gap := m.width - ansi.StringWidth(left) - ansi.StringWidth(right) - 1
+	var statusLine string
+	if gap >= 2 {
+		statusLine = left + strings.Repeat(" ", gap) + right + " "
+	} else {
+		statusLine = fit(left+"  "+right, m.width)
+	}
+	return []string{hintLine, fit(statusLine, m.width)}
+}
+
+func (m Model) status() string {
+	switch {
+	case m.loadErr != nil:
+		return errorStyle.Render("Can't read cache: " + m.loadErr.Error())
+	case m.syncing:
+		return dimStyle.Render("Syncing…")
+	case m.syncErr != nil:
+		return errorStyle.Render("Sync failed: " + m.syncErr.Error())
+	case len(m.syncFailures) > 0:
+		msg := m.syncFailures[0]
+		if n := len(m.syncFailures) - 1; n > 0 {
+			msg += fmt.Sprintf(" (+%d more)", n)
+		}
+		return errorStyle.Render(msg)
+	case !m.lastSync.IsZero():
+		return dimStyle.Render("Synced " + m.lastSync.In(m.loc).Format("15:04"))
+	}
+	return ""
+}

@@ -72,3 +72,28 @@ func Build(events []domain.Event, from domain.CivilDate, days int, loc *time.Loc
 	}
 	return out
 }
+
+// TimeLabel renders the item's time as seen on date: "all day", or
+// "HH:MM–HH:MM" with "…" where the event continues from or into another day,
+// "24:00" for an end at midnight, and a single time for zero-length events.
+func (it Item) TimeLabel(date domain.CivilDate, loc *time.Location) string {
+	if it.Event.AllDay {
+		return "all day"
+	}
+	dayStart, dayEnd := date.In(loc), date.AddDays(1).In(loc)
+	from := "…"
+	if !it.Start.Before(dayStart) {
+		from = it.Start.Format("15:04")
+	}
+	to := "…"
+	switch {
+	case it.End.Equal(dayEnd):
+		to = "24:00"
+	case !it.End.After(dayEnd):
+		to = it.End.Format("15:04")
+	}
+	if it.Start.Equal(it.End) {
+		return from
+	}
+	return from + "–" + to
+}
