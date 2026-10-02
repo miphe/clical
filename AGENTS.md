@@ -38,9 +38,18 @@ all of this. If it fails, fix the import, or change the layer table *and*
     go test ./internal/ui -update  # only when a screen change is intended; review the golden diff
     for t in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do GOOS=${t%/*} GOARCH=${t#*/} go build -o /dev/null ./...; done
 
-For anything involving prompts or the TUI, also run the built binary under
-`expect` with `XDG_DATA_HOME` pointing at a temp directory, so the user's real
-vault is never touched. Google's public US-holidays feed is a safe test URL:
+For anything involving prompts or the TUI, also run the built binary with
+`XDG_DATA_HOME` pointing at a temp directory, so the user's real vault is
+never touched:
+
+- **Prompts** (passphrase, y/N): `expect`. Not macOS `script`, which sends EOF
+  before line-based reads.
+- **TUI screens:** `scripts/tui_screens.py` (needs `pyte` in a throwaway
+  venv; see the script's docstring). It prints what the screen actually
+  shows. Don't grep raw terminal output: Bubble Tea only sends changed
+  cells, so most updates won't be there.
+
+Google's public US-holidays feed is a safe test URL:
 `https://calendar.google.com/calendar/ical/en.usa%23holiday%40group.v.calendar.google.com/public/basic.ics`
 
 ## Commits

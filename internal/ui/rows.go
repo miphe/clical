@@ -27,7 +27,11 @@ type row struct {
 // key identifies a selectable row across reloads, so the selection survives
 // a sync even if rows shift around it. An empty day's row has no event ID.
 func (r row) key() string {
-	return r.date.String() + "|" + r.item.Event.ID
+	return rowKey(r.date, r.item.Event.ID)
+}
+
+func rowKey(date domain.CivilDate, eventID string) string {
+	return date.String() + "|" + eventID
 }
 
 // buildRows lays out every day as agenda lines: a header, then its events or

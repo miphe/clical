@@ -87,6 +87,11 @@ func (d CivilDate) In(loc *time.Location) time.Time {
 	return time.Date(d.Year, time.Month(d.Month), d.Day, 0, 0, 0, 0, loc)
 }
 
+// Weekday is the day of the week d falls on.
+func (d CivilDate) Weekday() time.Weekday {
+	return d.In(time.UTC).Weekday()
+}
+
 // String renders d as "YYYY-MM-DD".
 func (d CivilDate) String() string {
 	return fmt.Sprintf("%04d-%02d-%02d", d.Year, d.Month, d.Day)

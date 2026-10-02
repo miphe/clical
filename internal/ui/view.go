@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	sidebarWidth          = 24
-	collapsedSidebarWidth = 3
+	sidebarInner          = 24 // sidebar width inside its border
+	collapsedSidebarInner = 3
 	timeColumn            = 11 // display width of "00:00–00:00"
 	// itemIndent puts event bullets one column in from day-header text, which
 	// sits after a two-column gutter holding the current-day marker.
@@ -39,14 +39,13 @@ func (m Model) render() string {
 		return "Terminal too small for clical."
 	}
 
-	bodyH := m.paneHeight()
+	bodyH := m.bodyHeight()
 	var body []string
 	if m.detail != nil {
 		body = m.renderDetail(m.width, bodyH)
 	} else {
 		side := m.renderSidebar(bodyH)
-		sideW := lipgloss.Width(side[0])
-		main := m.renderAgenda(m.width-sideW, bodyH)
+		main := m.renderMain(m.width-lipgloss.Width(side[0]), bodyH)
 		body = make([]string, bodyH)
 		for i := range body {
 			body[i] = side[i] + main[i]
@@ -74,33 +73,30 @@ func padLines(lines []string, height, width int) []string {
 
 // Sidebar.
 
+// renderSidebar draws the calendar list panel, height lines tall.
 func (m Model) renderSidebar(height int) []string {
-	width := sidebarWidth
+	width := sidebarInner
+	var tabs []tab
 	if m.sidebarCollapsed {
-		width = collapsedSidebarWidth
+		width = collapsedSidebarInner
+	} else {
+		tabs = []tab{{label: "Calendars", active: true}}
 	}
 	focused := m.focus == focusSidebar
 
 	var lines []string
-	if !m.sidebarCollapsed {
-		header := boldStyle
-		if focused {
-			header = todayStyle
-		}
-		lines = append(lines, fit(header.Render("Calendars"), width))
-	}
 
 	lastAccount := ""
 	for i, cr := range m.calendars {
 		if !m.sidebarCollapsed && cr.Account.ID != lastAccount {
-			lines = append(lines, fit(dimStyle.Render(cr.Account.Label), width))
+			lines = append(lines, fit(" "+dimStyle.Render(cr.Account.Label), width))
 			lastAccount = cr.Account.ID
 		}
 		swatch, name := "●", cr.Calendar.Name
 		if m.hidden[cr.Calendar.ID] {
 			swatch = "○"
 		}
-		text := " " + swatch + " " + name
+		text := "  " + swatch + " " + name
 		if m.sidebarCollapsed {
 			text = " " + swatch + " "
 		}
@@ -117,19 +113,45 @@ func (m Model) renderSidebar(height int) []string {
 		}
 		lines = append(lines, line)
 	}
+	return panel(width+2, height, focused, tabs, "", lines)
+}
 
-	lines = padLines(lines, height, width)
-	for i := range lines {
-		lines[i] += borderStyle.Render("│")
+// renderMain draws the main panel: the current view inside a border whose
+// title doubles as the view tabs.
+func (m Model) renderMain(width, height int) []string {
+	tabs := []tab{
+		{label: "[1] Agenda", active: m.view == viewAgenda},
+		{label: "[2] Week", active: m.view == viewWeek},
 	}
-	return lines
+	inner, innerH := width-2, height-2
+	var content []string
+	var right string
+	switch m.view {
+	case viewWeek:
+		content = m.renderWeek(inner, innerH)
+		right = m.weekTitle()
+	default:
+		// One column of padding between the border and the agenda's gutter.
+		content = m.renderAgenda(inner-1, innerH)
+		for i := range content {
+			content[i] = " " + content[i]
+		}
+		right = m.agendaSpan()
+	}
+	return panel(width, height, m.focus == focusMain, tabs, right, content)
+}
+
+// agendaSpan is the loaded agenda window, e.g. "29 Sep – 28 Oct 2026".
+func (m Model) agendaSpan() string {
+	last := m.from.AddDays(m.days - 1)
+	return m.from.In(m.loc).Format("2 Jan") + " – " + last.In(m.loc).Format("2 Jan 2006")
 }
 
 // Agenda.
 
+// renderAgenda draws the agenda rows for a width×height area inside the
+// main panel.
 func (m Model) renderAgenda(width, height int) []string {
-	// One column of breathing room after the sidebar border.
-	inner := width - 1
 	var lines []string
 	switch {
 	case m.loadErr != nil && len(m.rows) == 0:
@@ -143,12 +165,11 @@ func (m Model) renderAgenda(width, height int) []string {
 		sel := m.selIndex()
 		end := min(m.offset+height, len(m.rows))
 		for i := m.offset; i < end; i++ {
-			lines = append(lines, m.renderRow(m.rows[i], i == sel, inner))
+			lines = append(lines, m.renderRow(m.rows[i], i == sel, width))
 		}
 	}
-
 	for i := range lines {
-		lines[i] = " " + fit(lines[i], inner)
+		lines[i] = fit(lines[i], width)
 	}
 	return padLines(lines, height, width)
 }
@@ -245,10 +266,10 @@ func (m Model) calendarLabel(calendarID string) string {
 
 // Event detail.
 
+// renderDetail draws the event detail as a full-width panel.
 func (m Model) renderDetail(width, height int) []string {
 	e := m.detail.Event
-	boxW := min(width-2, 78)
-	textW := boxW - 4 // border + padding
+	textW := min(width-4, 76) // inside the border, one column of padding each side
 
 	var parts []string
 	parts = append(parts, boldStyle.Render(e.Title))
@@ -264,16 +285,11 @@ func (m Model) renderDetail(width, height int) []string {
 		parts = append(parts, "", lipgloss.NewStyle().Width(textW).Render(notes))
 	}
 
-	box := detailBoxStyle.Width(boxW).Render(strings.Join(parts, "\n"))
-	lines := strings.Split(box, "\n")
-	for i := range lines {
-		lines[i] = " " + lines[i]
+	var content []string
+	for _, line := range strings.Split(strings.Join(parts, "\n"), "\n") {
+		content = append(content, " "+line)
 	}
-	lines = append([]string{""}, lines...)
-	for i := range lines {
-		lines[i] = fit(lines[i], width)
-	}
-	return padLines(lines, height, width)
+	return panel(width, height, true, []tab{{label: "Event", active: true}}, "", content)
 }
 
 func (m Model) detailWhen() string {
@@ -316,16 +332,19 @@ func formatDuration(d time.Duration) string {
 // Footer.
 
 func (m Model) renderFooter() []string {
-	move := key.NewBinding(key.WithHelp("j/k", "move"))
-	day := key.NewBinding(key.WithHelp("[/]", "day"))
+	hint := func(k, desc string) key.Binding { return key.NewBinding(key.WithHelp(k, desc)) }
 	var bindings []key.Binding
 	switch {
 	case m.detail != nil:
 		bindings = []key.Binding{m.keys.Close}
 	case m.focus == focusSidebar:
-		bindings = []key.Binding{move, m.keys.Toggle, m.keys.Collapse, m.keys.FocusMain, m.keys.Quit}
+		bindings = []key.Binding{hint("j/k", "move"), m.keys.Toggle, m.keys.Collapse, m.keys.FocusMain, m.keys.Quit}
+	case m.view == viewWeek:
+		bindings = []key.Binding{hint("h/l", "day"), hint("j/k", "move"), m.keys.Open, hint("[/]", "week"),
+			m.keys.Today, hint("tab", "agenda"), m.keys.Sync, m.keys.Quit}
 	default:
-		bindings = []key.Binding{move, m.keys.Open, day, m.keys.Today, m.keys.Sync, m.keys.FocusSidebar, m.keys.Quit}
+		bindings = []key.Binding{hint("j/k", "move"), m.keys.Open, hint("[/]", "day"), m.keys.Today,
+			hint("tab", "week"), m.keys.Sync, m.keys.FocusSidebar, m.keys.Quit}
 	}
 	var hints []string
 	for _, b := range bindings {
@@ -334,7 +353,7 @@ func (m Model) renderFooter() []string {
 	}
 	hintLine := fit(" "+strings.Join(hints, dimStyle.Render(" · ")), m.width)
 
-	left := " " + m.now.In(m.loc).Format("Mon 2 Jan 15:04")
+	left := " " + m.activity() + m.now.In(m.loc).Format("Mon 2 Jan 15:04")
 	right := m.status()
 	gap := m.width - ansi.StringWidth(left) - ansi.StringWidth(right) - 1
 	var statusLine string
@@ -350,8 +369,6 @@ func (m Model) status() string {
 	switch {
 	case m.loadErr != nil:
 		return errorStyle.Render("Can't read cache: " + m.loadErr.Error())
-	case m.syncing:
-		return dimStyle.Render("Syncing…")
 	case m.syncErr != nil:
 		return errorStyle.Render("Sync failed: " + m.syncErr.Error())
 	case len(m.syncFailures) > 0:

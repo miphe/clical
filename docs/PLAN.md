@@ -31,7 +31,8 @@ multi-account merge → config/themes → in-process background polling.
 | M4 | Feed errors, backoff, `calendars remove`/`set-url`, new-vault passphrase confirmation | Done |
 | M5 | TUI shell, Agenda view, event detail, calendar toggles | Done |
 | — | Application layer `internal/app` + enforced layering (`internal/archtest`) | Done |
-| M6–M11 | Week/Month views, help, filter, config/themes, polling | Not started |
+| M6 | Week view | Done |
+| M7–M11 | Month view, help, filter, config/themes, polling | Not started |
 
 Deferred (2026-09-29): the **work** (Google Workspace) calendar. Focus is the
 personal calendar for now. Whether the work calendar exposes a secret iCal
@@ -350,7 +351,74 @@ Implementation decisions:
   Calendar" action is dropped: the iCal feed carries no per-event link.
 - `agenda.Item.TimeLabel` is shared by the TUI and `clical agenda`.
 
-## TUI / UX design (M6–M11)
+## Week view (`internal/ui/week.go`, `weekview.go`) — M6 done
+
+- **Monday-first** weeks (`weekFirstDay`; configurable in M9). The title
+  shows the ISO week number: `Week 40 · 28 Sep – 4 Oct 2026`.
+- Seven day columns of events in time order; each event takes two lines: a
+  calendar-colored bullet with its time (`all day`, start `HH:MM`, or
+  `…HH:MM` for one continuing from the day before), then the title. Under 9
+  columns per day the bullet is dropped and the time itself carries the
+  color. Under 6 the view shows a wrapped "too narrow, press 1" message.
+  Overflow shows `+N more`; the selected column scrolls to keep its
+  selection visible. Empty days show `–`, or `nothing` when selected.
+- Headers mark today in blue and the selected day with `▸` and underline,
+  as in the agenda.
+- Keys: `h`/`l` move between days (`h` on Monday moves focus to the
+  sidebar; `l` on Sunday stays), `j`/`k`/`g`/`G` within a day, `[`/`]` a
+  week back/forward keeping the weekday, `t` this week on today's next
+  event, `enter` details.
+- **Views share the current day.** `tab` toggles Agenda ↔ Week (`1`/`2` jump
+  directly; `3` reserved for Month). Switching carries the selected day and,
+  if it exists in the other view, the selected event. The agenda reloads
+  from that day if it's outside its window.
+- The week loads its own 7-day window (`weekLoadedMsg`, stale loads
+  dropped) and reloads after a sync that changed something, keeping the
+  selected event. Hidden calendars are filtered as in the agenda.
+- Core addition: `agenda.WeekStart(day, first)` and `CivilDate.Weekday()`.
+  Grouping a week is just `agenda.Build(events, start, 7, loc)`.
+
+## Panels (`internal/ui/panel.go`) — done
+
+lazygit-style panels: the calendar list, the main view and the event detail
+are rounded boxes with their titles set into the top edge. The bottom key
+hints and status line stay unboxed, as in lazygit. Boxing them would cost
+two rows and make them compete with the panels.
+
+- **Focus:** the focused panel's border and active title are green and bold;
+  the other panel's border is faint.
+- **Tabs:** the main panel's title is its view tabs, `[1] Agenda ─ [2] Week`
+  (the numbers are the jump keys; `tab` cycles). Month joins in M7.
+- **Top-right context:** the agenda's loaded span (`2 Oct – 31 Oct 2026`) or
+  the week label (`Week 42 · 12 Oct – 18 Oct 2026`). The old "Calendars"
+  heading and week title rows moved into the borders, so the content
+  didn't lose height to the borders.
+- **Degrading:** when the top edge is too narrow, the right-hand text goes
+  first, then titles are truncated; a collapsed sidebar has no title.
+- `panel(width, height, focused, tabs, right, content)` is the one helper;
+  views render only their inside area.
+
+## Activity indicator (`internal/ui/activity.go`) — done
+
+Pressing `r` always synced, but the only sign was a dim "Syncing…" at the
+far right of the footer for a fraction of a second, followed by the same
+"Synced HH:MM" as before — easy to miss, and that spot also held errors.
+Now the footer's bottom-left corner is a fixed 14-column activity slot, the
+one place to look:
+
+- **Busy:** animated spinner + `Syncing` (takes priority) or `Loading`
+  (agenda or week reading the cache), bold yellow.
+- **Just finished:** `✓ Synced` (green) or `✗ Sync failed` (red) for 3s
+  (`flashDuration`), so even a sub-second sync is noticed. Each flash
+  carries its own end time, so an old timer can't clear a newer result.
+- **Idle:** dim `◦ Idle`.
+
+The right side keeps the last-sync time and failure details. The spinner
+(`bubbles/spinner`, MiniDot) ticks only while something is busy:
+`Update` wraps the real update and restarts the tick loop when work begins.
+A tick arriving with nothing busy ends the loop.
+
+## TUI / UX design (M7–M11)
 
 **Layout**: persistent left sidebar + main pane + two-line footer
 (lazygit-style).
@@ -395,8 +463,8 @@ to the first match, Esc clears.
 | `g` / `G` (or Home/End) | First / last event (done) |
 | `j` / `k` (or Down/Up) | Move selection in the focused pane |
 | `[` / `]` (or PgUp/PgDn) | Previous/next period (Agenda: day before/after the current day — done) |
-| `Tab` | Cycle Agenda → Week → Month |
-| `1` / `2` / `3` | Jump to Agenda / Week / Month |
+| `Tab` | Cycle views (Agenda ↔ Week done; Month in M7) |
+| `1` / `2` / `3` | Jump to Agenda / Week (done) / Month (M7) |
 | `c` (sidebar focused) | Collapse/expand sidebar |
 | `Space` or `Enter` (calendar row) | Toggle calendar visibility |
 | `Enter` (revoked calendar row) | Prompt for a new feed URL |
@@ -419,7 +487,7 @@ to the first match, Esc clears.
 | M3 | `clical sync` into SQLite via `ApplySync`; `EventsInRange`; plain-text `clical agenda` | `internal/store/events.go`, `internal/engine/`, `internal/agenda/`, `cmd/clical/sync.go`, `cmd/clical/agenda.go` | Done |
 | M4 | Feed errors: `CalendarUnavailableError` for 401/403/404/410, backoff on 429/5xx/network, `calendars remove`, `calendars set-url`; confirm-passphrase prompt when creating a new vault | `internal/domain/errors.go`, `internal/providers/ical/provider.go`, `internal/store/calendars.go`, `cmd/clical/calendars.go`, `cmd/clical/prompt.go` | Done |
 | M5 | Bubble Tea shell: sidebar + main pane + footer; Agenda; event detail; calendar toggles; golden snapshots | `internal/ui/model.go`, `view.go`, `rows.go`, `keymap.go`, `styles.go`, `cmd/clical/tui.go` | Done |
-| M6 | Week view (day-list columns) | `internal/ui/week.go` | |
+| M6 | Week view (day-list columns), view switching that keeps the current day | `internal/ui/week.go`, `internal/ui/weekview.go`, `internal/agenda` (`WeekStart`) | Done |
 | M7 | Month view ("+N more", Enter → Agenda); shared `uniseg` width/truncation helper | `internal/ui/month.go`, `internal/ui/textwidth.go` | |
 | M8 | Theme-assigned colors, "/" filter, "?" help (multi-account merge and toggles already work) | `internal/theme/resolve.go`, `internal/ui/search.go`, `internal/ui/help.go` | |
 | M9 | YAML config + themes, mergo defaults, fsnotify hot-reload (config/theme only) | `internal/config/`, `internal/theme/` | |
@@ -433,11 +501,13 @@ to the first match, Esc clears.
 - Unit tests per package (domain, vault, store, iCal parse/sync, engine,
   agenda, CLI helpers); UI golden snapshots of `View()` plus Update-driven
   behaviour tests.
-- Drive the real binary in a pty with `expect` (isolated `XDG_DATA_HOME`,
-  Google's public holidays feed) for anything touching prompts or the TUI —
-  macOS `script` sends EOF before line-based reads, so it can't test y/N
-  prompts.
+- Drive the real binary for anything touching prompts or the TUI, with an
+  isolated `XDG_DATA_HOME` and Google's public holidays feed. Prompts:
+  `expect` (macOS `script` sends EOF before line-based reads). TUI screens:
+  `scripts/tui_screens.py`, which replays the output through the `pyte`
+  terminal emulator — grepping raw output misses most redraws, since Bubble
+  Tea only sends changed cells.
 - Manual check of each CLI milestone against real feeds (your personal and
   work calendars) before building UI on top.
 - Cross-compile: `GOOS={darwin,linux} GOARCH={arm64,amd64} go build ./...`
-  (last passed at M5).
+  (last passed at M6).

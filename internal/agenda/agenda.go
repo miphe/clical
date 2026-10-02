@@ -97,3 +97,10 @@ func (it Item) TimeLabel(date domain.CivilDate, loc *time.Location) string {
 	}
 	return from + "–" + to
 }
+
+// WeekStart returns the first day of the week containing d, for weeks
+// starting on first (time.Monday for ISO weeks).
+func WeekStart(d domain.CivilDate, first time.Weekday) domain.CivilDate {
+	back := (int(d.Weekday()) - int(first) + 7) % 7
+	return d.AddDays(-back)
+}

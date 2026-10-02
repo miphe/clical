@@ -46,13 +46,15 @@ For each Google calendar you want in clical:
 
 | Key | Action |
 |---|---|
+| `tab`, `1` / `2` | Switch view: agenda / week (both stay on the same day) |
 | `j` / `k`, arrows | Move between events |
-| `g` / `G` | First / last event |
+| `g` / `G` | First / last event (of the day, in the week view) |
+| `h` / `l` (week view) | Previous / next day |
 | `enter` | Event details (`esc` or `q` to close) |
-| `[` / `]` | Previous / next day (the current day is marked ▸) |
+| `[` / `]` | Previous / next day in the agenda, week in the week view (the current day is marked ▸) |
 | `t` | Back to today |
 | `r` | Sync now |
-| `h` / `l` | Focus the calendar list / the agenda |
+| `h` / `l` | Focus the calendar list / back (in the week view, `h` on Monday) |
 | `space` (calendar list) | Show or hide a calendar |
 | `c` (calendar list) | Collapse or expand the calendar list |
 | `q` | Quit |
@@ -98,6 +100,6 @@ Notes for coding agents: [`AGENTS.md`](AGENTS.md).
 ## Status
 
 M0–M5 done: iCal provider with retries and dead-feed detection, calendar
-management, `sync`, plain-text `agenda`, and the full-screen TUI with the
-Agenda view, event details and calendar toggles. Next: the Week view (M6). Milestone table in
+management, `sync`, plain-text `agenda`, and the full-screen TUI with Agenda and Week
+views, event details and calendar toggles. Next: the Month view (M7). Milestone table in
 [`docs/PLAN.md`](docs/PLAN.md).

@@ -152,3 +152,9 @@ func TestCivilDateIn(t *testing.T) {
 		t.Errorf("In() = %v, want %v", got, want)
 	}
 }
+
+func TestCivilDateWeekday(t *testing.T) {
+	if got := NewCivilDate(2026, 10, 2).Weekday(); got != time.Friday {
+		t.Errorf("2026-10-02 Weekday() = %v, want Friday", got)
+	}
+}

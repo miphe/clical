@@ -81,8 +81,8 @@ Some concrete cases:
 |---|---|
 | A new feed provider (CalDAV, Outlook) | `internal/providers/<name>` + registration in `app.Unlock` |
 | "Show only events matching X" as data | `app` method (or `store` query exposed via `app`) |
-| Grouping events into weeks for a Week view | `agenda` (pure, reusable) |
-| The Week view's columns, keys, colors | `internal/ui` |
+| Which week a day belongs to (`agenda.WeekStart`) | `agenda` (pure, reusable) |
+| The Week view's columns, keys, colors (`ui/week*.go`) | `internal/ui` |
 | A new CLI subcommand | `cmd/clical`, calling `app` |
 | How a dead feed is *worded* on screen | the front-end (`app` reports it as `SyncOutcome.Unavailable()`) |
 
@@ -127,7 +127,8 @@ Nothing under the seam needs to change.
 - **`app`:** lifecycle tests (add → find → set URL → remove), lock guards.
 - **`ui`:** golden screens plus `Update`-driven behaviour tests, with no
   terminal.
-- **CLI/TUI end to end:** run the built binary under `expect` with an
-  isolated `XDG_DATA_HOME` and Google's public holidays feed. macOS `script`
-  can't feed y/N prompts, so don't use it for that.
+- **CLI/TUI end to end:** the built binary, with an isolated
+  `XDG_DATA_HOME` and Google's public holidays feed. Use `expect` for
+  prompts, and `scripts/tui_screens.py` (a `pyte` terminal emulator) to see
+  real TUI screens.
 - **Layering:** `internal/archtest`.

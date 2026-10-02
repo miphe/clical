@@ -23,7 +23,6 @@ var (
 	// The selection stays visible, but quieter, while the sidebar has focus.
 	inactiveSelStyle = lipgloss.NewStyle().Underline(true)
 	borderStyle      = lipgloss.NewStyle().Faint(true)
-	detailBoxStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 )
 
 func calendarColor(i int) color.Color {

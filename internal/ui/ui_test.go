@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,6 +96,7 @@ func loaded(t *testing.T, width, height int) Model {
 		calendarsLoadedMsg{rows: testCalendars},
 		eventsLoadedMsg{from: m.from, days: m.days, events: testEvents()},
 		syncDoneMsg{at: at(29, 14, 29)},
+		flashEndMsg{until: at(29, 14, 29).Add(flashDuration)},
 	)
 	return m
 }
@@ -228,8 +230,8 @@ func TestSidebarToggleHidesCalendar(t *testing.T) {
 func TestSyncFailureShownInFooter(t *testing.T) {
 	m := loaded(t, 100, 24)
 	m, _ = send(t, m, press("r"))
-	if !strings.Contains(screen(m), "Syncing…") {
-		t.Error("footer doesn't show Syncing… after r")
+	if !strings.Contains(screen(m), "Syncing") {
+		t.Error("footer doesn't show Syncing after r")
 	}
 	m, cmd := send(t, m, syncDoneMsg{at: at(29, 14, 31), results: []app.SyncOutcome{
 		{CalendarInfo: app.CalendarInfo{Account: personal, Calendar: mainCal}, Err: &domain.CalendarUnavailableError{CalendarID: "main", Reason: "HTTP 404 Not Found"}},
@@ -400,5 +402,247 @@ func TestEnterOnEmptyDayDoesNothing(t *testing.T) {
 	}
 	if m, _ = send(t, m, press("enter")); m.detail != nil {
 		t.Error("enter on an empty day opened a detail view")
+	}
+}
+
+// toWeek switches to the week view and delivers the week load it requested.
+func toWeek(t *testing.T, m Model, events []domain.Event) Model {
+	t.Helper()
+	m, _ = send(t, m, press("2"))
+	return deliverWeek(t, m, events)
+}
+
+func deliverWeek(t *testing.T, m Model, events []domain.Event) Model {
+	t.Helper()
+	m, _ = send(t, m, weekLoadedMsg{start: m.week.start, events: events})
+	return m
+}
+
+func weekSelected(m Model) string {
+	date := m.selectedWeekDate().String()
+	if it, ok := m.selectedWeekItem(); ok {
+		return date + " " + it.Event.ID
+	}
+	return date + " nothing"
+}
+
+func TestGoldenWeek(t *testing.T) {
+	golden(t, "week", screen(toWeek(t, loaded(t, 100, 24), testEvents())))
+	golden(t, "week_narrow", screen(toWeek(t, loaded(t, 56, 16), testEvents())))
+	golden(t, "week_too_narrow", screen(toWeek(t, loaded(t, 40, 10), testEvents())))
+}
+
+func TestWeekLinesFitTheWindow(t *testing.T) {
+	for _, size := range [][2]int{{100, 24}, {56, 16}, {40, 10}, {30, 6}} {
+		m := toWeek(t, loaded(t, size[0], size[1]), testEvents())
+		lines := strings.Split(m.View().Content, "\n")
+		if len(lines) != size[1] {
+			t.Errorf("%dx%d: %d lines, want %d", size[0], size[1], len(lines), size[1])
+		}
+		for i, l := range lines {
+			if w := ansi.StringWidth(l); w != size[0] {
+				t.Errorf("%dx%d line %d width %d: %q", size[0], size[1], i, w, ansi.Strip(l))
+			}
+		}
+	}
+}
+
+func TestSwitchingViewsKeepsTheSelection(t *testing.T) {
+	m := loaded(t, 100, 24) // agenda on Dentist, Tue 29 Sep
+	m = toWeek(t, m, testEvents())
+	if m.week.start != domain.NewCivilDate(2026, 9, 28) || weekSelected(m) != "2026-09-29 dentist" {
+		t.Fatalf("week start %s, selected %s; want week of Mon 28 Sep with Dentist", m.week.start, weekSelected(m))
+	}
+
+	m, _ = send(t, m, press("l"), press("tab")) // Wed 30, back to the agenda
+	if m.view != viewAgenda || selected(m) != "2026-09-30 conf" {
+		t.Errorf("after l, tab: view %v, agenda selected %s; want agenda on 2026-09-30 conf", m.view, selected(m))
+	}
+	m, _ = send(t, m, press("tab"))
+	if m.view != viewWeek || weekSelected(m) != "2026-09-30 conf" {
+		t.Errorf("tab again: week selected %s, want 2026-09-30 conf (same week, no reload)", weekSelected(m))
+	}
+}
+
+func TestWeekNavigation(t *testing.T) {
+	m := toWeek(t, loaded(t, 100, 24), testEvents())
+
+	m, _ = send(t, m, press("j"))
+	if got := weekSelected(m); got != "2026-09-29 train" {
+		t.Errorf("j: selected %s, want 2026-09-29 train", got)
+	}
+	m, _ = send(t, m, press("g"))
+	if got := weekSelected(m); got != "2026-09-29 nameday" {
+		t.Errorf("g: selected %s, want 2026-09-29 nameday", got)
+	}
+
+	m, _ = send(t, m, press("h")) // Mon 28
+	if got := weekSelected(m); got != "2026-09-28 nothing" || m.focus != focusMain {
+		t.Errorf("h: selected %s focus %v, want Mon 28 with main focus", got, m.focus)
+	}
+	m, _ = send(t, m, press("h")) // past Monday: into the sidebar
+	if m.focus != focusSidebar {
+		t.Error("h on Monday didn't focus the sidebar")
+	}
+	m, _ = send(t, m, press("l"))
+	if m.focus != focusMain || m.view != viewWeek {
+		t.Error("l from the sidebar didn't return to the week")
+	}
+
+	m, cmd := send(t, m, press("]"))
+	if cmd == nil || m.week.start != domain.NewCivilDate(2026, 10, 5) {
+		t.Fatalf("]: week start %s, cmd %v; want 2026-10-05 and a load", m.week.start, cmd != nil)
+	}
+	m = deliverWeek(t, m, testEvents())
+	if got := weekSelected(m); got != "2026-10-05 nothing" {
+		t.Errorf("]: selected %s, want Monday 2026-10-05", got)
+	}
+
+	m, _ = send(t, m, press("t"))
+	m = deliverWeek(t, m, testEvents())
+	if got := weekSelected(m); got != "2026-09-29 dentist" {
+		t.Errorf("t: selected %s, want today's next event 2026-09-29 dentist", got)
+	}
+}
+
+func TestWeekOverflowShowsMoreAndScrollsToSelection(t *testing.T) {
+	var events []domain.Event
+	for h := 8; h < 20; h++ {
+		id := fmt.Sprintf("e%02d", h)
+		events = append(events, domain.NewTimedEvent(id, "main", "Event "+id, at(30, h, 0), at(30, h, 30), "", ""))
+	}
+	m := loaded(t, 100, 16)
+	m = toWeek(t, m, events)
+	m, _ = send(t, m, press("l")) // Wed 30, 12 events in a short column
+	if sc := screen(m); !strings.Contains(sc, "more") {
+		t.Fatalf("no \"+N more\" line for an overflowing column:\n%s", sc)
+	}
+	m, _ = send(t, m, press("G"))
+	if sc := screen(m); !strings.Contains(sc, "Event e19") {
+		t.Errorf("last event not scrolled into view after G:\n%s", sc)
+	}
+}
+
+func TestWeekEnterOpensDetail(t *testing.T) {
+	m := toWeek(t, loaded(t, 100, 24), testEvents())
+	m, _ = send(t, m, press("enter"))
+	if m.detail == nil || m.detail.Event.ID != "dentist" {
+		t.Fatal("enter in the week view didn't open the selected event")
+	}
+	m, _ = send(t, m, press("esc"))
+	if m.detail != nil || m.view != viewWeek {
+		t.Error("esc didn't return to the week view")
+	}
+}
+
+func TestWeekStaleLoadIgnored(t *testing.T) {
+	m := toWeek(t, loaded(t, 100, 24), testEvents())
+	m, _ = send(t, m, press("]"))
+	m, _ = send(t, m, weekLoadedMsg{start: domain.NewCivilDate(2026, 9, 28), events: nil})
+	if !m.week.loading {
+		t.Error("a load for the previous week was applied; want it ignored")
+	}
+}
+
+func activitySlot(m Model) string {
+	lines := strings.Split(screen(m), "\n")
+	return strings.TrimSpace(ansi.Truncate(lines[len(lines)-1], activityWidth+1, ""))
+}
+
+func TestActivityIndicator(t *testing.T) {
+	// Startup: Init syncs, so the slot says so from the first frame.
+	m := New(nopSource{}, loc, testNow)
+	m, _ = send(t, m, tea.WindowSizeMsg{Width: 100, Height: 24})
+	if got := activitySlot(m); !strings.HasSuffix(got, "Syncing") {
+		t.Errorf("at startup slot = %q, want a spinner and Syncing", got)
+	}
+
+	m = loaded(t, 100, 24)
+	if got := activitySlot(m); got != "◦ Idle" {
+		t.Errorf("settled slot = %q, want ◦ Idle", got)
+	}
+
+	m, cmd := send(t, m, press("r"))
+	if got := activitySlot(m); !strings.HasSuffix(got, "Syncing") || cmd == nil {
+		t.Errorf("after r slot = %q (cmd %v), want Syncing and a sync command", got, cmd != nil)
+	}
+	if !m.spinning {
+		t.Error("spinner not started while syncing")
+	}
+
+	done := at(29, 14, 40)
+	m, _ = send(t, m, syncDoneMsg{at: done})
+	if got := activitySlot(m); got != "✓ Synced" {
+		t.Errorf("after a sync slot = %q, want ✓ Synced", got)
+	}
+
+	// A flash-end for an older flash must not clear a newer one.
+	m, _ = send(t, m, flashEndMsg{until: done.Add(-time.Minute)})
+	if got := activitySlot(m); got != "✓ Synced" {
+		t.Errorf("stale flash end cleared the slot: %q", got)
+	}
+	m, _ = send(t, m, flashEndMsg{until: done.Add(flashDuration)})
+	if got := activitySlot(m); got != "◦ Idle" {
+		t.Errorf("after the flash slot = %q, want ◦ Idle", got)
+	}
+
+	m, _ = send(t, m, press("r"), syncDoneMsg{at: done, err: errors.New("offline")})
+	if got := activitySlot(m); got != "✗ Sync failed" {
+		t.Errorf("after a failed sync slot = %q, want ✗ Sync failed", got)
+	}
+
+	m, _ = send(t, m, press("2")) // week load in flight
+	if got := activitySlot(m); !strings.HasSuffix(got, "Loading") {
+		t.Errorf("while the week loads slot = %q, want Loading", got)
+	}
+}
+
+func TestSpinnerStopsWhenIdle(t *testing.T) {
+	m := loaded(t, 100, 24)
+	m.spinning = true
+	next, cmd := m.Update(m.spin.Tick())
+	if next.(Model).spinning || cmd != nil {
+		t.Error("spinner kept ticking with nothing in progress")
+	}
+}
+
+func TestFocusedPanelBorderIsHighlighted(t *testing.T) {
+	hi, lo := focusedBorderStyle.Render("╭─"), borderStyle.Render("╭─")
+	topLine := func(m Model) string { return strings.SplitN(m.View().Content, "\n", 2)[0] }
+
+	m := loaded(t, 100, 24) // main pane focused
+	top := topLine(m)
+	if !strings.HasPrefix(top, lo) || !strings.Contains(top, hi) {
+		t.Errorf("main focused: want a plain sidebar border and a highlighted main border:\n%q", top)
+	}
+	if !strings.Contains(top, activeTabStyle.Render("[1] Agenda")) || !strings.Contains(top, dimStyle.Render("[2] Week")) {
+		t.Errorf("agenda tab not shown as active:\n%q", top)
+	}
+
+	m, _ = send(t, m, press("h"))
+	top = topLine(m)
+	if !strings.HasPrefix(top, hi) || strings.Count(top, hi) != 1 {
+		t.Errorf("sidebar focused: want only the sidebar border highlighted:\n%q", top)
+	}
+
+	m, _ = send(t, m, press("l"), press("2"))
+	m = deliverWeek(t, m, testEvents())
+	if top = topLine(m); !strings.Contains(top, activeTabStyle.Render("[2] Week")) {
+		t.Errorf("week tab not shown as active:\n%q", top)
+	}
+}
+
+func TestPanelTopFitsAndDegrades(t *testing.T) {
+	tabs := []tab{{label: "[1] Agenda", active: true}, {label: "[2] Week"}}
+	for _, w := range []int{100, 40, 26, 12, 5, 2} {
+		top := panelTop(w-2, borderStyle, true, tabs, "Week 40 · 28 Sep – 4 Oct 2026")
+		if got := ansi.StringWidth(top); got != w {
+			t.Errorf("width %d: top line is %d wide: %q", w, got, ansi.Strip(top))
+		}
+	}
+	// With room for the tabs but not the right-hand text, the text goes first.
+	top := ansi.Strip(panelTop(30, borderStyle, true, tabs, "Week 40 · 28 Sep – 4 Oct 2026"))
+	if !strings.Contains(top, "[2] Week") || strings.Contains(top, "Week 40") {
+		t.Errorf("narrow top = %q, want tabs kept and right text dropped", top)
 	}
 }

@@ -96,3 +96,23 @@ func TestTimeLabel(t *testing.T) {
 		}
 	}
 }
+
+func TestWeekStart(t *testing.T) {
+	d := domain.NewCivilDate
+	cases := []struct {
+		day   domain.CivilDate
+		first time.Weekday
+		want  domain.CivilDate
+	}{
+		{d(2026, 10, 2), time.Monday, d(2026, 9, 28)}, // Friday
+		{d(2026, 9, 28), time.Monday, d(2026, 9, 28)}, // Monday itself
+		{d(2026, 10, 4), time.Monday, d(2026, 9, 28)}, // Sunday ends the week
+		{d(2026, 10, 4), time.Sunday, d(2026, 10, 4)}, // ...or starts it
+		{d(2027, 1, 1), time.Monday, d(2026, 12, 28)}, // across a year boundary
+	}
+	for _, c := range cases {
+		if got := WeekStart(c.day, c.first); got != c.want {
+			t.Errorf("WeekStart(%s, %v) = %s, want %s", c.day, c.first, got, c.want)
+		}
+	}
+}

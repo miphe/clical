@@ -14,6 +14,8 @@ type keyMap struct {
 	Toggle                key.Binding
 	Collapse              key.Binding
 	Sync                  key.Binding
+	NextView              key.Binding
+	ViewAgenda, ViewWeek  key.Binding
 	Quit                  key.Binding
 }
 
@@ -29,10 +31,13 @@ func defaultKeyMap() keyMap {
 		Open:         key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details")),
 		Close:        key.NewBinding(key.WithKeys("esc", "q"), key.WithHelp("esc", "close")),
 		FocusSidebar: key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h", "calendars")),
-		FocusMain:    key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("l", "agenda")),
+		FocusMain:    key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("l", "back")),
 		Toggle:       key.NewBinding(key.WithKeys("space", "enter"), key.WithHelp("space", "show/hide")),
 		Collapse:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "collapse")),
 		Sync:         key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "sync")),
+		NextView:     key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next view")),
+		ViewAgenda:   key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "agenda")),
+		ViewWeek:     key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "week")),
 		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
 }
