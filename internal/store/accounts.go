@@ -13,6 +13,7 @@ import (
 var ErrNotFound = errors.New("store: not found")
 
 // UpsertAccount inserts acct, or updates it in place if its ID already exists.
+// The account's nickname is left untouched (see SetAccountNickname).
 func (s *Store) UpsertAccount(ctx context.Context, acct domain.Account) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -29,7 +30,10 @@ func (s *Store) UpsertAccount(ctx context.Context, acct domain.Account) error {
 
 // ListAccounts returns every known account, ordered by label.
 func (s *Store) ListAccounts(ctx context.Context) ([]domain.Account, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, provider, label FROM accounts ORDER BY label`)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, provider, label, nickname FROM accounts
+		ORDER BY COALESCE(NULLIF(nickname, ''), label) COLLATE NOCASE
+	`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list accounts: %w", err)
 	}
@@ -38,10 +42,10 @@ func (s *Store) ListAccounts(ctx context.Context) ([]domain.Account, error) {
 	var out []domain.Account
 	for rows.Next() {
 		var a domain.Account
-		if err := rows.Scan(&a.ID, &a.Provider, &a.Label); err != nil {
+		if err := rows.Scan(&a.ID, &a.Provider, &a.Label, &a.Nickname); err != nil {
 			return nil, fmt.Errorf("store: scan account: %w", err)
 		}
-		a.Label = domain.SafeText(a.Label)
+		a.Label, a.Nickname = domain.SafeText(a.Label), domain.SafeText(a.Nickname)
 		out = append(out, a)
 	}
 	if err := rows.Err(); err != nil {
@@ -54,14 +58,38 @@ func (s *Store) ListAccounts(ctx context.Context) ([]domain.Account, error) {
 // doesn't exist.
 func (s *Store) GetAccount(ctx context.Context, id string) (domain.Account, error) {
 	var a domain.Account
-	err := s.db.QueryRowContext(ctx, `SELECT id, provider, label FROM accounts WHERE id = ?`, id).
-		Scan(&a.ID, &a.Provider, &a.Label)
+	err := s.db.QueryRowContext(ctx, `SELECT id, provider, label, nickname FROM accounts WHERE id = ?`, id).
+		Scan(&a.ID, &a.Provider, &a.Label, &a.Nickname)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Account{}, ErrNotFound
 	}
 	if err != nil {
 		return domain.Account{}, fmt.Errorf("store: get account: %w", err)
 	}
-	a.Label = domain.SafeText(a.Label)
+	a.Label, a.Nickname = domain.SafeText(a.Label), domain.SafeText(a.Nickname)
 	return a, nil
+}
+
+// SetAccountNickname sets the user's own name for an account; "" removes it.
+func (s *Store) SetAccountNickname(ctx context.Context, id, nickname string) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
+	res, err := s.db.ExecContext(ctx, `UPDATE accounts SET nickname = ? WHERE id = ?`, nickname, id)
+	if err != nil {
+		return fmt.Errorf("store: set account nickname: %w", err)
+	}
+	return requireRow(res)
+}
+
+// requireRow returns ErrNotFound if res changed no rows.
+func requireRow(res sql.Result) error {
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

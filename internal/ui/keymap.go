@@ -23,7 +23,7 @@ type keyMap struct {
 	Sync                  key.Binding
 	ViewAgenda, ViewWeek  key.Binding
 	ViewMonth             key.Binding
-	Add, Remove           key.Binding
+	Add, Remove, Rename   key.Binding
 	Quit                  key.Binding
 }
 
@@ -51,6 +51,7 @@ func defaultKeyMap() keyMap {
 		ViewMonth:  key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "month")),
 		Add:        key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
 		Remove:     key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "remove")),
+		Rename:     key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "rename")),
 		Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
 }

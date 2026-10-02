@@ -90,10 +90,10 @@ func (m Model) openICalForm() (tea.Model, tea.Cmd) {
 		if r.kind == sideAccount {
 			account = r.label
 		} else {
-			account = r.cal.Account.Label
+			account = r.cal.Account.DisplayName()
 		}
 	} else if len(m.calendars) > 0 {
-		account = m.calendars[0].Account.Label
+		account = m.calendars[0].Account.DisplayName()
 	}
 	m.form = newAddForm(account)
 	return m, m.form.focusField(m.form.focus)

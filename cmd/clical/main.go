@@ -15,6 +15,7 @@ type CLI struct {
 	Agenda    AgendaCmd        `cmd:"" help:"Print upcoming events from the local cache."`
 	Sync      SyncCmd          `cmd:"" help:"Fetch the latest events for every calendar."`
 	Calendars CalendarsCmd     `cmd:"" help:"Manage calendars."`
+	Accounts  AccountsCmd      `cmd:"" help:"Manage accounts, the groups calendars are listed under."`
 }
 
 func main() {

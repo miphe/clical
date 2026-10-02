@@ -47,7 +47,7 @@ func (m Model) busyLabel() string {
 		return "Signing in"
 	case m.gflow != nil && (m.gflow.step == gChecking || m.gflow.step == gStarting || m.gflow.step == gListing):
 		return "Checking"
-	case m.gflow != nil && m.gflow.step == gSaving:
+	case m.gflow != nil && m.gflow.step == gSaving, m.rename != nil && m.rename.saving:
 		return "Saving"
 	case m.removing:
 		return "Removing"

@@ -57,6 +57,8 @@ func (m Model) render() string {
 		body = overlay(body, m.renderChooser(), m.width)
 	case m.confirmRemove != nil:
 		body = overlay(body, m.renderConfirm(), m.width)
+	case m.rename != nil:
+		body = overlay(body, m.renderRename(), m.width)
 	}
 
 	return strings.Join(append(body, m.renderFooter()...), "\n")
@@ -262,12 +264,14 @@ func (m Model) renderFooter() []string {
 		bindings = []key.Binding{hint("esc", "cancel")}
 	case m.confirmRemove != nil:
 		bindings = []key.Binding{hint("y", "remove"), hint("n", "cancel")}
+	case m.rename != nil:
+		bindings = []key.Binding{hint("enter", "save"), hint("esc", "cancel")}
 	case m.detail != nil && len(m.detail.Event.Links) > 0:
 		bindings = []key.Binding{hint("j/k", "select link"), hint("enter", "open"), hint("pgup/pgdn", "scroll"), m.keys.Close}
 	case m.detail != nil:
 		bindings = []key.Binding{hint("j/k", "scroll"), m.keys.Close}
 	case m.focus == focusSidebar:
-		bindings = []key.Binding{hint("j/k", "move"), m.keys.Toggle, hint("enter", "fold"), m.keys.Add, m.keys.Remove}
+		bindings = []key.Binding{hint("j/k", "move"), m.keys.Toggle, hint("enter", "fold"), m.keys.Add, m.keys.Rename, m.keys.Remove}
 		if acct, ok := m.selectedGoogleAccount(); ok && m.needsSignIn[acct.ID] {
 			bindings = append([]key.Binding{hint("s", "sign in again")}, bindings...)
 		}
@@ -290,7 +294,7 @@ func (m Model) renderFooter() []string {
 		return strings.Join(hints, mutedStyle.Render(" · "))
 	}
 	line := render(bindings)
-	if m.form == nil && m.gflow == nil && m.chooser == nil && m.confirmRemove == nil && m.detail == nil {
+	if m.form == nil && m.gflow == nil && m.chooser == nil && m.confirmRemove == nil && m.rename == nil && m.detail == nil {
 		// Pane keys first, the same everywhere, so they're never cut off.
 		panes := render([]key.Binding{hint("0", "calendars"), hint("1-3", "views"), hint("tab", "switch pane")})
 		line = panes + mutedStyle.Render(" │ ") + line

@@ -10,7 +10,8 @@ import (
 )
 
 // UpsertCalendar inserts cal, or updates its name and color slot in place if
-// it already exists. The calendar's sync token is left untouched on update.
+// it already exists. The calendar's sync token and nickname are left
+// untouched on update.
 func (s *Store) UpsertCalendar(ctx context.Context, cal domain.Calendar) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -25,12 +26,14 @@ func (s *Store) UpsertCalendar(ctx context.Context, cal domain.Calendar) error {
 	return nil
 }
 
-// ListCalendars returns every known calendar, ordered by account then name.
+// ListCalendars returns every known calendar, ordered by account then name,
+// using nicknames where set.
 func (s *Store) ListCalendars(ctx context.Context) ([]domain.Calendar, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT c.id, c.account_id, c.name, c.color
+		SELECT c.id, c.account_id, c.name, c.nickname, c.color
 		FROM calendars c JOIN accounts a ON a.id = c.account_id
-		ORDER BY a.label, c.name
+		ORDER BY COALESCE(NULLIF(a.nickname, ''), a.label) COLLATE NOCASE, a.id,
+			COALESCE(NULLIF(c.nickname, ''), c.name) COLLATE NOCASE
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list calendars: %w", err)
@@ -41,10 +44,10 @@ func (s *Store) ListCalendars(ctx context.Context) ([]domain.Calendar, error) {
 	for rows.Next() {
 		var c domain.Calendar
 		var slot string
-		if err := rows.Scan(&c.ID, &c.AccountID, &c.Name, &slot); err != nil {
+		if err := rows.Scan(&c.ID, &c.AccountID, &c.Name, &c.Nickname, &slot); err != nil {
 			return nil, fmt.Errorf("store: scan calendar: %w", err)
 		}
-		c.Name = domain.SafeText(c.Name)
+		c.Name, c.Nickname = domain.SafeText(c.Name), domain.SafeText(c.Nickname)
 		c.ColorSlot = decodeSlot(slot)
 		out = append(out, c)
 	}
@@ -96,6 +99,20 @@ func (s *Store) DeleteCalendar(ctx context.Context, cal domain.Calendar) error {
 		}
 		return nil
 	})
+}
+
+// SetCalendarNickname sets the user's own name for cal; "" removes it.
+func (s *Store) SetCalendarNickname(ctx context.Context, cal domain.Calendar, nickname string) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE calendars SET nickname = ? WHERE account_id = ? AND id = ?`, nickname, cal.AccountID, cal.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("store: set calendar nickname: %w", err)
+	}
+	return requireRow(res)
 }
 
 // ResetSyncToken clears cal's sync token so the next sync is a full one.

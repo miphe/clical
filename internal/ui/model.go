@@ -30,6 +30,8 @@ type Source interface {
 	CheckFeed(ctx context.Context, rawURL string) (app.Feed, error)
 	AddCalendar(ctx context.Context, account, name string, feed app.Feed) (app.CalendarInfo, error)
 	RemoveCalendar(ctx context.Context, cal app.CalendarInfo) error
+	RenameCalendar(ctx context.Context, cal app.CalendarInfo, name string) (app.CalendarInfo, error)
+	RenameAccount(ctx context.Context, acct domain.Account, name string) (domain.Account, error)
 
 	SavedGoogleClientID() (string, error)
 	BeginGoogleSignIn(expect string, client *app.GoogleClient) (app.SignIn, error)
@@ -146,6 +148,7 @@ type Model struct {
 	needsSignIn   map[string]bool // account ID → must sign in again
 	form          *addForm
 	confirmRemove *app.CalendarInfo
+	rename        *renameForm // rename.go
 	removing      bool
 	actionErr     error // last add/remove failure outside the form
 
@@ -323,6 +326,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case removeDoneMsg:
 		return m.removeDone(msg)
 
+	case renameDoneMsg:
+		return m.renameDone(msg)
+
 	case openedMsg:
 		return m.opened(msg)
 
@@ -333,6 +339,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case m.form != nil:
 			return m.formPaste(msg)
+		case m.rename != nil:
+			return m.renamePaste(msg)
 		case m.gflow != nil:
 			return m.googlePaste(msg)
 		}
@@ -435,6 +443,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleChooserKey(msg)
 	case m.confirmRemove != nil:
 		return m.handleConfirmKey(msg)
+	case m.rename != nil:
+		return m.handleRenameKey(msg)
 	}
 	if m.detail != nil {
 		return m.handleDetailKey(msg)
@@ -743,7 +753,7 @@ func (m *Model) ensureVisible() {
 // describeSyncFailure words a calendar's failed sync for the status line.
 func describeSyncFailure(r app.SyncOutcome) string {
 	if r.NeedsSignIn() {
-		return r.Account.Label + ": sign in again (s on the account)"
+		return r.Account.DisplayName() + ": sign in again (s on the account)"
 	}
 	if _, ok := r.Unavailable(); ok {
 		if r.Account.Provider == "ical" {

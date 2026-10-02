@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -169,5 +170,55 @@ func TestColorSlotRoundTrip(t *testing.T) {
 	}
 	if got["unset"] != 0 || got["seven"] != 7 {
 		t.Errorf("slots = %v, want unset:0 seven:7", got)
+	}
+}
+
+func TestNicknames(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	for _, a := range []domain.Account{
+		{ID: "a", Provider: "ical", Label: "Zeta"},
+		{ID: "b", Provider: "ical", Label: "Beta"},
+	} {
+		if err := s.UpsertAccount(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cal := domain.Calendar{ID: "c1", AccountID: "a", Name: "Team"}
+	for _, c := range []domain.Calendar{cal, {ID: "c2", AccountID: "b", Name: "Other"}} {
+		if err := s.UpsertCalendar(ctx, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetAccountNickname(ctx, "a", "Alpha"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetCalendarNickname(ctx, cal, "Squad\x1b[2J"); err != nil {
+		t.Fatal(err)
+	}
+	// Updates from the provider keep the nicknames.
+	if err := s.UpsertAccount(ctx, domain.Account{ID: "a", Provider: "ical", Label: "Zeta"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertCalendar(ctx, domain.Calendar{ID: "c1", AccountID: "a", Name: "Team 2"}); err != nil {
+		t.Fatal(err)
+	}
+
+	cals, err := s.ListCalendars(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Sorted by the names shown: Alpha (was Zeta) before Beta.
+	if len(cals) != 2 || cals[0].ID != "c1" || cals[0].Name != "Team 2" || cals[0].Nickname != "Squad[2J" {
+		t.Errorf("ListCalendars() = %+v", cals)
+	}
+	if acct, err := s.GetAccount(ctx, "a"); err != nil || acct.Nickname != "Alpha" || acct.Label != "Zeta" {
+		t.Errorf("GetAccount() = %+v, %v", acct, err)
+	}
+	if err := s.SetCalendarNickname(ctx, domain.Calendar{ID: "nope", AccountID: "a"}, "x"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("SetCalendarNickname on a missing calendar error = %v", err)
+	}
+	if err := s.SetAccountNickname(ctx, "nope", "x"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("SetAccountNickname on a missing account error = %v", err)
 	}
 }

@@ -15,6 +15,18 @@ type Account struct {
 	ID       string // stable id, e.g. sha256("provider:label")[:16] hex
 	Provider string // "google", ...
 	Label    string // e.g. the account's email address
+	// Nickname is the user's own name for the account, shown instead of
+	// Label; "" for none. Label stays as it is: it identifies the account
+	// (a Google account's email address, matched on signing in again).
+	Nickname string
+}
+
+// DisplayName is the name to show for the account.
+func (a Account) DisplayName() string {
+	if a.Nickname != "" {
+		return a.Nickname
+	}
+	return a.Label
 }
 
 // NewAccountID derives a stable, deterministic account ID from a provider
@@ -31,11 +43,22 @@ func NewAccountID(provider, label string) string {
 type Calendar struct {
 	ID        string
 	AccountID string
-	Name      string
+	Name      string // as added, or as the provider names it
+	// Nickname is the user's own name for the calendar, shown instead of
+	// Name; "" for none.
+	Nickname string
 	// ColorSlot is the calendar's permanent place in the color palette,
 	// starting at 1; 0 means not assigned yet. Front-ends map slots to actual
 	// colors, so a calendar keeps its color when others are added or removed.
 	ColorSlot int
+}
+
+// DisplayName is the name to show for the calendar.
+func (c Calendar) DisplayName() string {
+	if c.Nickname != "" {
+		return c.Nickname
+	}
+	return c.Name
 }
 
 // CivilDate is a timezone-less calendar date. All-day events are represented

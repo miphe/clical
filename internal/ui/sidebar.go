@@ -31,7 +31,7 @@ const (
 type sideRow struct {
 	kind    sideKind
 	account string // account ID
-	label   string // account label, for headers
+	label   string // account name as shown, for headers
 	count   int    // calendars in the account, for headers
 	cal     app.CalendarInfo
 }
@@ -58,7 +58,7 @@ func (m Model) sidebarRows() []sideRow {
 					count++
 				}
 			}
-			rows = append(rows, sideRow{kind: sideAccount, account: c.Account.ID, label: c.Account.Label, count: count})
+			rows = append(rows, sideRow{kind: sideAccount, account: c.Account.ID, label: c.Account.DisplayName(), count: count})
 		}
 		if !m.side.folded[c.Account.ID] {
 			rows = append(rows, sideRow{kind: sideCalendar, account: c.Account.ID, cal: c})
@@ -135,6 +135,8 @@ func (m Model) handleSidebarKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if acct, ok := m.selectedGoogleAccount(); ok {
 			return m.startGoogleFlow(acct.Label)
 		}
+	case key.Matches(msg, m.keys.Rename):
+		return m.startRename()
 	case key.Matches(msg, m.keys.Remove):
 		if r, ok := m.selectedSidebarRow(); ok && r.kind == sideCalendar {
 			cal := r.cal
@@ -252,7 +254,7 @@ func (m Model) renderSidebarRow(r sideRow, width int, selected bool) string {
 	hidden := m.hidden[r.cal.Calendar.ID]
 	slot := r.cal.Calendar.ColorSlot
 	swatch := calendarGlyph(slot, hidden)
-	text := "   " + swatch + " " + r.cal.Calendar.Name
+	text := "   " + swatch + " " + r.cal.Calendar.DisplayName()
 	if m.sidebarCollapsed {
 		text = " " + swatch + " "
 	}

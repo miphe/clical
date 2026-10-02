@@ -99,6 +99,7 @@ to trust your OAuth client ID (Admin console → Security → API controls).
 | `r`                        | Sync now                                                                          |
 | `a`                        | Add a calendar (iCal link or Google account)                                      |
 | `s` (calendar list)        | Sign a Google account in again (when marked ⚠)                                    |
+| `n` (calendar list)        | Rename the selected calendar or account (only in CLIcal)                          |
 | `d` (calendar list)        | Remove the selected calendar (asks first)                                         |
 | `space` (calendar list)    | Show or hide a calendar, or all of an account's calendars                         |
 | `enter` (calendar list)    | Fold or unfold an account                                                         |
@@ -119,11 +120,15 @@ It can't be recovered if forgotten; the fix is to delete
 ## Managing calendars
 
     clical calendars list
+    clical calendars rename Main Family # your own name; leave it out to undo
+    clical accounts rename Personal Home
     clical calendars set-url Main       # after resetting a secret address
     clical calendars remove Main        # asks y/N; --yes to skip
 
-Calendars are referenced by name or by the ID shown in `list`; add
-`--account Work` if the name exists in more than one account. If a secret
+Calendars are referenced by name, nickname or the ID shown in `list`; add
+`--account Work` if the name exists in more than one account. A rename
+only changes what CLIcal shows: the calendar in Google Calendar, and the
+email address a Google account signs in with, stay as they are. If a secret
 address leaks, use "Reset" next to it in Google Calendar, then
 `clical calendars set-url` with the new one.
 

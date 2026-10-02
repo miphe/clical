@@ -228,3 +228,30 @@ func TestMigrationAddsLinksColumnToOldDatabase(t *testing.T) {
 		t.Errorf("links column after migration: %v, %v", ok, err)
 	}
 }
+
+func TestMigrationAddsNicknameColumnsToOldDatabase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	// A database from before nicknames existed.
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`CREATE TABLE accounts (id TEXT PRIMARY KEY, provider TEXT NOT NULL, label TEXT NOT NULL);
+		CREATE TABLE calendars (id TEXT NOT NULL, account_id TEXT NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL,
+			sync_token TEXT, last_synced_at INTEGER, PRIMARY KEY (account_id, id));
+		INSERT INTO accounts VALUES ('a', 'ical', 'Personal');
+		INSERT INTO calendars (id, account_id, name, color) VALUES ('c', 'a', 'Main', '1');`); err != nil {
+		t.Fatal(err)
+	}
+	old.Close()
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open() on an old database error = %v", err)
+	}
+	defer s.Close()
+	cals, err := s.ListCalendars(context.Background())
+	if err != nil || len(cals) != 1 || cals[0].DisplayName() != "Main" {
+		t.Errorf("ListCalendars() after migration = %+v, %v", cals, err)
+	}
+}

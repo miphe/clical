@@ -340,8 +340,8 @@ title. Used by `clical agenda` now and by the TUI Agenda view in M5.
   stored URL, reset the sync token. The calendar keeps its ID (so it stays
   derived from the *original* URL; re-adding the new URL with `add` would
   create a duplicate).
-- Calendars are referenced by ID or case-insensitive name; an ambiguous name
-  lists the matches and asks for the ID or `--account`.
+- Calendars are referenced by ID or case-insensitive name or nickname; an
+  ambiguous name lists the matches and asks for the ID or `--account`.
 - New vault: the first command that needs the vault warns that the
   passphrase can't be recovered and asks for it twice (must match, must be
   non-empty). `sync` skips the passphrase entirely when there are no
@@ -638,8 +638,35 @@ Omarchy's `colors.toml`; that's out of scope.
 - `ui.Source` gained `SyncCalendar`, `CheckFeed`, `AddCalendar` and
   `RemoveCalendar`, all implemented by `*app.App`.
 
-Not done (yet): rename, or replacing a calendar's URL from the TUI (the CLI
-has `calendars set-url`).
+Not done (yet): replacing a calendar's URL from the TUI (the CLI has
+`calendars set-url`). Renaming is done; see "Nicknames" below.
+
+## Nicknames — done
+
+Calendars and accounts can be given the user's own name, shown everywhere
+in place of their own (sidebar, event rows, status line, CLI output).
+
+- Stored separately, in `nickname` columns on `accounts` and `calendars`
+  (`''` = none; added to older databases on open), never in place of the
+  label or name: a Google account's label is the email address signing in
+  again is checked against, an iCal account's ID is derived from its label,
+  and a Google calendar's name is refreshed when its account is added again.
+  Upserts from providers leave nicknames alone.
+- `domain.Account.DisplayName()` / `domain.Calendar.DisplayName()` pick the
+  nickname when set; `app.CalendarInfo.Label()` uses them. Lists are sorted
+  by the names shown.
+- `app.RenameCalendar` / `app.RenameAccount` collapse whitespace and drop
+  control characters; an empty name, or the item's own name, removes the
+  nickname. No secrets are involved, so renaming works while locked.
+- Lookups (`FindCalendar`, `--account`, `FindAccount`, the account typed in
+  the add form) match the own name or the nickname. Re-adding an iCal feed
+  under a name clears its nickname: naming it is an explicit choice.
+- TUI: `n` on a calendar or account row opens a one-field popup with the
+  current name (activity: `Saving`); the own name is the placeholder, and
+  the popup says that leaving the field empty brings it back.
+- CLI: `calendars rename <calendar> [name] [--account]`,
+  `accounts rename <account> [name]`; `calendars list` shows
+  `Nickname (own name)`.
 
 ## Panels (`internal/ui/panel.go`) — done
 

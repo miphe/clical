@@ -15,14 +15,15 @@ type CalendarsCmd struct {
 	Add    CalendarsAddCmd    `cmd:"" help:"Add a calendar from its secret iCal URL."`
 	List   CalendarsListCmd   `cmd:"" help:"List added calendars."`
 	Remove CalendarsRemoveCmd `cmd:"" help:"Remove a calendar and its cached events."`
+	Rename CalendarsRenameCmd `cmd:"" help:"Give a calendar your own name."`
 	SetURL CalendarsSetURLCmd `cmd:"" name:"set-url" help:"Replace a calendar's secret iCal URL, e.g. after resetting it."`
 }
 
 // calendarRef selects a calendar by ID or by name, optionally narrowed to one
 // account.
 type calendarRef struct {
-	Calendar string `arg:"" help:"Calendar name or ID (see 'calendars list')."`
-	Account  string `help:"Only match calendars in this account."`
+	Calendar string `arg:"" help:"Calendar name, nickname or ID (see 'calendars list')."`
+	Account  string `help:"Only match calendars in this account (name or nickname)."`
 }
 
 func (r calendarRef) resolve(ctx context.Context, a *app.App) (app.CalendarInfo, error) {
@@ -106,9 +107,81 @@ func (c *CalendarsListCmd) Run() error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "ACCOUNT\tCALENDAR\tID")
 	for _, cal := range cals {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", cal.Account.Label, cal.Calendar.Name, cal.Calendar.ID)
+		fmt.Fprintf(w, "%s\t%s\t%s\n",
+			withOwnName(cal.Account.DisplayName(), cal.Account.Label),
+			withOwnName(cal.Calendar.DisplayName(), cal.Calendar.Name),
+			cal.Calendar.ID)
 	}
 	return w.Flush()
+}
+
+// withOwnName adds a nicknamed item's own name, e.g. "Family (Main)".
+func withOwnName(shown, own string) string {
+	if shown == own {
+		return shown
+	}
+	return shown + " (" + own + ")"
+}
+
+// CalendarsRenameCmd gives a calendar the user's own name. No passphrase
+// needed.
+type CalendarsRenameCmd struct {
+	calendarRef
+	Name string `arg:"" optional:"" help:"New name. Leave out to use the calendar's own name again."`
+}
+
+func (c *CalendarsRenameCmd) Run() error {
+	a, err := openApp()
+	if err != nil {
+		return err
+	}
+	defer a.Close()
+	ctx := context.Background()
+
+	cal, err := c.resolve(ctx, a)
+	if err != nil {
+		return err
+	}
+	before := cal.Label()
+	renamed, err := a.RenameCalendar(ctx, cal, c.Name)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Renamed %s to %s\n", before, renamed.Label())
+	return nil
+}
+
+// AccountsCmd groups account-management subcommands.
+type AccountsCmd struct {
+	Rename AccountsRenameCmd `cmd:"" help:"Give an account your own name."`
+}
+
+// AccountsRenameCmd gives an account the user's own name. No passphrase
+// needed.
+type AccountsRenameCmd struct {
+	Account string `arg:"" help:"Account name, nickname or ID."`
+	Name    string `arg:"" optional:"" help:"New name. Leave out to use the account's own name again."`
+}
+
+func (c *AccountsRenameCmd) Run() error {
+	a, err := openApp()
+	if err != nil {
+		return err
+	}
+	defer a.Close()
+	ctx := context.Background()
+
+	acct, err := a.FindAccount(ctx, c.Account)
+	if err != nil {
+		return err
+	}
+	before := acct.DisplayName()
+	renamed, err := a.RenameAccount(ctx, acct, c.Name)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Renamed %s to %s\n", before, renamed.DisplayName())
+	return nil
 }
 
 // CalendarsRemoveCmd deletes a calendar, its cached events and its stored URL.

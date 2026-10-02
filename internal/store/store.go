@@ -25,13 +25,15 @@ const schema = `
 CREATE TABLE IF NOT EXISTS accounts (
 	id       TEXT PRIMARY KEY,
 	provider TEXT NOT NULL,
-	label    TEXT NOT NULL
+	label    TEXT NOT NULL,
+	nickname TEXT NOT NULL DEFAULT '' -- the user's own name; '' = none
 );
 
 CREATE TABLE IF NOT EXISTS calendars (
 	id             TEXT NOT NULL,
 	account_id     TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
 	name           TEXT NOT NULL,
+	nickname       TEXT NOT NULL DEFAULT '', -- the user's own name; '' = none
 	color          TEXT NOT NULL, -- color slot as decimal text; '' = unassigned
 	sync_token     TEXT,
 	last_synced_at INTEGER,
@@ -88,6 +90,8 @@ func (s *Store) migrate(ctx context.Context) error {
 	// doesn't add them to an existing database.
 	added := []struct{ table, column, def string }{
 		{"events", "links", "TEXT NOT NULL DEFAULT ''"},
+		{"accounts", "nickname", "TEXT NOT NULL DEFAULT ''"},
+		{"calendars", "nickname", "TEXT NOT NULL DEFAULT ''"},
 	}
 	for _, c := range added {
 		exists, err := s.hasColumn(ctx, c.table, c.column)

@@ -42,7 +42,13 @@ func (nopSource) AddCalendar(context.Context, string, string, app.Feed) (app.Cal
 	return app.CalendarInfo{}, nil
 }
 func (nopSource) RemoveCalendar(context.Context, app.CalendarInfo) error { return nil }
-func (nopSource) SavedGoogleClientID() (string, error)                   { return "", nil }
+func (nopSource) RenameCalendar(_ context.Context, c app.CalendarInfo, _ string) (app.CalendarInfo, error) {
+	return c, nil
+}
+func (nopSource) RenameAccount(_ context.Context, a domain.Account, _ string) (domain.Account, error) {
+	return a, nil
+}
+func (nopSource) SavedGoogleClientID() (string, error) { return "", nil }
 func (nopSource) BeginGoogleSignIn(string, *app.GoogleClient) (app.SignIn, error) {
 	return nil, errors.New("no")
 }
@@ -1916,5 +1922,94 @@ func TestOverdueSyncStartsOnWaking(t *testing.T) {
 	m, _ = send(t, m, tickMsg(m.nextPoll.Add(time.Hour)))
 	if !m.syncing || m.pollSeq == seq {
 		t.Error("an overdue sync didn't start on the clock tick")
+	}
+}
+
+type renameSource struct {
+	nopSource
+	cal  app.CalendarInfo
+	acct domain.Account
+	name string
+	err  error
+}
+
+func (r *renameSource) RenameCalendar(_ context.Context, c app.CalendarInfo, name string) (app.CalendarInfo, error) {
+	r.cal, r.name = c, name
+	return c, r.err
+}
+
+func (r *renameSource) RenameAccount(_ context.Context, a domain.Account, name string) (domain.Account, error) {
+	r.acct, r.name = a, name
+	return a, r.err
+}
+
+func TestRenameCalendar(t *testing.T) {
+	src := &renameSource{}
+	m := loaded(t, 100, 24)
+	m.src = src
+	m.focus = focusSidebar
+	m.side.sel = sideRow{kind: sideCalendar, cal: testCalendars[0]}.key()
+	m, _ = send(t, m, press("n"))
+	if m.rename == nil || m.rename.account || m.rename.input.Value() != "Holidays" {
+		t.Fatalf("n didn't open the rename popup with the current name: %+v", m.rename)
+	}
+	if s := screen(m); !strings.Contains(s, "Rename calendar") || !strings.Contains(s, "Its own name is Holidays") {
+		t.Errorf("rename popup not shown:\n%s", s)
+	}
+	m.rename.input.SetValue("Public holidays")
+	m, cmd := send(t, m, press("enter"))
+	if !m.rename.saving || cmd == nil {
+		t.Fatal("enter didn't save")
+	}
+	m, _ = send(t, m, cmd())
+	if src.cal.Calendar.ID != holidays.ID || src.name != "Public holidays" {
+		t.Errorf("renamed %q to %q", src.cal.Calendar.ID, src.name)
+	}
+	if m.rename != nil {
+		t.Error("popup still open after saving")
+	}
+
+	// The reloaded list carries the nickname, shown everywhere.
+	renamed := []app.CalendarInfo{testCalendars[0], testCalendars[1]}
+	renamed[0].Calendar.Nickname = "Public holidays"
+	renamed[1].Account.Nickname = "Home"
+	m, _ = send(t, m, calendarsLoadedMsg{rows: renamed})
+	if s := screen(m); !strings.Contains(s, "● Public holidays") || !strings.Contains(s, "Home · Main") {
+		t.Errorf("nicknames not shown:\n%s", s)
+	}
+}
+
+func TestRenameAccount(t *testing.T) {
+	src := &renameSource{}
+	m := loaded(t, 100, 24)
+	m.src = src
+	m.focus = focusSidebar
+	m.side.sel = sideRow{kind: sideAccount, account: personal.ID}.key()
+	m, _ = send(t, m, press("n"))
+	if m.rename == nil || !m.rename.account || m.rename.input.Value() != "Personal" {
+		t.Fatalf("n on an account didn't open its rename popup: %+v", m.rename)
+	}
+	m.rename.input.SetValue("Home")
+	m, cmd := send(t, m, press("enter"))
+	send(t, m, cmd())
+	if src.acct.ID != personal.ID || src.name != "Home" {
+		t.Errorf("renamed account %q to %q", src.acct.ID, src.name)
+	}
+}
+
+func TestRenameFailureKeepsPopupOpen(t *testing.T) {
+	src := &renameSource{err: errors.New("disk full")}
+	m := loaded(t, 100, 24)
+	m.src = src
+	m.focus = focusSidebar
+	m.side.sel = sideRow{kind: sideCalendar, cal: testCalendars[0]}.key()
+	m, _ = send(t, m, press("n"))
+	m, cmd := send(t, m, press("enter"))
+	m, _ = send(t, m, cmd())
+	if m.rename == nil || m.rename.saving || !strings.Contains(screen(m), "disk full") {
+		t.Errorf("failure not shown in the popup:\n%s", screen(m))
+	}
+	if m, _ = send(t, m, press("esc")); m.rename != nil {
+		t.Error("esc didn't close the popup")
 	}
 }

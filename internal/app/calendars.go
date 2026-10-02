@@ -44,13 +44,20 @@ func (a *App) AddCalendar(ctx context.Context, account, name string, feed Feed) 
 	if strings.TrimSpace(account) == "" || strings.TrimSpace(name) == "" {
 		return CalendarInfo{}, errors.New("account and calendar name must not be empty")
 	}
-	acct := domain.Account{ID: domain.NewAccountID("ical", account), Provider: "ical", Label: account}
-	cal := domain.Calendar{ID: ical.CalendarID(feed.url), AccountID: acct.ID, Name: name}
-
 	existing, err := a.Calendars(ctx)
 	if err != nil {
 		return CalendarInfo{}, err
 	}
+	acct := domain.Account{ID: domain.NewAccountID("ical", account), Provider: "ical", Label: account}
+	for _, c := range existing {
+		// An account is found by its nickname too, so naming the account
+		// as the sidebar shows it adds to it rather than making another.
+		if c.Account.Provider == "ical" && (strings.EqualFold(c.Account.Label, account) || strings.EqualFold(c.Account.Nickname, account)) {
+			acct = c.Account
+			break
+		}
+	}
+	cal := domain.Calendar{ID: ical.CalendarID(feed.url), AccountID: acct.ID, Name: name}
 	cal.ColorSlot = slotFor(existing, cal)
 
 	if err := a.vault.SaveSecret(ical.SecretKey(cal.ID), []byte(feed.url)); err != nil {
@@ -60,6 +67,10 @@ func (a *App) AddCalendar(ctx context.Context, account, name string, feed Feed) 
 		return CalendarInfo{}, err
 	}
 	if err := a.store.UpsertCalendar(ctx, cal); err != nil {
+		return CalendarInfo{}, err
+	}
+	// Re-adding a feed under a name means calling it that name.
+	if err := a.store.SetCalendarNickname(ctx, cal, ""); err != nil {
 		return CalendarInfo{}, err
 	}
 	return CalendarInfo{Account: acct, Calendar: cal}, nil
@@ -124,8 +135,9 @@ func (e *AmbiguousCalendarError) Error() string {
 	return fmt.Sprintf("%q matches several calendars: %s", e.Ref, strings.Join(names, ", "))
 }
 
-// FindCalendar resolves ref — a calendar ID, or a case-insensitive name — to
-// exactly one calendar, optionally only within the account labelled account.
+// FindCalendar resolves ref — a calendar ID, or a case-insensitive name or
+// nickname — to exactly one calendar, optionally only within the account
+// named (by label or nickname) account.
 func (a *App) FindCalendar(ctx context.Context, ref, account string) (CalendarInfo, error) {
 	cals, err := a.Calendars(ctx)
 	if err != nil {
@@ -137,10 +149,10 @@ func (a *App) FindCalendar(ctx context.Context, ref, account string) (CalendarIn
 func matchCalendar(cals []CalendarInfo, ref, account string) (CalendarInfo, error) {
 	var matches []CalendarInfo
 	for _, c := range cals {
-		if account != "" && !strings.EqualFold(c.Account.Label, account) {
+		if account != "" && !strings.EqualFold(c.Account.Label, account) && !strings.EqualFold(c.Account.Nickname, account) {
 			continue
 		}
-		if c.Calendar.ID == ref || strings.EqualFold(c.Calendar.Name, ref) {
+		if c.Calendar.ID == ref || strings.EqualFold(c.Calendar.Name, ref) || strings.EqualFold(c.Calendar.Nickname, ref) {
 			matches = append(matches, c)
 		}
 	}

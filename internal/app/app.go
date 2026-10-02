@@ -47,9 +47,10 @@ type CalendarInfo struct {
 	Calendar domain.Calendar
 }
 
-// Label is "Account · Calendar", the name front-ends show for a calendar.
+// Label is "Account · Calendar", the name front-ends show for a calendar,
+// using nicknames where set.
 func (c CalendarInfo) Label() string {
-	return c.Account.Label + " · " + c.Calendar.Name
+	return c.Account.DisplayName() + " · " + c.Calendar.DisplayName()
 }
 
 // App is an open clical data directory. Reading calendars and events works
