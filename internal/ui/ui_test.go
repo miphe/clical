@@ -1,17 +1,21 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/miphe/clical/internal/app"
@@ -651,7 +655,7 @@ func TestFocusedPanelBorderIsHighlighted(t *testing.T) {
 	if !strings.HasPrefix(top, lo) || !strings.Contains(top, hi) {
 		t.Errorf("main focused: want a plain sidebar border and a highlighted main border:\n%q", top)
 	}
-	if !strings.Contains(top, activeTabStyle.Render("[1] Agenda")) || !strings.Contains(top, dimStyle.Render("[2] Week")) {
+	if !strings.Contains(top, activeTabStyle.Render("[1] Agenda")) || !strings.Contains(top, mutedStyle.Render("[2] Week")) {
 		t.Errorf("agenda tab not shown as active:\n%q", top)
 	}
 
@@ -663,7 +667,7 @@ func TestFocusedPanelBorderIsHighlighted(t *testing.T) {
 
 	m, _ = send(t, m, press("l"), press("2"))
 	m = deliverWeek(t, m, testEvents())
-	if top = topLine(m); !strings.Contains(top, activeTabStyle.Render("[2] Week")) {
+	if top = topLine(m); !strings.Contains(top, activeTabStyle.Render("[2] Week 40")) {
 		t.Errorf("week tab not shown as active:\n%q", top)
 	}
 }
@@ -755,22 +759,30 @@ func TestSidebarFoldAndToggleAccount(t *testing.T) {
 	}
 }
 
-func TestCalendarColorsFollowSlotsAndStayDistinct(t *testing.T) {
+func TestCalendarBulletsFollowSlotsAndStayDistinct(t *testing.T) {
+	// Six ANSI hues times four shapes: every one of the first 24 calendars
+	// looks different, without leaving the terminal's palette.
 	seen := map[string]int{}
-	for slot := 1; slot <= 40; slot++ {
-		key := fmt.Sprint(calendarColor(slot))
+	for slot := 1; slot <= len(calendarHues)*len(calendarShapes); slot++ {
+		key := fmt.Sprint(calendarColor(slot)) + calendarGlyph(slot, false)
 		if prev, dup := seen[key]; dup {
-			t.Errorf("slots %d and %d share a color", prev, slot)
+			t.Errorf("slots %d and %d look the same", prev, slot)
 		}
 		seen[key] = slot
 	}
+	if calendarGlyph(1, false) != "●" || calendarGlyph(7, false) != "◆" || calendarGlyph(7, true) != "◇" {
+		t.Error("shapes don't progress ● → ◆ (hollow when hidden) after the six hues")
+	}
+	if calendarColor(7) != calendarColor(1) {
+		t.Error("slot 7 should reuse slot 1's hue with a different shape")
+	}
 
-	// A calendar's color comes from its slot, not its place in the list.
+	// A calendar's look comes from its slot, not its place in the list.
 	m := withCalendars(t, loaded(t, 100, 24), []app.CalendarInfo{
-		{Account: personal, Calendar: domain.Calendar{ID: "x", AccountID: "p", Name: "X", ColorSlot: 5}},
+		{Account: personal, Calendar: domain.Calendar{ID: "x", AccountID: "p", Name: "X", ColorSlot: 9}},
 	})
-	if m.calendarColor("x") != calendarColor(5) {
-		t.Error("calendar color doesn't come from its slot")
+	if m.calendarSlot("x") != 9 || !strings.Contains(screen(m), "◆ X") {
+		t.Errorf("calendar X (slot 9) should show as ◆ in the sidebar:\n%s", screen(m))
 	}
 }
 
@@ -899,4 +911,103 @@ func TestGoldenPopups(t *testing.T) {
 	golden(t, "add_form", screen(form))
 	confirm, _ := send(t, m, press("h"), press("j"), press("d"))
 	golden(t, "remove_confirm", screen(confirm))
+}
+
+// sgrParams returns the parameters of every SGR (style) escape in s.
+func sgrParams(s string) [][]int {
+	var out [][]int
+	for _, m := range regexp.MustCompile(`\x1b\[([0-9;]*)m`).FindAllStringSubmatch(s, -1) {
+		var params []int
+		for _, p := range strings.Split(m[1], ";") {
+			n, _ := strconv.Atoi(p)
+			params = append(params, n)
+		}
+		out = append(out, params)
+	}
+	return out
+}
+
+func renderWithProfile(t *testing.T, m Model, env []string) string {
+	t.Helper()
+	var buf bytes.Buffer
+	w := &colorprofile.Writer{Forward: &buf, Profile: colorprofile.Env(env)}
+	if _, err := w.WriteString(m.View().Content); err != nil {
+		t.Fatal(err)
+	}
+	return buf.String()
+}
+
+func screensToCheck(t *testing.T) map[string]Model {
+	m := loaded(t, 100, 24)
+	week := toWeek(t, m, testEvents())
+	side, _ := send(t, m, press("h"))
+	form, _ := send(t, m, press("a"))
+	syncing, _ := send(t, m, press("r"))
+	return map[string]Model{"agenda": m, "week": week, "sidebar": side, "form": form, "syncing": syncing}
+}
+
+func TestOnlyANSIColorsReachTheTerminal(t *testing.T) {
+	// Even on a truecolor terminal, nothing is upgraded: every color is a
+	// basic ANSI foreground (30–37, 90–97), never 256-color or RGB (38;…).
+	env := []string{"TERM=xterm-256color", "COLORTERM=truecolor"}
+	for name, m := range screensToCheck(t) {
+		for _, params := range sgrParams(renderWithProfile(t, m, env)) {
+			for i, p := range params {
+				switch {
+				case p == 38 || p == 48:
+					t.Errorf("%s: extended color escape %v", name, params[i:])
+				case p >= 40 && p <= 47, p >= 100 && p <= 107:
+					t.Errorf("%s: background color set (%d); the terminal's own background must show", name, p)
+				}
+			}
+		}
+	}
+}
+
+func TestNoColorKeepsStatesVisible(t *testing.T) {
+	env := []string{"TERM=xterm-256color", "NO_COLOR=1"}
+	for name, m := range screensToCheck(t) {
+		has := map[int]bool{}
+		for _, params := range sgrParams(renderWithProfile(t, m, env)) {
+			for _, p := range params {
+				if (p >= 30 && p <= 37) || (p >= 90 && p <= 97) || p == 38 {
+					t.Errorf("%s: color %d emitted under NO_COLOR", name, p)
+				}
+				has[p] = true
+			}
+		}
+		// Selection (reverse) or, in the sidebar, the current-day marker
+		// (underline) must survive without color, and so must bold.
+		if !has[1] {
+			t.Errorf("%s: no bold left under NO_COLOR", name)
+		}
+		if name != "form" && !has[7] && !has[4] {
+			t.Errorf("%s: selection/current day not visible without color", name)
+		}
+	}
+}
+
+func TestWeekTabShowsTheWeekNumber(t *testing.T) {
+	m := loaded(t, 100, 24)
+	if top := ansi.Strip(strings.SplitN(screen(m), "\n", 2)[0]); !strings.Contains(top, "[2] Week ─") {
+		t.Errorf("agenda view: week tab should be plain \"[2] Week\":\n%s", top)
+	}
+
+	m = toWeek(t, m, testEvents())
+	top := ansi.Strip(strings.SplitN(screen(m), "\n", 2)[0])
+	if !strings.Contains(top, "[2] Week 40") || !strings.Contains(top, "28 Sep – 4 Oct 2026") || strings.Count(top, "40") != 1 {
+		t.Errorf("week view top edge = %q; want the tab \"[2] Week 40\" and the dates, number shown once", top)
+	}
+
+	// Across a year boundary ISO numbering wraps: the week of 28 Dec 2026 is 53,
+	// the week of 4 Jan 2027 is 1.
+	m, _ = send(t, m, weekLoadedMsg{}, press("t"))
+	m.week.start = domain.NewCivilDate(2026, 12, 28)
+	if m.weekNumber() != 53 {
+		t.Errorf("week of 28 Dec 2026 = %d, want 53", m.weekNumber())
+	}
+	m.week.start = domain.NewCivilDate(2027, 1, 4)
+	if m.weekNumber() != 1 {
+		t.Errorf("week of 4 Jan 2027 = %d, want 1", m.weekNumber())
+	}
 }

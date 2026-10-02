@@ -6,7 +6,6 @@ import (
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -34,11 +33,6 @@ const (
 // later sync) has a different until and survives.
 type flashEndMsg struct{ until time.Time }
 
-var (
-	busyStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3"))
-	okStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("2"))
-)
-
 func newSpinner() spinner.Model {
 	return spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(busyStyle))
 }
@@ -64,11 +58,11 @@ func (m Model) activity() string {
 	case m.busyLabel() != "":
 		s = m.spin.View() + " " + busyStyle.Render(m.busyLabel())
 	case m.flash == flashOK:
-		s = okStyle.Render("✓ Synced")
+		s = successStyle.Render("✓") + boldStyle.Render(" Synced")
 	case m.flash == flashFailed:
-		s = errorStyle.Bold(true).Render("✗ Sync failed")
+		s = errorStyle.Render("✗") + boldStyle.Render(" Sync failed")
 	default:
-		s = dimStyle.Render("◦ Idle")
+		s = mutedStyle.Render("◦ Idle")
 	}
 	return s + strings.Repeat(" ", max(0, activityWidth-ansi.StringWidth(s)))
 }

@@ -6,7 +6,6 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/miphe/clical/internal/app"
 )
@@ -207,9 +206,9 @@ func (m Model) renderSidebar(height int) []string {
 	rows := m.sidebarRows()
 	if len(rows) == 0 && !m.sidebarCollapsed {
 		return panel(width+2, height, frame{focused: focused, tabs: tabs}, []string{
-			dimStyle.Render(" No calendars yet."),
+			mutedStyle.Render(" No calendars yet."),
 			"",
-			" " + boldStyle.Render("a") + dimStyle.Render(" add one"),
+			" " + boldStyle.Render("a") + mutedStyle.Render(" add one"),
 		})
 	}
 
@@ -237,14 +236,12 @@ func (m Model) renderSidebarRow(r sideRow, width int, selected bool) string {
 		if selected {
 			return selectedStyle.Render(fit(text, width))
 		}
-		return fit(" "+marker+" "+boldStyle.Render(r.label)+dimStyle.Render(fmt.Sprintf(" (%d)", r.count)), width)
+		return fit(" "+marker+" "+boldStyle.Render(r.label)+mutedStyle.Render(fmt.Sprintf(" (%d)", r.count)), width)
 	}
 
 	hidden := m.hidden[r.cal.Calendar.ID]
-	swatch := "●"
-	if hidden {
-		swatch = "○"
-	}
+	slot := r.cal.Calendar.ColorSlot
+	swatch := calendarGlyph(slot, hidden)
 	text := "   " + swatch + " " + r.cal.Calendar.Name
 	if m.sidebarCollapsed {
 		text = " " + swatch + " "
@@ -253,8 +250,8 @@ func (m Model) renderSidebarRow(r sideRow, width int, selected bool) string {
 	case selected:
 		return selectedStyle.Render(fit(text, width))
 	case hidden:
-		return dimStyle.Render(fit(text, width))
+		return mutedStyle.Render(fit(text, width))
 	}
-	colored := lipgloss.NewStyle().Foreground(calendarColor(r.cal.Calendar.ColorSlot)).Render(swatch)
+	colored := calendarBullet(slot)
 	return fit(strings.Replace(text, swatch, colored, 1), width)
 }

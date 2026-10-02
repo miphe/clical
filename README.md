@@ -17,7 +17,9 @@ Full rationale in [`docs/PLAN.md`](docs/PLAN.md).
   passphrase held in memory for the session. No OS keychain.
 - Background sync is in-process polling while the TUI runs — no daemon.
 - All-day events are civil dates (no timezone), never UTC timestamps.
-- Config and themes: YAML, hot-reloaded.
+- Colors come only from your terminal's 16 ANSI colors, so clical follows
+  your terminal theme (including Omarchy themes) with no configuration, and
+  respects `NO_COLOR`.
 
 ## Adding a calendar
 

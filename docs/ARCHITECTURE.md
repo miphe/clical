@@ -64,6 +64,16 @@ command, which predates `app` and talks to the store and vault directly. If
 that path is ever revived, move its logic into `app` first and delete the
 exemption.
 
+## Theming
+
+Colors are a front-end concern, and clical delegates them to the terminal.
+`internal/ui/theme.go` is the only file that names colors, and only as the
+terminal's 16 ANSI indices behind semantic roles. Core packages never deal
+with color; the closest they get is a calendar's permanent `ColorSlot`
+number, which the front-end turns into a hue and a bullet shape. Rules and
+reasons are in `docs/PLAN.md` ("Theming"); enforcement is in
+`internal/archtest/colors_test.go`.
+
 ## Where does new code go?
 
 Ask: *would a different UI need this too?*

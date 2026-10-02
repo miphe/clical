@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"image/color"
 	"strings"
 	"time"
 
@@ -83,9 +82,13 @@ func padLines(lines []string, height, width int) []string {
 // renderMain draws the main panel: the current view inside a border whose
 // title doubles as the view tabs.
 func (m Model) renderMain(width, height int) []string {
+	weekLabel := "[2] Week"
+	if m.view == viewWeek && m.weekNumber() > 0 {
+		weekLabel = fmt.Sprintf("[2] Week %d", m.weekNumber())
+	}
 	tabs := []tab{
 		{label: "[1] Agenda", active: m.view == viewAgenda},
-		{label: "[2] Week", active: m.view == viewWeek},
+		{label: weekLabel, active: m.view == viewWeek},
 	}
 	inner, innerH := width-2, height-2
 	var content []string
@@ -93,7 +96,7 @@ func (m Model) renderMain(width, height int) []string {
 	switch m.view {
 	case viewWeek:
 		content = m.renderWeek(inner, innerH)
-		right = m.weekTitle()
+		right = m.weekSpan()
 	default:
 		// One column of padding between the border and the agenda's gutter.
 		content = m.renderAgenda(inner-1, innerH)
@@ -121,9 +124,9 @@ func (m Model) renderAgenda(width, height int) []string {
 	case m.loadErr != nil && len(m.rows) == 0:
 		lines = []string{errorStyle.Render("Can't read the local cache: " + m.loadErr.Error())}
 	case len(m.rows) == 0 && m.loading:
-		lines = []string{dimStyle.Render("Loading…")}
+		lines = []string{mutedStyle.Render("Loading…")}
 	case len(m.rows) == 0:
-		lines = []string{dimStyle.Render(fmt.Sprintf("Nothing scheduled in the %d days from %s.",
+		lines = []string{mutedStyle.Render(fmt.Sprintf("Nothing scheduled in the %d days from %s.",
 			m.days, m.from.In(m.loc).Format("Mon 2 Jan")))}
 	default:
 		sel := m.selIndex()
@@ -159,7 +162,7 @@ func (m Model) renderRow(r row, selected bool, width int) string {
 		case selected:
 			return itemIndent + inactiveSelStyle.Render("nothing scheduled")
 		}
-		return dimStyle.Render(text)
+		return mutedStyle.Render(text)
 	case rowNow:
 		label := itemIndent + "── now " + m.now.In(m.loc).Format("15:04") + " "
 		return nowStyle.Render(label + strings.Repeat("─", max(0, width-ansi.StringWidth(label))))
@@ -183,6 +186,8 @@ func (m Model) renderItem(r row, selected bool, width int) string {
 		titleW -= labelW + 2
 	}
 
+	slot := m.calendarSlot(it.Event.CalendarID)
+	glyph := calendarGlyph(slot, false)
 	plain := func(swatch string) string {
 		s := itemIndent + swatch + " " + fit(when, timeColumn) + "  " + fit(it.Event.Title, titleW)
 		if labelW > 0 {
@@ -193,19 +198,19 @@ func (m Model) renderItem(r row, selected bool, width int) string {
 
 	switch {
 	case selected && m.focus == focusMain:
-		return itemIndent + selectedStyle.Render(fit(strings.TrimPrefix(plain("●"), itemIndent), width-ansi.StringWidth(itemIndent)))
+		return itemIndent + selectedStyle.Render(fit(strings.TrimPrefix(plain(glyph), itemIndent), width-ansi.StringWidth(itemIndent)))
 	case selected:
-		return itemIndent + inactiveSelStyle.Render(fit(strings.TrimPrefix(plain("●"), itemIndent), width-ansi.StringWidth(itemIndent)))
+		return itemIndent + inactiveSelStyle.Render(fit(strings.TrimPrefix(plain(glyph), itemIndent), width-ansi.StringWidth(itemIndent)))
 	}
 
 	ended := !it.Event.AllDay && !it.End.After(m.now)
-	swatch := lipgloss.NewStyle().Foreground(m.calendarColor(it.Event.CalendarID)).Render("●")
+	swatch := calendarBullet(slot)
 	s := itemIndent + swatch + " " + fit(when, timeColumn) + "  " + fit(it.Event.Title, titleW)
 	if labelW > 0 {
-		s += "  " + dimStyle.Render(fit(label, labelW))
+		s += "  " + mutedStyle.Render(fit(label, labelW))
 	}
 	if ended {
-		return dimStyle.Render(ansi.Strip(s))
+		return mutedStyle.Render(ansi.Strip(s))
 	}
 	return s
 }
@@ -220,12 +225,12 @@ func (m Model) labelWidth() int {
 	return min(w, 28)
 }
 
-// calendarColor is the color of the calendar an event belongs to.
-func (m Model) calendarColor(calendarID string) color.Color {
+// calendarSlot is the color slot of the calendar an event belongs to.
+func (m Model) calendarSlot(calendarID string) int {
 	if i, ok := m.calIndex[calendarID]; ok && i < len(m.calendars) {
-		return calendarColor(m.calendars[i].Calendar.ColorSlot)
+		return m.calendars[i].Calendar.ColorSlot
 	}
-	return calendarColor(1)
+	return 1
 }
 
 func (m Model) calendarLabel(calendarID string) string {
@@ -247,11 +252,11 @@ func (m Model) renderDetail(width, height int) []string {
 	parts = append(parts, boldStyle.Render(e.Title))
 	parts = append(parts, m.detailWhen())
 	if label := m.calendarLabel(e.CalendarID); label != "" {
-		sw := lipgloss.NewStyle().Foreground(m.calendarColor(e.CalendarID)).Render("●")
+		sw := calendarBullet(m.calendarSlot(e.CalendarID))
 		parts = append(parts, sw+" "+label)
 	}
 	if e.Location != "" {
-		parts = append(parts, "", dimStyle.Render("Location")+"  "+e.Location)
+		parts = append(parts, "", mutedStyle.Render("Location")+"  "+e.Location)
 	}
 	if notes := strings.TrimSpace(e.Notes); notes != "" {
 		parts = append(parts, "", lipgloss.NewStyle().Width(textW).Render(notes))
@@ -326,9 +331,9 @@ func (m Model) renderFooter() []string {
 	var hints []string
 	for _, b := range bindings {
 		h := b.Help()
-		hints = append(hints, boldStyle.Render(h.Key)+" "+dimStyle.Render(h.Desc))
+		hints = append(hints, boldStyle.Render(h.Key)+" "+mutedStyle.Render(h.Desc))
 	}
-	hintLine := fit(" "+strings.Join(hints, dimStyle.Render(" · ")), m.width)
+	hintLine := fit(" "+strings.Join(hints, mutedStyle.Render(" · ")), m.width)
 
 	left := " " + m.activity() + m.now.In(m.loc).Format("Mon 2 Jan 15:04")
 	right := m.status()
@@ -357,7 +362,7 @@ func (m Model) status() string {
 		}
 		return errorStyle.Render(msg)
 	case !m.lastSync.IsZero():
-		return dimStyle.Render("Synced " + m.lastSync.In(m.loc).Format("15:04"))
+		return mutedStyle.Render("Synced " + m.lastSync.In(m.loc).Format("15:04"))
 	}
 	return ""
 }

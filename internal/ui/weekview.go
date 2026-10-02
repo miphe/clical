@@ -23,13 +23,13 @@ func (m Model) renderWeek(width, height int) []string {
 		msg := lipgloss.NewStyle().Width(width).Render("Too narrow for the week view. Widen the window, or press 1 for the agenda.")
 		lines := strings.Split(msg, "\n")
 		for i := range lines {
-			lines[i] = dimStyle.Render(fit(lines[i], width))
+			lines[i] = mutedStyle.Render(fit(lines[i], width))
 		}
 		return padLines(lines, height, width)
 	}
 
 	if !m.week.loaded {
-		line := dimStyle.Render("Loading…")
+		line := mutedStyle.Render("Loading…")
 		if m.loadErr != nil {
 			line = errorStyle.Render("Can't read the local cache: " + m.loadErr.Error())
 		}
@@ -77,14 +77,21 @@ func columnWidths(total, n int) []int {
 	return out
 }
 
-func (m Model) weekTitle() string {
-	start, end := m.week.start, m.week.start.AddDays(6)
-	_, week := start.In(m.loc).ISOWeek()
-	span := start.In(m.loc).Format("2 Jan") + " – " + end.In(m.loc).Format("2 Jan 2006")
-	if weekFirstDay == time.Monday {
-		return fmt.Sprintf("Week %d · %s", week, span)
+// weekNumber is the ISO week number of the shown week ("week 45", as it's
+// commonly referred to in Sweden and much of Europe), or 0 when weeks don't
+// start on Monday and ISO numbering doesn't apply.
+func (m Model) weekNumber() int {
+	if weekFirstDay != time.Monday {
+		return 0
 	}
-	return span
+	_, week := m.week.start.In(m.loc).ISOWeek()
+	return week
+}
+
+// weekSpan is the shown week's dates, e.g. "2 Nov – 8 Nov 2026".
+func (m Model) weekSpan() string {
+	start, end := m.week.start, m.week.start.AddDays(6)
+	return start.In(m.loc).Format("2 Jan") + " – " + end.In(m.loc).Format("2 Jan 2006")
 }
 
 func (m Model) weekHeader(d, width int) string {
@@ -117,7 +124,7 @@ func (m Model) weekColumn(d, width, height int) []string {
 		if d == m.week.day {
 			text = "nothing"
 		}
-		style := dimStyle
+		style := mutedStyle
 		if selected {
 			style = selectedStyle
 		}
@@ -144,22 +151,23 @@ func (m Model) weekColumn(d, width, height int) []string {
 		lines = append(lines, m.weekItemLines(date, items[i], width, selected && i == m.week.item, d == m.week.day && i == m.week.item)...)
 	}
 	if hidden := len(items) - end; hidden > 0 {
-		lines = append(lines, dimStyle.Render(fit(fmt.Sprintf("+%d more", hidden), width)))
+		lines = append(lines, mutedStyle.Render(fit(fmt.Sprintf("+%d more", hidden), width)))
 	}
 	return padLines(lines, height, width)
 }
 
-// bulletMinWidth is the narrowest column that still gets a "● " bullet;
-// below it the time itself carries the calendar's color.
+// bulletMinWidth is the narrowest column that gets a space between bullet
+// and time; below it they're joined ("●09:00") to save a cell.
 const bulletMinWidth = 9
 
 func (m Model) weekItemLines(date domain.CivilDate, it agenda.Item, width int, active, inactiveSel bool) []string {
 	when := shortTimeLabel(date, it, m.loc)
-	bullet := width >= bulletMinWidth
-	plainWhen := when
-	if bullet {
-		plainWhen = "● " + when
+	slot := m.calendarSlot(it.Event.CalendarID)
+	gap := " "
+	if width < bulletMinWidth {
+		gap = ""
 	}
+	plainWhen := calendarGlyph(slot, false) + gap + when
 
 	switch {
 	case active:
@@ -167,15 +175,10 @@ func (m Model) weekItemLines(date domain.CivilDate, it agenda.Item, width int, a
 	case inactiveSel:
 		return []string{inactiveSelStyle.Render(fit(plainWhen, width)), inactiveSelStyle.Render(fit(it.Event.Title, width))}
 	case !it.Event.AllDay && !it.End.After(m.now):
-		return []string{dimStyle.Render(fit(plainWhen, width)), dimStyle.Render(fit(it.Event.Title, width))}
+		return []string{mutedStyle.Render(fit(plainWhen, width)), mutedStyle.Render(fit(it.Event.Title, width))}
 	}
 
-	color := lipgloss.NewStyle().Foreground(m.calendarColor(it.Event.CalendarID))
-	first := color.Render(fit(when, width))
-	if bullet {
-		first = fit(color.Render("●")+" "+dimStyle.Render(when), width)
-	}
-	return []string{first, fit(it.Event.Title, width)}
+	return []string{fit(calendarBullet(slot)+gap+mutedStyle.Render(when), width), fit(it.Event.Title, width)}
 }
 
 // shortTimeLabel fits a narrow week column: "all day", the start time, or

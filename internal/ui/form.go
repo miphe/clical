@@ -50,6 +50,7 @@ func newAddForm(account string) *addForm {
 	f := &addForm{}
 	for i := range f.inputs {
 		in := textinput.New()
+		in.SetStyles(inputStyles())
 		in.Prompt = ""
 		in.CharLimit = 4096
 		f.inputs[i] = in
@@ -239,7 +240,7 @@ func (m Model) renderForm() []string {
 	inner := w - 4
 	var lines []string
 	for i, in := range f.inputs {
-		label := dimStyle.Render(fieldLabels[i])
+		label := mutedStyle.Render(fieldLabels[i])
 		if i == f.focus {
 			label = boldStyle.Render(fieldLabels[i])
 		}
@@ -254,7 +255,7 @@ func (m Model) renderForm() []string {
 			lines = append(lines, " "+errorStyle.Render(l))
 		}
 	default:
-		lines = append(lines, " "+dimStyle.Render("enter next/add · tab move · esc cancel"))
+		lines = append(lines, " "+mutedStyle.Render("enter next/add · tab move · esc cancel"))
 	}
 	return panel(w, len(lines)+2, frame{focused: true, tabs: []tab{{label: "Add calendar", active: true}}}, lines)
 }
@@ -262,9 +263,9 @@ func (m Model) renderForm() []string {
 func (m Model) renderConfirm() []string {
 	lines := []string{
 		" Remove " + m.confirmRemove.Label() + "?",
-		" " + dimStyle.Render("Its cached events and stored URL are deleted."),
+		" " + mutedStyle.Render("Its cached events and stored URL are deleted."),
 		"",
-		" " + boldStyle.Render("y") + dimStyle.Render(" remove · ") + boldStyle.Render("n") + dimStyle.Render(" cancel"),
+		" " + boldStyle.Render("y") + mutedStyle.Render(" remove · ") + boldStyle.Render("n") + mutedStyle.Render(" cancel"),
 	}
 	widest := 0
 	for _, l := range lines {

@@ -33,6 +33,7 @@ multi-account merge → config/themes → in-process background polling.
 | — | Application layer `internal/app` + enforced layering (`internal/archtest`) | Done |
 | M6 | Week view | Done |
 | — | Many calendars: scrolling/foldable list, permanent colors, add/remove in the TUI | Done |
+| — | Theming: terminal ANSI colors only (Omarchy-compatible), semantic roles, enforced | Done |
 | M7–M11 | Month view, help, filter, config/themes, polling | Not started |
 
 Deferred (2026-09-29): the **work** (Google Workspace) calendar. Focus is the
@@ -339,11 +340,9 @@ Implementation decisions:
 - **Calendar toggles** (planned for M8) landed now: without them the sidebar
   had nothing to do. Hidden calendars show `○` and dimmed; their events are
   filtered in `rebuild`, not re-queried.
-- **Styling** uses the terminal's 16-color palette so it follows the user's
-  light/dark terminal theme until real themes land (M9). Selected row:
-  reverse video (underline while the sidebar has focus); ended events dimmed.
-  Calendar colors cycle blue, green, magenta, yellow, cyan, red by sidebar
-  order.
+- **Styling** follows the theming rule (see "Theming"): terminal ANSI colors
+  only. Selected row: reverse video (underline while another panel has
+  focus); ended events dimmed.
 - **Widths**: `x/ansi` truncation/width everywhere (grapheme-aware), labels in
   a fixed column sized to the longest label (max 28), label column dropped
   under 60 columns, sidebar starts collapsed under 70 columns.
@@ -354,8 +353,11 @@ Implementation decisions:
 
 ## Week view (`internal/ui/week.go`, `weekview.go`) — M6 done
 
-- **Monday-first** weeks (`weekFirstDay`; configurable in M9). The title
-  shows the ISO week number: `Week 40 · 28 Sep – 4 Oct 2026`.
+- **Monday-first** weeks (`weekFirstDay`; configurable in M9). While the week
+  view is open, its tab shows the ISO week number, `[2] Week 45`, since
+  talking about weeks by number is common in Sweden (and much of Europe).
+  The panel's top-right shows the dates, `2 Nov – 8 Nov 2026`. On a narrow
+  screen the dates drop first; the number stays in the tab.
 - Seven day columns of events in time order; each event takes two lines: a
   calendar-colored bullet with its time (`all day`, start `HH:MM`, or
   `…HH:MM` for one continuing from the day before), then the title. Under 9
@@ -379,6 +381,51 @@ Implementation decisions:
 - Core addition: `agenda.WeekStart(day, first)` and `CivilDate.Weekday()`.
   Grouping a week is just `agenda.Build(events, start, 7, loc)`.
 
+## Theming (`internal/ui/theme.go`) — done
+
+clical has **no color palette of its own**. Every color is one of the
+terminal's 16 ANSI colors, referenced by index, so the app follows the
+terminal's theme. Omarchy, which themes apps by retinting those 16 colors,
+recolors clical with no per-app config. Unstyled text uses the terminal's
+default foreground; nothing sets a background. There is deliberately no
+in-app theme picker or color config (the `T` key and YAML themes from the
+original spec are dropped). A later, optional override layer could read
+Omarchy's `colors.toml`; that's out of scope.
+
+- **One mapping**, in `theme.go`, from semantic roles to ANSI indices:
+  accent → 4 (blue): focus, active tab, today, busy. success → 2 (green).
+  error → 1 (red). now line → 1 (red, by calendar convention, as its own role).
+  warning → 3 (yellow, reserved; unused). Plus attribute styles: bold, muted
+  (dim), selected (reverse), inactive selection (underline).
+- **Muted is the dim attribute, not ANSI 8.** Bright black is nearly the
+  background in some themes (Solarized Dark), and dim stays relative to the
+  text color.
+- **Measured, not guessed:** WCAG contrast of each role against Tokyo Night,
+  Catppuccin Mocha/Latte, Gruvbox dark/light, Solarized dark/light, macOS
+  Terminal Basic and xterm. Blue reads as text everywhere (≥3.4:1), so it
+  carries everything routine; the first cut used green for focus and yellow
+  for "busy", which fail on light themes (yellow 1.7–2.3:1). Green and red
+  only color symbols (`✓`, `✗`) or the thin now-line; the words beside them
+  are the default color. Errors are bold red.
+- **Calendar colors only color bullet glyphs, never text.** Six normal hues
+  (blue, magenta, green, cyan, red, then yellow, the weakest, last) × four
+  shapes (`●` `◆` `■` `▲`, hollow when hidden) = 24 distinct calendars. Bright
+  variants (9–14) aren't used: many themes make them identical to the normal
+  ones, and Solarized makes several of them grays. The truecolor hues
+  generated past 12 calendars (go-colorful) are gone.
+- **Enforced:** `internal/archtest/colors_test.go` fails the build if
+  `lipgloss.Color` appears outside `theme.go`, with anything but an index
+  0–15, if a hex color literal or RGB literal appears anywhere, or if
+  go-colorful is imported. `internal/ui` tests render real escape codes and
+  check that only basic ANSI foregrounds are emitted — never 256-color, RGB or
+  background — and that under `NO_COLOR` no color is emitted while
+  selection, focus and the current day stay visible through bold, reverse
+  and underline. That test caught the text input's built-in 256-color
+  placeholder gray, now overridden in `inputStyles`.
+- **`NO_COLOR`, `TERM=dumb`, limited terminals:** handled by Bubble Tea v2's
+  color-profile detection (charmbracelet/colorprofile), which downgrades
+  output; the tests above pin the result.
+
 ## Many calendars, and managing them in the TUI — done
 
 **Scaling the list** (`internal/ui/sidebar.go`):
@@ -400,10 +447,8 @@ Implementation decisions:
   slots existed are backfilled in list order on `app.Open`.
 - Before, colors followed list order, so adding a calendar that sorted
   earlier shifted every color below it.
-- The UI maps slots to colors: 1–12 use the terminal's six normal and six
-  bright colors (following its theme), and later slots get generated hues
-  (go-colorful HCL, golden-angle hue steps, mid lightness for light and
-  dark backgrounds).
+- The UI maps slots to a hue and a bullet shape (see "Theming"): six ANSI
+  hues × `●` `◆` `■` `▲` = 24 distinct calendars.
 
 **Adding and removing in the TUI** (`internal/ui/form.go`, `overlay.go`):
 - `a` (anywhere outside a popup) opens an "Add calendar" popup over the
@@ -437,7 +482,8 @@ two rows and make them compete with the panels.
 - **Tabs:** the main panel's title is its view tabs, `[1] Agenda ─ [2] Week`
   (the numbers are the jump keys; `tab` cycles). Month joins in M7.
 - **Top-right context:** the agenda's loaded span (`2 Oct – 31 Oct 2026`) or
-  the week label (`Week 42 · 12 Oct – 18 Oct 2026`). The old "Calendars"
+  the shown week's dates (`12 Oct – 18 Oct 2026`; the week number is in the
+  tab). The old "Calendars"
   heading and week title rows moved into the borders, so the content
   didn't lose height to the borders.
 - **Degrading:** when the top edge is too narrow, the right-hand text goes
@@ -493,9 +539,9 @@ range, location, notes, calendar/account. (The original "open in Google
 Calendar web UI" action depends on the feed exposing a URL per event; drop it
 if it doesn't.) Esc closes any popup.
 
-**Colors**: auto-assigned from the active theme's palette (go-colorful for
-contrast), not from Google's per-calendar colors — the iCal feed doesn't
-carry them reliably anyway.
+**Colors**: calendars get a permanent hue + shape slot (not Google's own
+colors, which the iCal feed doesn't carry reliably); everything comes from the
+terminal's ANSI palette — see "Theming".
 
 **Time format**: 24-hour default, 12-hour configurable (M9).
 **Search**: "/" live-filters the current view by title/location; Enter jumps
@@ -518,7 +564,6 @@ to the first match, Esc clears.
 | `Enter` (revoked calendar row) | Prompt for a new feed URL |
 | `Enter` (event, main pane) | Open event detail |
 | `t` | Jump to today |
-| `T` | Cycle theme |
 | `/` | Live filter |
 | `r` | Sync now |
 | `?` | Help |
@@ -537,8 +582,8 @@ to the first match, Esc clears.
 | M5 | Bubble Tea shell: sidebar + main pane + footer; Agenda; event detail; calendar toggles; golden snapshots | `internal/ui/model.go`, `view.go`, `rows.go`, `keymap.go`, `styles.go`, `cmd/clical/tui.go` | Done |
 | M6 | Week view (day-list columns), view switching that keeps the current day | `internal/ui/week.go`, `internal/ui/weekview.go`, `internal/agenda` (`WeekStart`) | Done |
 | M7 | Month view ("+N more", Enter → Agenda); shared `uniseg` width/truncation helper | `internal/ui/month.go`, `internal/ui/textwidth.go` | |
-| M8 | Theme-assigned colors, "/" filter, "?" help (multi-account merge, toggles, permanent color slots already done) | `internal/theme/resolve.go`, `internal/ui/search.go`, `internal/ui/help.go` | |
-| M9 | YAML config + themes, mergo defaults, fsnotify hot-reload (config/theme only) | `internal/config/`, `internal/theme/` | |
+| M8 | "/" filter, "?" help (multi-account merge, toggles, permanent colors and theming already done) | `internal/ui/search.go`, `internal/ui/help.go` | |
+| M9 | YAML config for non-color settings (time format, first day of week, poll interval), mergo defaults, fsnotify hot-reload. No colors or themes: theming is delegated to the terminal | `internal/config/` | |
 | M10 | In-process polling (default 5 min for iCal), jittered per calendar | `internal/engine/scheduler.go`, `internal/engine/jitter.go` | |
 | M11 | Revoked-feed flow in the TUI, `--logs` tail, cross-compile check | `internal/ui/revoked.go`, `cmd/clical/logs.go` | |
 

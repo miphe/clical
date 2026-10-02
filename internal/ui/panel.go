@@ -11,11 +11,6 @@ import (
 // top edge. A panel with several titles uses them as tabs; the focused
 // panel's border is highlighted so it's obvious where keys go.
 
-var (
-	focusedBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
-	activeTabStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
-)
-
 // tab is one title in a panel's top edge.
 type tab struct {
 	label  string
@@ -58,7 +53,7 @@ func panel(width, height int, f frame, content []string) []string {
 
 func panelBottom(inner int, border lipgloss.Style, label string) string {
 	if label != "" {
-		label = " " + dimStyle.Render(label) + " "
+		label = " " + mutedStyle.Render(label) + " "
 	}
 	if label == "" || ansi.StringWidth(label)+2 > inner {
 		return border.Render("╰" + strings.Repeat("─", max(inner, 0)) + "╯")
@@ -72,7 +67,7 @@ func panelBottom(inner int, border lipgloss.Style, label string) string {
 func panelTop(inner int, border lipgloss.Style, focused bool, tabs []tab, right string) string {
 	var titles []string
 	for _, t := range tabs {
-		style := dimStyle
+		style := mutedStyle
 		if t.active {
 			style = boldStyle
 			if focused {
@@ -86,12 +81,13 @@ func panelTop(inner int, border lipgloss.Style, focused bool, tabs []tab, right 
 		left = " " + strings.Join(titles, border.Render(" ─ ")) + " "
 	}
 	if right != "" {
-		right = " " + dimStyle.Render(right) + " "
+		right = " " + mutedStyle.Render(right) + " "
 	}
 
-	// Leave at least one "─" on each side of the titles.
+	// Leave at least one "─" on each side of the titles, and between the
+	// titles and the right-hand text.
 	room := inner - 2
-	if ansi.StringWidth(left)+ansi.StringWidth(right) > room {
+	if ansi.StringWidth(left)+ansi.StringWidth(right)+1 > room {
 		right = ""
 	}
 	if ansi.StringWidth(left) > room {

@@ -28,6 +28,13 @@ all of this. If it fails, fix the import, or change the layer table *and*
   exclusive.
 - **`ui.Update` must stay pure:** no network, disk or clock reads. I/O goes
   through `ui.Source` in a `tea.Cmd`, and time arrives as `tickMsg`.
+- **Colors come only from the terminal's ANSI palette.** Use a role from
+  `internal/ui/theme.go`, never `lipgloss.Color` elsewhere, never hex, RGB or
+  256-color values, never a background. Calendar colors color glyphs only,
+  never text. `go test` enforces most of this (`internal/archtest`,
+  `TestOnlyANSIColorsReachTheTerminal`, `TestNoColorKeepsStatesVisible`).
+  New UI components with their own default styles (Bubbles widgets) must have
+  them overridden from `theme.go`.
 - **No Windows support:** don't add build targets or code paths for it.
 
 ## Checks before calling something done
