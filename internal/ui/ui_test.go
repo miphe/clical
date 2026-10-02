@@ -185,7 +185,7 @@ func TestGoldenNarrow(t *testing.T) {
 
 func TestGoldenSidebarFocusedAndCollapsed(t *testing.T) {
 	m := loaded(t, 100, 24)
-	m, _ = send(t, m, press("h"))
+	m, _ = send(t, m, press("0"))
 	golden(t, "sidebar_focused", screen(m))
 	m, _ = send(t, m, press("c"))
 	golden(t, "sidebar_collapsed", screen(m))
@@ -261,7 +261,7 @@ func TestSelectionSurvivesReload(t *testing.T) {
 
 func TestSidebarToggleHidesCalendar(t *testing.T) {
 	m := loaded(t, 100, 24)
-	m, _ = send(t, m, press("h"), press("j"), press("space")) // header, then Holidays
+	m, _ = send(t, m, press("0"), press("j"), press("space")) // header, then Holidays
 	for _, r := range m.rows {
 		if r.kind == rowItem && r.item.Event.CalendarID == "hol" {
 			t.Fatal("Holidays event still shown after hiding the calendar")
@@ -530,16 +530,18 @@ func TestWeekNavigation(t *testing.T) {
 	if got := weekSelected(m); got != "2026-09-28 nothing" || m.focus != focusMain {
 		t.Errorf("h: selected %s focus %v, want Mon 28 with main focus", got, m.focus)
 	}
-	m, _ = send(t, m, press("h")) // past Monday: into the sidebar
-	if m.focus != focusSidebar {
-		t.Error("h on Monday didn't focus the sidebar")
+	m, cmd := send(t, m, press("h")) // past Monday: the previous week's Sunday, not another pane
+	if m.focus != focusMain || cmd == nil || m.selectedWeekDate() != domain.NewCivilDate(2026, 9, 27) {
+		t.Errorf("h on Monday: focus %v day %s; want main focus on Sun 27 Sep (previous week)", m.focus, m.selectedWeekDate())
 	}
+	m = deliverWeek(t, m, testEvents())
 	m, _ = send(t, m, press("l"))
-	if m.focus != focusMain || m.view != viewWeek {
-		t.Error("l from the sidebar didn't return to the week")
+	m = deliverWeek(t, m, testEvents())
+	if m.selectedWeekDate() != domain.NewCivilDate(2026, 9, 28) {
+		t.Errorf("l from Sunday: day %s, want Mon 28 Sep (next week)", m.selectedWeekDate())
 	}
 
-	m, cmd := send(t, m, press("]"))
+	m, cmd = send(t, m, press("]"))
 	if cmd == nil || m.week.start != domain.NewCivilDate(2026, 10, 5) {
 		t.Fatalf("]: week start %s, cmd %v; want 2026-10-05 and a load", m.week.start, cmd != nil)
 	}
@@ -669,7 +671,7 @@ func TestFocusedPanelBorderIsHighlighted(t *testing.T) {
 		t.Errorf("agenda tab not shown as active:\n%q", top)
 	}
 
-	m, _ = send(t, m, press("h"))
+	m, _ = send(t, m, press("0"))
 	top = topLine(m)
 	if !strings.HasPrefix(top, hi) || strings.Count(top, hi) != 1 {
 		t.Errorf("sidebar focused: want only the sidebar border highlighted:\n%q", top)
@@ -729,7 +731,7 @@ func typeText(t *testing.T, m Model, s string) Model {
 
 func TestSidebarScrollsToCursor(t *testing.T) {
 	m := withCalendars(t, loaded(t, 100, 14), manyCalendars(20))
-	m, _ = send(t, m, press("h"), press("G"))
+	m, _ = send(t, m, press("0"), press("G"))
 	sc := screen(m)
 	if !strings.Contains(sc, "Calendar 19") {
 		t.Errorf("last calendar not scrolled into view after G:\n%s", sc)
@@ -745,7 +747,7 @@ func TestSidebarScrollsToCursor(t *testing.T) {
 
 func TestSidebarFoldAndToggleAccount(t *testing.T) {
 	m := withCalendars(t, loaded(t, 100, 24), manyCalendars(4))
-	m, _ = send(t, m, press("h")) // cursor on the Personal header
+	m, _ = send(t, m, press("0")) // cursor on the Personal header
 
 	m, _ = send(t, m, press("enter"))
 	if sc := screen(m); strings.Contains(sc, "Calendar 00") || !strings.Contains(sc, "▸ Personal (2)") {
@@ -860,7 +862,7 @@ func TestRemoveCalendarFromTheTUI(t *testing.T) {
 	src := &fakeSource{}
 	m := loaded(t, 100, 24)
 	m.src = src
-	m, _ = send(t, m, press("h"), press("j"), press("d")) // Holidays
+	m, _ = send(t, m, press("0"), press("j"), press("d")) // Holidays
 	if m.confirmRemove == nil || !strings.Contains(screen(m), "Remove Personal · Holidays?") {
 		t.Fatalf("d didn't ask to remove Holidays:\n%s", screen(m))
 	}
@@ -904,7 +906,7 @@ func TestPopupsFitTheWindow(t *testing.T) {
 	for _, size := range [][2]int{{100, 24}, {56, 16}, {30, 12}} {
 		m := loaded(t, size[0], size[1])
 		form, _ := send(t, m, press("a"), press("enter"))
-		confirm, _ := send(t, m, press("h"), press("j"), press("d"))
+		confirm, _ := send(t, m, press("0"), press("j"), press("d"))
 		for name, mm := range map[string]Model{"form": form, "confirm": confirm} {
 			for i, l := range strings.Split(mm.View().Content, "\n") {
 				if w := ansi.StringWidth(l); w != size[0] {
@@ -919,7 +921,7 @@ func TestGoldenPopups(t *testing.T) {
 	m := loaded(t, 100, 24)
 	form, _ := send(t, m, press("a"), press("enter"))
 	golden(t, "add_form", screen(form))
-	confirm, _ := send(t, m, press("h"), press("j"), press("d"))
+	confirm, _ := send(t, m, press("0"), press("j"), press("d"))
 	golden(t, "remove_confirm", screen(confirm))
 }
 
@@ -950,7 +952,7 @@ func renderWithProfile(t *testing.T, m Model, env []string) string {
 func screensToCheck(t *testing.T) map[string]Model {
 	m := loaded(t, 100, 24)
 	week := toWeek(t, m, testEvents())
-	side, _ := send(t, m, press("h"))
+	side, _ := send(t, m, press("0"))
 	form, _ := send(t, m, press("a"), press("enter"))
 	syncing, _ := send(t, m, press("r"))
 	month := toMonth(t, m, testEvents())
@@ -1108,18 +1110,18 @@ func TestMonthNavigation(t *testing.T) {
 		t.Errorf("j into October: shown %s, loading %v; want October loading", m.month.month, m.month.loading)
 	}
 
-	// h on a Monday moves into the sidebar.
+	// h on a Monday is just the previous day; it never changes pane.
 	m = deliverMonth(t, m, testEvents())
 	m, _ = send(t, m, press("g")) // 1 Oct, a Thursday
 	for m.month.sel.Weekday() != time.Monday {
 		m, _ = send(t, m, press("h"))
-		if m.view != viewMonth {
-			t.Fatal("left the month view while moving left")
-		}
 		m = deliverMonth(t, m, testEvents())
 	}
-	if m, _ = send(t, m, press("h")); m.focus != focusSidebar {
-		t.Error("h on a Monday didn't focus the sidebar")
+	monday := m.month.sel
+	m, _ = send(t, m, press("h"))
+	m = deliverMonth(t, m, testEvents())
+	if m.focus != focusMain || m.month.sel != monday.AddDays(-1) {
+		t.Errorf("h on a Monday: focus %v, day %s; want main focus on %s", m.focus, m.month.sel, monday.AddDays(-1))
 	}
 }
 
@@ -1131,22 +1133,96 @@ func TestMonthEnterOpensTheDayInTheAgenda(t *testing.T) {
 	}
 }
 
-func TestTabCyclesAllViewsKeepingTheDay(t *testing.T) {
+func TestNumberKeysSwitchViewsKeepingTheDay(t *testing.T) {
 	m := loaded(t, 100, 30)
 	m, _ = send(t, m, press("]")) // agenda on Wed 30 Sep
-	m, _ = send(t, m, press("tab"))
+	m, _ = send(t, m, press("2"))
 	m = deliverWeek(t, m, testEvents())
 	if m.view != viewWeek || m.selectedWeekDate() != domain.NewCivilDate(2026, 9, 30) {
-		t.Fatalf("tab 1: view %v day %s", m.view, m.selectedWeekDate())
+		t.Fatalf("2: view %v day %s", m.view, m.selectedWeekDate())
 	}
-	m, _ = send(t, m, press("tab"))
+	m, _ = send(t, m, press("3"))
 	m = deliverMonth(t, m, testEvents())
 	if m.view != viewMonth || m.month.sel != domain.NewCivilDate(2026, 9, 30) {
-		t.Fatalf("tab 2: view %v day %s", m.view, m.month.sel)
+		t.Fatalf("3: view %v day %s", m.view, m.month.sel)
 	}
-	m, _ = send(t, m, press("tab"))
+	m, _ = send(t, m, press("1"))
 	if m.view != viewAgenda || m.currentDay() != domain.NewCivilDate(2026, 9, 30) {
-		t.Fatalf("tab 3: view %v day %s", m.view, m.currentDay())
+		t.Fatalf("1: view %v day %s", m.view, m.currentDay())
+	}
+}
+
+// The promise: from any view and position, the same keys reach each pane,
+// and keys inside a pane never move focus to another one.
+func TestPaneKeysWorkFromEverywhere(t *testing.T) {
+	tab := tea.KeyPressMsg{Code: tea.KeyTab}
+	starts := map[string]func() Model{
+		"agenda":   func() Model { return loaded(t, 100, 30) },
+		"week Tue": func() Model { return toWeek(t, loaded(t, 100, 30), testEvents()) },
+		"week Mon": func() Model {
+			m := toWeek(t, loaded(t, 100, 30), testEvents())
+			m, _ = send(t, m, press("h"))
+			return m
+		},
+		"month Tue": func() Model { return toMonth(t, loaded(t, 100, 30), testEvents()) },
+		"month Mon": func() Model {
+			m := toMonth(t, loaded(t, 100, 30), testEvents())
+			m, _ = send(t, m, press("h"))
+			return deliverMonth(t, m, testEvents())
+		},
+		"list, folded": func() Model { m, _ := send(t, loaded(t, 100, 30), press("0"), press("enter")); return m },
+	}
+	for name, start := range starts {
+		if m, _ := send(t, start(), press("0")); m.focus != focusSidebar {
+			t.Errorf("%s: 0 didn't focus the calendar list", name)
+		}
+		for k, view := range map[string]viewKind{"1": viewAgenda, "2": viewWeek, "3": viewMonth} {
+			m, _ := send(t, start(), press("0"), press(k))
+			if m.focus != focusMain || m.view != view {
+				t.Errorf("%s: %s gave focus %v view %v, want the main pane on view %v", name, k, m.focus, m.view, view)
+			}
+		}
+		m := start()
+		before := m.focus
+		m, _ = send(t, m, tab)
+		if m.focus == before {
+			t.Errorf("%s: tab didn't switch pane", name)
+		}
+		if m, _ = send(t, m, tab); m.focus != before {
+			t.Errorf("%s: tab twice didn't come back", name)
+		}
+		if start().focus == focusMain {
+			for _, k := range []string{"h", "l"} {
+				if m, _ := send(t, start(), press(k)); m.focus != focusMain {
+					t.Errorf("%s: %s moved focus out of the main pane", name, k)
+				}
+			}
+		}
+	}
+}
+
+func TestFooterAlwaysStartsWithPaneKeys(t *testing.T) {
+	for name, m := range map[string]Model{
+		"agenda": loaded(t, 100, 30),
+		"week":   toWeek(t, loaded(t, 100, 30), testEvents()),
+		"month":  toMonth(t, loaded(t, 100, 30), testEvents()),
+		"list":   func() Model { m, _ := send(t, loaded(t, 100, 30), press("0")); return m }(),
+	} {
+		lines := strings.Split(screen(m), "\n")
+		if hints := strings.TrimSpace(lines[len(lines)-2]); !strings.HasPrefix(hints, "0 calendars · 1-3 views · tab switch pane │") {
+			t.Errorf("%s footer = %q", name, hints)
+		}
+	}
+	if !strings.Contains(screen(loaded(t, 100, 30)), "[0] Calendars") {
+		t.Error("calendar list title doesn't show its key")
+	}
+}
+
+func TestEnterInTheListOnlyFolds(t *testing.T) {
+	m := loaded(t, 100, 30)
+	m, _ = send(t, m, press("0"), press("j"), press("enter")) // on the Holidays calendar row
+	if m.hidden["hol"] {
+		t.Error("enter on a calendar row toggled it; only space should")
 	}
 }
 
@@ -1563,7 +1639,7 @@ func TestSignInAgainFromTheSidebar(t *testing.T) {
 		t.Fatalf("expired account not flagged:\n%s", screen(m))
 	}
 
-	m, _ = send(t, m, press("h"), press("G")) // the work account's calendar
+	m, _ = send(t, m, press("0"), press("G")) // the work account's calendar
 	m, cmd := send(t, m, press("s"))
 	if m.gflow == nil || m.gflow.expect != "me@company.com" {
 		t.Fatal("s didn't start signing that account in again")

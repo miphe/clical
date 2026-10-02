@@ -82,10 +82,12 @@ to trust your OAuth client ID (Admin console → Security → API controls).
 
 | Key                        | Action                                                                            |
 | -------------------------- | --------------------------------------------------------------------------------- |
-| `tab`, `1` / `2` / `3`     | Switch view: agenda / week / month (all stay on the same day)                     |
+| `0`                        | Go to the calendar list                                                           |
+| `1` / `2` / `3`            | Go to the main view as agenda / week / month (all stay on the same day)           |
+| `tab`                      | Switch between the calendar list and the main view                                |
 | `j` / `k`, arrows          | Move between events                                                               |
 | `g` / `G`                  | First / last event (of the day, in the week view)                                 |
-| `h` / `l` (week, month)    | Previous / next day                                                               |
+| `h` / `l` (week, month)    | Previous / next day (never changes pane)                                          |
 | `j` / `k` (month)          | Previous / next week                                                              |
 | `enter` (month)            | Open the selected day in the agenda                                               |
 | `enter`                    | Event details (`esc` or `q` to close)                                             |
@@ -95,12 +97,12 @@ to trust your OAuth client ID (Admin console → Security → API controls).
 | `[` / `]`                  | Previous / next day in the agenda, week in the week view, month in the month view |
 | `t`                        | Back to today                                                                     |
 | `r`                        | Sync now                                                                          |
-| `h` / `l`                  | Focus the calendar list / back (in the week view, `h` on Monday)                  |
 | `a`                        | Add a calendar (iCal link or Google account)                                      |
 | `s` (calendar list)        | Sign a Google account in again (when marked ⚠)                                    |
 | `d` (calendar list)        | Remove the selected calendar (asks first)                                         |
 | `space` (calendar list)    | Show or hide a calendar, or all of an account's calendars                         |
 | `enter` (calendar list)    | Fold or unfold an account                                                         |
+| `l` (calendar list)        | Back to the main view (same as `tab`)                                             |
 | `c` (calendar list)        | Collapse or expand the calendar list                                              |
 | `q`                        | Quit                                                                              |
 

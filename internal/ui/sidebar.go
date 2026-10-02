@@ -129,7 +129,7 @@ func (m Model) handleSidebarKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Collapse):
 		m.sidebarCollapsed = !m.sidebarCollapsed
 		m.ensureSidebarSelection()
-	case key.Matches(msg, m.keys.FocusMain):
+	case key.Matches(msg, m.keys.Back):
 		m.focus = focusMain
 	case msg.String() == "s":
 		if acct, ok := m.selectedGoogleAccount(); ok {
@@ -204,7 +204,7 @@ func (m Model) renderSidebar(height int) []string {
 	if m.sidebarCollapsed {
 		width = collapsedSidebarInner
 	} else {
-		tabs = []tab{{label: "Calendars", active: true}}
+		tabs = []tab{{label: "[0] Calendars", active: true}}
 	}
 	focused := m.focus == focusSidebar
 	innerH := height - 2

@@ -82,13 +82,9 @@ func (m *Model) rebuildMonth() {
 func (m Model) handleMonthKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k, sel := m.keys, m.month.sel
 	switch {
-	case key.Matches(msg, k.FocusMain): // l / right
+	case key.Matches(msg, k.Right):
 		return m.showMonth(sel.AddDays(1))
-	case key.Matches(msg, k.FocusSidebar): // h / left; past the first column, the sidebar
-		if sel.Weekday() == weekFirstDay {
-			m.focus = focusSidebar
-			return m, nil
-		}
+	case key.Matches(msg, k.Left):
 		return m.showMonth(sel.AddDays(-1))
 	case key.Matches(msg, k.Down):
 		return m.showMonth(sel.AddDays(7))

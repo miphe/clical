@@ -407,8 +407,18 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.switchView(viewWeek)
 	case key.Matches(msg, m.keys.ViewMonth):
 		return m.switchView(viewMonth)
-	case key.Matches(msg, m.keys.NextView):
-		return m.switchView((m.view + 1) % viewCount)
+	case key.Matches(msg, m.keys.FocusList):
+		m.focus = focusSidebar
+		m.ensureSidebarSelection()
+		return m, nil
+	case key.Matches(msg, m.keys.SwitchPane):
+		if m.focus == focusSidebar {
+			m.focus = focusMain
+		} else {
+			m.focus = focusSidebar
+			m.ensureSidebarSelection()
+		}
+		return m, nil
 	case key.Matches(msg, m.keys.Add):
 		choice := sourceICal
 		m.chooser = &choice
@@ -499,8 +509,6 @@ func (m Model) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if i := m.selIndex(); i >= 0 && m.rows[i].kind == rowItem {
 			m.openDetail(m.rows[i].item)
 		}
-	case key.Matches(msg, m.keys.FocusSidebar):
-		m.focus = focusSidebar
 	}
 	return m, nil
 }

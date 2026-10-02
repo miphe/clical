@@ -440,10 +440,10 @@ Implementation decisions:
   selection visible. Empty days show `–`, or `nothing` when selected.
 - Headers mark today in blue and the selected day with `▸` and underline,
   as in the agenda.
-- Keys: `h`/`l` move between days (`h` on Monday moves focus to the
-  sidebar; `l` on Sunday stays), `j`/`k`/`g`/`G` within a day, `[`/`]` a
-  week back/forward keeping the weekday, `t` this week on today's next
-  event, `enter` details.
+- Keys: `h`/`l` move between days, crossing into the previous/next week at
+  the ends (originally `h` on Monday moved focus to the sidebar; see "Pane
+  keys"), `j`/`k`/`g`/`G` within a day, `[`/`]` a week back/forward keeping
+  the weekday, `t` this week on today's next event, `enter` details.
 - **Views share the current day.** `tab` toggles Agenda ↔ Week (`1`/`2` jump
   directly; `3` reserved for Month). Switching carries the selected day and,
   if it exists in the other view, the selected event. The agenda reloads
@@ -526,9 +526,9 @@ the invite, and links arrive inconsistently, so one extractor gathers them:
   `g`/`G` the first/last of the month, `[`/`]` a month (clamped: 31 Jan →
   28 Feb), `t` today. `enter` opens the selected day in the agenda. Moving
   out of the shown month loads the new one.
-- `tab` now cycles Agenda → Week → Month; `1`/`2`/`3` jump directly. Every
-  switch carries the current day (and, between Agenda and Week, the
-  selected event).
+- `1`/`2`/`3` switch views (`tab` cycled them at first; it now switches
+  pane, see "Pane keys"). Every switch carries the current day (and,
+  between Agenda and Week, the selected event).
 - Core additions: `CivilDate.AddMonths` (clamping), `CivilDate.DaysInMonth`,
   `agenda.MonthGrid`.
 - Under 4 columns per day the view shows a wrapped "too narrow, press 1"
@@ -633,7 +633,7 @@ two rows and make them compete with the panels.
 - **Focus:** the focused panel's border and active title are green and bold;
   the other panel's border is faint.
 - **Tabs:** the main panel's title is its view tabs, `[1] Agenda ─ [2] Week`
-  (the numbers are the jump keys; `tab` cycles). Month joins in M7.
+  (the numbers are the keys that select them). Month joins in M7.
 - **Top-right context:** the agenda's loaded span (`2 Oct – 31 Oct 2026`) or
   the shown week's dates (`12 Oct – 18 Oct 2026`; the week number is in the
   tab). The old "Calendars"
@@ -702,16 +702,28 @@ to the first match, Esc clears.
 **Mouse**: none in v1 (scroll wheel works via `bubbles/viewport`).
 **Help**: "?" opens a full-screen modal of all bindings (`bubbles/help`).
 
+**Pane keys** (decided 2026-10-02): every pane is reached the same way from
+anywhere outside a popup: `0` the calendar list, `1`/`2`/`3` the main view as
+Agenda/Week/Month, and `tab` switches between the two panes. Each pane's
+number is in its title (`[0] Calendars`, `[1] Agenda`…). Keys inside a pane
+only act within it: `h`/`l` never change pane (in Week they now cross into
+the adjacent week, like Month). Before this, the only way into the list was
+`h`, which in Week/Month only worked from the Monday column, and `tab`
+cycled views. Every footer starts with the same pane keys so they're never
+cut off. In the list, `space` shows/hides and `enter` only folds (it used to
+do both).
+
 **Keymap sketch** (`internal/ui/keymap.go` owns exact bindings; remappable in M9):
 
 | Key(s) | Action |
 |---|---|
-| `h` / `l` (or Left/Right) | Focus sidebar / main pane (done) |
+| `0` | Focus the calendar list (done) |
+| `tab` | Switch pane: calendar list ↔ main view (done) |
+| `h` / `l` (or Left/Right) | Within a pane: previous/next day (Week, Month); `l` in the list = back (done) |
 | `g` / `G` (or Home/End) | First / last event (done) |
 | `j` / `k` (or Down/Up) | Move selection in the focused pane |
 | `[` / `]` (or PgUp/PgDn) | Previous/next period (Agenda: day before/after the current day — done) |
-| `Tab` | Cycle Agenda → Week → Month (done) |
-| `1` / `2` / `3` | Jump to Agenda / Week / Month (done) |
+| `1` / `2` / `3` | Main view as Agenda / Week / Month, focusing it (done) |
 | `c` (sidebar focused) | Collapse/expand sidebar |
 | `Space` or `Enter` (calendar row) | Toggle calendar visibility |
 | `Enter` (revoked calendar row) | Prompt for a new feed URL |

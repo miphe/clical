@@ -149,18 +149,18 @@ func (m Model) selectedWeekEventID() string {
 func (m Model) handleWeekKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := m.keys
 	switch {
-	case key.Matches(msg, k.FocusMain): // l / right: next column
-		if m.week.day < 6 {
-			m.week.day++
-			m.week.item = m.defaultWeekItem()
+	case key.Matches(msg, k.Right), key.Matches(msg, k.Left):
+		// The next/previous day, into the adjacent week at either end.
+		delta := 1
+		if key.Matches(msg, k.Left) {
+			delta = -1
 		}
-	case key.Matches(msg, k.FocusSidebar): // h / left: previous column, then the sidebar
-		if m.week.day > 0 {
-			m.week.day--
+		if day := m.week.day + delta; day >= 0 && day <= 6 {
+			m.week.day = day
 			m.week.item = m.defaultWeekItem()
-		} else {
-			m.focus = focusSidebar
+			return m, nil
 		}
+		return m.showWeek(m.selectedWeekDate().AddDays(delta), "")
 	case key.Matches(msg, k.Down):
 		m.week.item = min(m.week.item+1, max(0, len(m.weekItems())-1))
 	case key.Matches(msg, k.Up):

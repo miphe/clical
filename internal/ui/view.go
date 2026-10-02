@@ -267,27 +267,35 @@ func (m Model) renderFooter() []string {
 	case m.detail != nil:
 		bindings = []key.Binding{hint("j/k", "scroll"), m.keys.Close}
 	case m.focus == focusSidebar:
-		bindings = []key.Binding{m.keys.Toggle, hint("enter", "fold"), m.keys.Add, m.keys.Remove}
+		bindings = []key.Binding{hint("j/k", "move"), m.keys.Toggle, hint("enter", "fold"), m.keys.Add, m.keys.Remove}
 		if acct, ok := m.selectedGoogleAccount(); ok && m.needsSignIn[acct.ID] {
 			bindings = append([]key.Binding{hint("s", "sign in again")}, bindings...)
 		}
-		bindings = append(bindings, m.keys.Collapse, m.keys.FocusMain, m.keys.Quit)
+		bindings = append(bindings, m.keys.Collapse, m.keys.Sync, m.keys.Quit)
 	case m.view == viewWeek:
 		bindings = []key.Binding{hint("h/l", "day"), hint("j/k", "move"), m.keys.Open, hint("[/]", "week"),
-			m.keys.Today, hint("tab", "month"), m.keys.Sync, m.keys.Quit}
+			m.keys.Today, m.keys.Sync, m.keys.Quit}
 	case m.view == viewMonth:
 		bindings = []key.Binding{hint("h/l", "day"), hint("j/k", "week"), hint("enter", "open day"), hint("[/]", "month"),
-			m.keys.Today, hint("tab", "agenda"), m.keys.Sync, m.keys.Quit}
+			m.keys.Today, m.keys.Sync, m.keys.Quit}
 	default:
-		bindings = []key.Binding{hint("j/k", "move"), m.keys.Open, hint("[/]", "day"), m.keys.Today,
-			hint("tab", "week"), m.keys.Sync, m.keys.FocusSidebar, m.keys.Quit}
+		bindings = []key.Binding{hint("j/k", "move"), m.keys.Open, hint("[/]", "day"), m.keys.Today, m.keys.Sync, m.keys.Quit}
 	}
-	var hints []string
-	for _, b := range bindings {
-		h := b.Help()
-		hints = append(hints, boldStyle.Render(h.Key)+" "+mutedStyle.Render(h.Desc))
+	render := func(bs []key.Binding) string {
+		var hints []string
+		for _, b := range bs {
+			h := b.Help()
+			hints = append(hints, boldStyle.Render(h.Key)+" "+mutedStyle.Render(h.Desc))
+		}
+		return strings.Join(hints, mutedStyle.Render(" · "))
 	}
-	hintLine := fit(" "+strings.Join(hints, mutedStyle.Render(" · ")), m.width)
+	line := render(bindings)
+	if m.form == nil && m.gflow == nil && m.chooser == nil && m.confirmRemove == nil && m.detail == nil {
+		// Pane keys first, the same everywhere, so they're never cut off.
+		panes := render([]key.Binding{hint("0", "calendars"), hint("1-3", "views"), hint("tab", "switch pane")})
+		line = panes + mutedStyle.Render(" │ ") + line
+	}
+	hintLine := fit(" "+line, m.width)
 
 	left := " " + m.activity() + m.now.In(m.loc).Format("Mon 2 Jan 15:04")
 	right := m.status()
