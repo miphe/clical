@@ -151,7 +151,15 @@ type Link struct {
 
 // WithLinks returns e with links attached.
 func (e Event) WithLinks(links []Link) Event {
-	e.Links = links
+	if len(links) == 0 {
+		e.Links = nil
+		return e
+	}
+	e.Links = make([]Link, len(links))
+	for i, l := range links {
+		l.Label = SafeText(l.Label)
+		e.Links[i] = l
+	}
 	return e
 }
 
@@ -161,9 +169,9 @@ func NewTimedEvent(id, calendarID, title string, start, end time.Time, location,
 	return Event{
 		ID:         id,
 		CalendarID: calendarID,
-		Title:      title,
-		Location:   location,
-		Notes:      notes,
+		Title:      SafeText(title),
+		Location:   SafeText(location),
+		Notes:      SafeText(notes),
 		AllDay:     false,
 		start:      start.UTC(),
 		end:        end.UTC(),
@@ -175,9 +183,9 @@ func NewAllDayEvent(id, calendarID, title string, start, end CivilDate, location
 	return Event{
 		ID:         id,
 		CalendarID: calendarID,
-		Title:      title,
-		Location:   location,
-		Notes:      notes,
+		Title:      SafeText(title),
+		Location:   SafeText(location),
+		Notes:      SafeText(notes),
 		AllDay:     true,
 		startDate:  start,
 		endDate:    end,

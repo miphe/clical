@@ -41,6 +41,7 @@ func (s *Store) ListAccounts(ctx context.Context) ([]domain.Account, error) {
 		if err := rows.Scan(&a.ID, &a.Provider, &a.Label); err != nil {
 			return nil, fmt.Errorf("store: scan account: %w", err)
 		}
+		a.Label = domain.SafeText(a.Label)
 		out = append(out, a)
 	}
 	if err := rows.Err(); err != nil {
@@ -61,5 +62,6 @@ func (s *Store) GetAccount(ctx context.Context, id string) (domain.Account, erro
 	if err != nil {
 		return domain.Account{}, fmt.Errorf("store: get account: %w", err)
 	}
+	a.Label = domain.SafeText(a.Label)
 	return a, nil
 }

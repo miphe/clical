@@ -40,6 +40,7 @@ func (a *App) AddCalendar(ctx context.Context, account, name string, feed Feed) 
 	if a.vault == nil {
 		return CalendarInfo{}, ErrLocked
 	}
+	account, name = domain.SafeText(account), domain.SafeText(name)
 	if strings.TrimSpace(account) == "" || strings.TrimSpace(name) == "" {
 		return CalendarInfo{}, errors.New("account and calendar name must not be empty")
 	}

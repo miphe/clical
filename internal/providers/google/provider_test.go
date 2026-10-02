@@ -339,3 +339,27 @@ func TestSignInRejectedClient(t *testing.T) {
 		t.Errorf("Wait() = %v, want ErrClientRejected", err)
 	}
 }
+
+func TestTransportErrorsDoNotNameTheCalendar(t *testing.T) {
+	p := fakeAPI(t, func(w http.ResponseWriter, r *http.Request) {})
+	p.base = "http://127.0.0.1:1" // nothing listens here
+	p.client = func(context.Context, string) (*http.Client, error) { return http.DefaultClient, nil }
+	primary := domain.Calendar{ID: CalendarID("acct", "someone@example.com"), AccountID: "acct"}
+	_, err := p.SyncEvents(context.Background(), primary, "")
+	if err == nil {
+		t.Fatal("SyncEvents() against a closed port succeeded")
+	}
+	if strings.Contains(err.Error(), "someone") {
+		t.Errorf("error names the calendar: %v", err)
+	}
+}
+
+func TestCalendarNamesAreMadeSafe(t *testing.T) {
+	p := fakeAPI(t, func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{"items": []map[string]any{{"id": "x", "summary": "Team\x1b]0;pwned\x07"}}})
+	})
+	cals, err := p.ListCalendars(context.Background(), "acct")
+	if err != nil || len(cals) != 1 || cals[0].Name != "Team]0;pwned" {
+		t.Errorf("ListCalendars() = %+v, %v", cals, err)
+	}
+}

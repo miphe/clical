@@ -44,6 +44,7 @@ func (s *Store) ListCalendars(ctx context.Context) ([]domain.Calendar, error) {
 		if err := rows.Scan(&c.ID, &c.AccountID, &c.Name, &slot); err != nil {
 			return nil, fmt.Errorf("store: scan calendar: %w", err)
 		}
+		c.Name = domain.SafeText(c.Name)
 		c.ColorSlot = decodeSlot(slot)
 		out = append(out, c)
 	}

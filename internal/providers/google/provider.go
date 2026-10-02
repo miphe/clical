@@ -162,7 +162,7 @@ func (p *Provider) ListCalendars(ctx context.Context, accountID string) ([]Remot
 			if name == "" {
 				name = it.Summary
 			}
-			out = append(out, RemoteCalendar{ID: it.ID, Name: name, Primary: it.Primary, AccessRole: it.AccessRole})
+			out = append(out, RemoteCalendar{ID: it.ID, Name: domain.SafeText(name), Primary: it.Primary, AccessRole: it.AccessRole})
 		}
 		if resp.NextPageToken == "" {
 			break
@@ -381,7 +381,7 @@ func (p *Provider) get(ctx context.Context, accountID, path string, q url.Values
 			if ctx.Err() != nil {
 				return struct{}{}, backoff.Permanent(ctx.Err())
 			}
-			return struct{}{}, err
+			return struct{}{}, redact(err)
 		}
 		defer resp.Body.Close()
 		body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
@@ -406,6 +406,16 @@ func (p *Provider) get(ctx context.Context, accountID, path string, q url.Values
 		}
 	}
 	_, err = backoff.Retry(ctx, attempt, backoff.WithBackOff(p.newBackOff()), backoff.WithMaxTries(p.maxTries))
+	return err
+}
+
+// redact drops the request URL from a transport error: it names the
+// calendar, and a primary calendar's ID is the account's email address.
+func redact(err error) error {
+	var uerr *url.Error
+	if errors.As(err, &uerr) {
+		return &url.Error{Op: uerr.Op, URL: "<Google Calendar API>", Err: uerr.Err}
+	}
 	return err
 }
 
