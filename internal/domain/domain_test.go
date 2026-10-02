@@ -158,3 +158,25 @@ func TestCivilDateWeekday(t *testing.T) {
 		t.Errorf("2026-10-02 Weekday() = %v, want Friday", got)
 	}
 }
+
+func TestCivilDateAddMonthsClamps(t *testing.T) {
+	cases := []struct {
+		d    CivilDate
+		n    int
+		want CivilDate
+	}{
+		{NewCivilDate(2026, 1, 31), 1, NewCivilDate(2026, 2, 28)},
+		{NewCivilDate(2028, 1, 31), 1, NewCivilDate(2028, 2, 29)}, // leap year
+		{NewCivilDate(2026, 3, 31), -1, NewCivilDate(2026, 2, 28)},
+		{NewCivilDate(2026, 12, 15), 1, NewCivilDate(2027, 1, 15)},
+		{NewCivilDate(2026, 1, 15), -1, NewCivilDate(2025, 12, 15)},
+	}
+	for _, c := range cases {
+		if got := c.d.AddMonths(c.n); got != c.want {
+			t.Errorf("%s.AddMonths(%d) = %s, want %s", c.d, c.n, got, c.want)
+		}
+	}
+	if NewCivilDate(2026, 2, 1).DaysInMonth() != 28 || NewCivilDate(2026, 10, 9).DaysInMonth() != 31 {
+		t.Error("DaysInMonth wrong")
+	}
+}

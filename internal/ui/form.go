@@ -229,6 +229,9 @@ func (m Model) removeDone(msg removeDoneMsg) (tea.Model, tea.Cmd) {
 	if m.week.loaded {
 		cmds = append(cmds, m.loadWeek())
 	}
+	if m.month.loaded {
+		cmds = append(cmds, m.loadMonth())
+	}
 	return m, tea.Batch(cmds...)
 }
 

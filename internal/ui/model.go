@@ -51,6 +51,8 @@ type viewKind int
 const (
 	viewAgenda viewKind = iota
 	viewWeek
+	viewMonth
+	viewCount
 )
 
 type (
@@ -68,6 +70,12 @@ type (
 		at      time.Time
 		results []app.SyncOutcome
 		err     error
+	}
+	monthLoadedMsg struct {
+		start  domain.CivilDate
+		weeks  int
+		events []domain.Event
+		err    error
 	}
 	weekLoadedMsg struct {
 		start  domain.CivilDate
@@ -110,7 +118,8 @@ type Model struct {
 	pendingDay domain.CivilDate
 	hasPending bool
 
-	week weekState
+	week  weekState
+	month monthState
 
 	detail *agenda.Item
 
@@ -232,6 +241,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.now = time.Time(msg)
 		m.rebuild()
 		m.rebuildWeek()
+		m.rebuildMonth()
 		return m, m.tickCmd()
 
 	case calendarsLoadedMsg:
@@ -247,10 +257,14 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ensureSidebarSelection()
 		m.rebuild()
 		m.rebuildWeek()
+		m.rebuildMonth()
 		return m, nil
 
 	case weekLoadedMsg:
 		return m.weekLoaded(msg), nil
+
+	case monthLoadedMsg:
+		return m.monthLoaded(msg), nil
 
 	case addDoneMsg:
 		return m.addDone(msg)
@@ -316,6 +330,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.week.pendingSelect = true
 			cmds = append(cmds, m.loadWeek())
 		}
+		if m.month.loaded {
+			cmds = append(cmds, m.loadMonth())
+		}
 		return m, tea.Batch(cmds...)
 
 	case tea.KeyPressMsg:
@@ -351,16 +368,21 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.syncing = true
 		return m, m.syncCmd()
 	case key.Matches(msg, m.keys.Today):
-		if m.view == viewWeek {
+		switch m.view {
+		case viewWeek:
 			return m.showWeek(m.today(), "")
+		case viewMonth:
+			return m.showMonth(m.today())
 		}
 		return m.jumpTo(m.today())
 	case key.Matches(msg, m.keys.ViewAgenda):
 		return m.switchView(viewAgenda)
 	case key.Matches(msg, m.keys.ViewWeek):
 		return m.switchView(viewWeek)
+	case key.Matches(msg, m.keys.ViewMonth):
+		return m.switchView(viewMonth)
 	case key.Matches(msg, m.keys.NextView):
-		return m.switchView((m.view + 1) % 2)
+		return m.switchView((m.view + 1) % viewCount)
 	case key.Matches(msg, m.keys.Add):
 		return m.openAddForm()
 	}
@@ -370,22 +392,40 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleSidebarKey(msg)
 	case m.view == viewWeek:
 		return m.handleWeekKey(msg)
+	case m.view == viewMonth:
+		return m.handleMonthKey(msg)
 	}
 	return m.handleMainKey(msg)
 }
 
 // switchView changes view, carrying the current day (and selected event, if
-// any) across so both views stay on the same place in time.
+// the target view selects events) across, so every view stays on the same
+// place in time.
 func (m Model) switchView(to viewKind) (tea.Model, tea.Cmd) {
 	m.focus = focusMain
 	if to == m.view {
 		return m, nil
 	}
-	if to == viewWeek {
-		return m.showWeek(m.currentDay(), m.selectedAgendaEventID())
+	day, id := m.viewDay()
+	switch to {
+	case viewWeek:
+		return m.showWeek(day, id)
+	case viewMonth:
+		return m.showMonth(day)
 	}
-	day, id := m.selectedWeekDate(), m.selectedWeekEventID()
 	return m.showAgenda(day, id)
+}
+
+// viewDay is the current view's selected day, and its selected event's ID
+// ("" in the month view, which selects days).
+func (m Model) viewDay() (domain.CivilDate, string) {
+	switch m.view {
+	case viewWeek:
+		return m.selectedWeekDate(), m.selectedWeekEventID()
+	case viewMonth:
+		return m.month.sel, ""
+	}
+	return m.currentDay(), m.selectedAgendaEventID()
 }
 
 // showAgenda switches to the agenda with day (and eventID, if found) selected,

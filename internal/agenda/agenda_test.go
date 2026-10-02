@@ -116,3 +116,22 @@ func TestWeekStart(t *testing.T) {
 		}
 	}
 }
+
+func TestMonthGrid(t *testing.T) {
+	d := domain.NewCivilDate
+	cases := []struct {
+		month     domain.CivilDate
+		wantStart domain.CivilDate
+		wantWeeks int
+	}{
+		{d(2026, 10, 9), d(2026, 9, 28), 5}, // Oct 2026 starts on a Thursday
+		{d(2027, 2, 1), d(2027, 2, 1), 4},   // Feb 2027: Monday the 1st, 28 days
+		{d(2026, 8, 20), d(2026, 7, 27), 6}, // Aug 2026: Saturday the 1st, 31 days
+	}
+	for _, c := range cases {
+		start, weeks := MonthGrid(c.month, time.Monday)
+		if start != c.wantStart || weeks != c.wantWeeks {
+			t.Errorf("MonthGrid(%s) = %s, %d weeks; want %s, %d", c.month, start, weeks, c.wantStart, c.wantWeeks)
+		}
+	}
+}

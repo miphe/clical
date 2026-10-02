@@ -91,7 +91,7 @@ Some concrete cases:
 |---|---|
 | A new feed provider (CalDAV, Outlook) | `internal/providers/<name>` + registration in `app.Unlock` |
 | "Show only events matching X" as data | `app` method (or `store` query exposed via `app`) |
-| Which week a day belongs to (`agenda.WeekStart`) | `agenda` (pure, reusable) |
+| Which week a day belongs to, a month's grid (`agenda.WeekStart`, `MonthGrid`) | `agenda` (pure, reusable) |
 | The Week view's columns, keys, colors (`ui/week*.go`) | `internal/ui` |
 | A new CLI subcommand | `cmd/clical`, calling `app` |
 | How a dead feed is *worded* on screen | the front-end (`app` reports it as `SyncOutcome.Unavailable()`) |

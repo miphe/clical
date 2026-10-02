@@ -82,6 +82,10 @@ func padLines(lines []string, height, width int) []string {
 // renderMain draws the main panel: the current view inside a border whose
 // title doubles as the view tabs.
 func (m Model) renderMain(width, height int) []string {
+	monthLabel := "[3] Month"
+	if m.view == viewMonth {
+		monthLabel = "[3] " + m.month.month.In(m.loc).Format("January 2006")
+	}
 	weekLabel := "[2] Week"
 	if m.view == viewWeek && m.weekNumber() > 0 {
 		weekLabel = fmt.Sprintf("[2] Week %d", m.weekNumber())
@@ -89,6 +93,7 @@ func (m Model) renderMain(width, height int) []string {
 	tabs := []tab{
 		{label: "[1] Agenda", active: m.view == viewAgenda},
 		{label: weekLabel, active: m.view == viewWeek},
+		{label: monthLabel, active: m.view == viewMonth},
 	}
 	inner, innerH := width-2, height-2
 	var content []string
@@ -97,6 +102,9 @@ func (m Model) renderMain(width, height int) []string {
 	case viewWeek:
 		content = m.renderWeek(inner, innerH)
 		right = m.weekSpan()
+	case viewMonth:
+		content = m.renderMonth(inner, innerH)
+		right = m.monthWeekSpan()
 	default:
 		// One column of padding between the border and the agenda's gutter.
 		content = m.renderAgenda(inner-1, innerH)
@@ -323,6 +331,9 @@ func (m Model) renderFooter() []string {
 			m.keys.Collapse, m.keys.FocusMain, m.keys.Quit}
 	case m.view == viewWeek:
 		bindings = []key.Binding{hint("h/l", "day"), hint("j/k", "move"), m.keys.Open, hint("[/]", "week"),
+			m.keys.Today, hint("tab", "month"), m.keys.Sync, m.keys.Quit}
+	case m.view == viewMonth:
+		bindings = []key.Binding{hint("h/l", "day"), hint("j/k", "week"), hint("enter", "open day"), hint("[/]", "month"),
 			m.keys.Today, hint("tab", "agenda"), m.keys.Sync, m.keys.Quit}
 	default:
 		bindings = []key.Binding{hint("j/k", "move"), m.keys.Open, hint("[/]", "day"), m.keys.Today,

@@ -104,3 +104,14 @@ func WeekStart(d domain.CivilDate, first time.Weekday) domain.CivilDate {
 	back := (int(d.Weekday()) - int(first) + 7) % 7
 	return d.AddDays(-back)
 }
+
+// MonthGrid lays out d's month as whole weeks starting on first: the grid's
+// first day (which may be in the previous month) and how many weeks (4–6) it
+// takes to cover the month.
+func MonthGrid(d domain.CivilDate, first time.Weekday) (start domain.CivilDate, weeks int) {
+	firstOfMonth := domain.NewCivilDate(d.Year, d.Month, 1)
+	start = WeekStart(firstOfMonth, first)
+	lead := (int(firstOfMonth.Weekday()) - int(first) + 7) % 7
+	weeks = (lead + d.DaysInMonth() + 6) / 7
+	return start, weeks
+}

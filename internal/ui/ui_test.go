@@ -494,13 +494,13 @@ func TestSwitchingViewsKeepsTheSelection(t *testing.T) {
 		t.Fatalf("week start %s, selected %s; want week of Mon 28 Sep with Dentist", m.week.start, weekSelected(m))
 	}
 
-	m, _ = send(t, m, press("l"), press("tab")) // Wed 30, back to the agenda
+	m, _ = send(t, m, press("l"), press("1")) // Wed 30, back to the agenda
 	if m.view != viewAgenda || selected(m) != "2026-09-30 conf" {
-		t.Errorf("after l, tab: view %v, agenda selected %s; want agenda on 2026-09-30 conf", m.view, selected(m))
+		t.Errorf("after l, 1: view %v, agenda selected %s; want agenda on 2026-09-30 conf", m.view, selected(m))
 	}
-	m, _ = send(t, m, press("tab"))
+	m, _ = send(t, m, press("2"))
 	if m.view != viewWeek || weekSelected(m) != "2026-09-30 conf" {
-		t.Errorf("tab again: week selected %s, want 2026-09-30 conf (same week, no reload)", weekSelected(m))
+		t.Errorf("2 again: week selected %s, want 2026-09-30 conf (same week, no reload)", weekSelected(m))
 	}
 }
 
@@ -943,7 +943,8 @@ func screensToCheck(t *testing.T) map[string]Model {
 	side, _ := send(t, m, press("h"))
 	form, _ := send(t, m, press("a"))
 	syncing, _ := send(t, m, press("r"))
-	return map[string]Model{"agenda": m, "week": week, "sidebar": side, "form": form, "syncing": syncing}
+	month := toMonth(t, m, testEvents())
+	return map[string]Model{"agenda": m, "week": week, "month": month, "sidebar": side, "form": form, "syncing": syncing}
 }
 
 func TestOnlyANSIColorsReachTheTerminal(t *testing.T) {
@@ -1009,5 +1010,172 @@ func TestWeekTabShowsTheWeekNumber(t *testing.T) {
 	m.week.start = domain.NewCivilDate(2027, 1, 4)
 	if m.weekNumber() != 1 {
 		t.Errorf("week of 4 Jan 2027 = %d, want 1", m.weekNumber())
+	}
+}
+
+// toMonth switches to the month view and delivers the load it requested.
+func toMonth(t *testing.T, m Model, events []domain.Event) Model {
+	t.Helper()
+	m, _ = send(t, m, press("3"))
+	return deliverMonth(t, m, events)
+}
+
+func deliverMonth(t *testing.T, m Model, events []domain.Event) Model {
+	t.Helper()
+	m, _ = send(t, m, monthLoadedMsg{start: m.month.start, weeks: m.month.weeks, events: events})
+	return m
+}
+
+func TestGoldenMonth(t *testing.T) {
+	golden(t, "month", screen(toMonth(t, loaded(t, 100, 30), testEvents())))
+	golden(t, "month_short", screen(toMonth(t, loaded(t, 100, 18), testEvents())))
+	golden(t, "month_narrow", screen(toMonth(t, loaded(t, 56, 20), testEvents())))
+	golden(t, "month_too_narrow", screen(toMonth(t, loaded(t, 34, 12), testEvents())))
+}
+
+func TestMonthLinesFitTheWindow(t *testing.T) {
+	for _, size := range [][2]int{{100, 30}, {100, 18}, {56, 20}, {34, 12}, {30, 6}} {
+		m := toMonth(t, loaded(t, size[0], size[1]), testEvents())
+		lines := strings.Split(m.View().Content, "\n")
+		if len(lines) != size[1] {
+			t.Errorf("%dx%d: %d lines, want %d", size[0], size[1], len(lines), size[1])
+		}
+		for i, l := range lines {
+			if w := ansi.StringWidth(l); w != size[0] {
+				t.Errorf("%dx%d line %d width %d: %q", size[0], size[1], i, w, ansi.Strip(l))
+			}
+		}
+	}
+}
+
+func TestMonthGridAndHeader(t *testing.T) {
+	m := toMonth(t, loaded(t, 100, 30), testEvents())
+	if m.month.month != domain.NewCivilDate(2026, 9, 1) || m.month.start != domain.NewCivilDate(2026, 8, 31) || m.month.weeks != 5 {
+		t.Fatalf("month %s grid %s×%d, want September 2026 from Mon 31 Aug, 5 weeks", m.month.month, m.month.start, m.month.weeks)
+	}
+	sc := screen(m)
+	for _, want := range []string{"[3] September 2026", "Weeks 36–40", "Mon", "Sun", "36", "40", "Name day", "+2 more"} {
+		if !strings.Contains(sc, want) {
+			t.Errorf("month screen lacks %q:\n%s", want, sc)
+		}
+	}
+}
+
+func TestMonthNavigation(t *testing.T) {
+	m := toMonth(t, loaded(t, 100, 30), testEvents()) // Tue 29 Sep selected
+	if m.month.sel != domain.NewCivilDate(2026, 9, 29) {
+		t.Fatalf("selected %s, want today 2026-09-29", m.month.sel)
+	}
+	steps := []struct {
+		key  string
+		want domain.CivilDate
+	}{
+		{"l", domain.NewCivilDate(2026, 9, 30)},
+		{"k", domain.NewCivilDate(2026, 9, 23)},
+		{"g", domain.NewCivilDate(2026, 9, 1)},
+		{"G", domain.NewCivilDate(2026, 9, 30)},
+		{"[", domain.NewCivilDate(2026, 8, 30)}, // month back, day clamped... 30 Aug exists
+	}
+	for _, s := range steps {
+		m, _ = send(t, m, press(s.key))
+		if s.key == "[" {
+			m = deliverMonth(t, m, testEvents())
+		}
+		if m.month.sel != s.want {
+			t.Errorf("after %s selected %s, want %s", s.key, m.month.sel, s.want)
+		}
+	}
+	if m.month.month != domain.NewCivilDate(2026, 8, 1) {
+		t.Errorf("after [ the shown month is %s, want August", m.month.month)
+	}
+
+	// Moving into the next month loads it.
+	m, _ = send(t, m, press("t"))
+	m = deliverMonth(t, m, testEvents())
+	m, cmd := send(t, m, press("j"), press("j")) // 29 Sep → 6 Oct → 13 Oct
+	_ = cmd
+	if m.month.month != domain.NewCivilDate(2026, 10, 1) || !m.month.loading {
+		t.Errorf("j into October: shown %s, loading %v; want October loading", m.month.month, m.month.loading)
+	}
+
+	// h on a Monday moves into the sidebar.
+	m = deliverMonth(t, m, testEvents())
+	m, _ = send(t, m, press("g")) // 1 Oct, a Thursday
+	for m.month.sel.Weekday() != time.Monday {
+		m, _ = send(t, m, press("h"))
+		if m.view != viewMonth {
+			t.Fatal("left the month view while moving left")
+		}
+		m = deliverMonth(t, m, testEvents())
+	}
+	if m, _ = send(t, m, press("h")); m.focus != focusSidebar {
+		t.Error("h on a Monday didn't focus the sidebar")
+	}
+}
+
+func TestMonthEnterOpensTheDayInTheAgenda(t *testing.T) {
+	m := toMonth(t, loaded(t, 100, 30), testEvents())
+	m, _ = send(t, m, press("l"), press("enter")) // Wed 30 Sep
+	if m.view != viewAgenda || m.currentDay() != domain.NewCivilDate(2026, 9, 30) {
+		t.Errorf("enter: view %v, agenda day %s; want the agenda on 2026-09-30", m.view, m.currentDay())
+	}
+}
+
+func TestTabCyclesAllViewsKeepingTheDay(t *testing.T) {
+	m := loaded(t, 100, 30)
+	m, _ = send(t, m, press("]")) // agenda on Wed 30 Sep
+	m, _ = send(t, m, press("tab"))
+	m = deliverWeek(t, m, testEvents())
+	if m.view != viewWeek || m.selectedWeekDate() != domain.NewCivilDate(2026, 9, 30) {
+		t.Fatalf("tab 1: view %v day %s", m.view, m.selectedWeekDate())
+	}
+	m, _ = send(t, m, press("tab"))
+	m = deliverMonth(t, m, testEvents())
+	if m.view != viewMonth || m.month.sel != domain.NewCivilDate(2026, 9, 30) {
+		t.Fatalf("tab 2: view %v day %s", m.view, m.month.sel)
+	}
+	m, _ = send(t, m, press("tab"))
+	if m.view != viewAgenda || m.currentDay() != domain.NewCivilDate(2026, 9, 30) {
+		t.Fatalf("tab 3: view %v day %s", m.view, m.currentDay())
+	}
+}
+
+func TestMonthOverflowShowsMore(t *testing.T) {
+	var events []domain.Event
+	for h := 8; h < 16; h++ {
+		id := fmt.Sprintf("m%02d", h)
+		events = append(events, domain.NewTimedEvent(id, "main", "Busy "+id, at(30, h, 0), at(30, h, 30), "", ""))
+	}
+	m := toMonth(t, loaded(t, 100, 24), events)
+	if sc := screen(m); !strings.Contains(sc, "more") {
+		t.Errorf("no \"+N more\" in an overflowing day:\n%s", sc)
+	}
+}
+
+func TestMonthStaleLoadIgnored(t *testing.T) {
+	m := toMonth(t, loaded(t, 100, 30), testEvents())
+	m, _ = send(t, m, press("]"))
+	m, _ = send(t, m, monthLoadedMsg{start: domain.NewCivilDate(2026, 8, 31), weeks: 5})
+	if !m.month.loading {
+		t.Error("a load for the previous month was applied; want it ignored")
+	}
+}
+
+func TestMoreLabel(t *testing.T) {
+	cases := []struct {
+		n     int
+		none  bool
+		width int
+		want  string
+	}{
+		{3, false, 10, "+3 more"},
+		{3, false, 5, "+3"},
+		{4, true, 10, "4 events"},
+		{4, true, 5, "4"},
+	}
+	for _, c := range cases {
+		if got := moreLabel(c.n, c.none, c.width); got != c.want {
+			t.Errorf("moreLabel(%d, %v, %d) = %q, want %q", c.n, c.none, c.width, got, c.want)
+		}
 	}
 }

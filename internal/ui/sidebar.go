@@ -169,6 +169,7 @@ func (m *Model) toggleVisibility(r sideRow) {
 	}
 	m.rebuild()
 	m.rebuildWeek()
+	m.rebuildMonth()
 }
 
 func (m Model) sidebarHeight() int {

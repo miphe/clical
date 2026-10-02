@@ -90,6 +90,19 @@ func (d CivilDate) In(loc *time.Location) time.Time {
 	return time.Date(d.Year, time.Month(d.Month), d.Day, 0, 0, 0, 0, loc)
 }
 
+// AddMonths returns the same day n months later (n may be negative), clamped
+// to the last day of a shorter month: 31 Jan + 1 month is 28 (or 29) Feb.
+func (d CivilDate) AddMonths(n int) CivilDate {
+	first := time.Date(d.Year, time.Month(d.Month)+time.Month(n), 1, 0, 0, 0, 0, time.UTC)
+	f := CivilDateFromTime(first)
+	return NewCivilDate(f.Year, f.Month, min(d.Day, f.DaysInMonth()))
+}
+
+// DaysInMonth is the number of days in d's month.
+func (d CivilDate) DaysInMonth() int {
+	return time.Date(d.Year, time.Month(d.Month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
+}
+
 // Weekday is the day of the week d falls on.
 func (d CivilDate) Weekday() time.Weekday {
 	return d.In(time.UTC).Weekday()

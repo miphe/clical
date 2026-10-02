@@ -34,7 +34,8 @@ multi-account merge → config/themes → in-process background polling.
 | M6 | Week view | Done |
 | — | Many calendars: scrolling/foldable list, permanent colors, add/remove in the TUI | Done |
 | — | Theming: terminal ANSI colors only (Omarchy-compatible), semantic roles, enforced | Done |
-| M7–M11 | Month view, help, filter, config/themes, polling | Not started |
+| M7 | Month view | Done |
+| M8–M11 | Search and help, config (non-color), background polling, polish | Not started |
 
 Deferred (2026-09-29): the **work** (Google Workspace) calendar. Focus is the
 personal calendar for now. Whether the work calendar exposes a secret iCal
@@ -381,6 +382,37 @@ Implementation decisions:
 - Core addition: `agenda.WeekStart(day, first)` and `CivilDate.Weekday()`.
   Grouping a week is just `agenda.Build(events, start, 7, loc)`.
 
+## Month view (`internal/ui/month.go`, `monthview.go`) — M7 done
+
+- A grid of whole Monday-first weeks covering the month (4–6 rows, from the
+  pure `agenda.MonthGrid`), with a muted column of ISO week numbers on the
+  left, as on Swedish wall calendars.
+- While it's open, the tab shows the month, `[3] November 2026`, and the
+  top-right shows the grid's week span, `Weeks 44–49`. Like the week tab,
+  the name survives narrow screens because it's in the tab.
+- **Cells:** the date (the month too on the 1st and the grid's first cell,
+  so leading and trailing days are placeable), then events as `●Title`, with
+  the start time in front when the cell is at least 14 wide. Overflow shows
+  `+N more`, or `N events` when no event fits at all, shortened to
+  `+N`/`N` in narrow cells. Days outside the month and ended events are
+  muted. Today's date is accent; the selected day is reversed (underlined
+  while another panel has focus).
+- **Rows:** a rule between week rows when every row still gets at least
+  three lines. Leftover lines go to the weeks whose busiest day has the
+  most events, not just the first rows.
+- **The month view selects days, not events.** `h`/`l` move a day (`h` on a
+  Monday moves into the sidebar, as in the week view), `j`/`k` a week,
+  `g`/`G` the first/last of the month, `[`/`]` a month (clamped: 31 Jan →
+  28 Feb), `t` today. `enter` opens the selected day in the agenda. Moving
+  out of the shown month loads the new one.
+- `tab` now cycles Agenda → Week → Month; `1`/`2`/`3` jump directly. Every
+  switch carries the current day (and, between Agenda and Week, the
+  selected event).
+- Core additions: `CivilDate.AddMonths` (clamping), `CivilDate.DaysInMonth`,
+  `agenda.MonthGrid`.
+- Under 4 columns per day the view shows a wrapped "too narrow, press 1"
+  message.
+
 ## Theming (`internal/ui/theme.go`) — done
 
 clical has **no color palette of its own**. Every color is one of the
@@ -557,8 +589,8 @@ to the first match, Esc clears.
 | `g` / `G` (or Home/End) | First / last event (done) |
 | `j` / `k` (or Down/Up) | Move selection in the focused pane |
 | `[` / `]` (or PgUp/PgDn) | Previous/next period (Agenda: day before/after the current day — done) |
-| `Tab` | Cycle views (Agenda ↔ Week done; Month in M7) |
-| `1` / `2` / `3` | Jump to Agenda / Week (done) / Month (M7) |
+| `Tab` | Cycle Agenda → Week → Month (done) |
+| `1` / `2` / `3` | Jump to Agenda / Week / Month (done) |
 | `c` (sidebar focused) | Collapse/expand sidebar |
 | `Space` or `Enter` (calendar row) | Toggle calendar visibility |
 | `Enter` (revoked calendar row) | Prompt for a new feed URL |
@@ -581,7 +613,7 @@ to the first match, Esc clears.
 | M4 | Feed errors: `CalendarUnavailableError` for 401/403/404/410, backoff on 429/5xx/network, `calendars remove`, `calendars set-url`; confirm-passphrase prompt when creating a new vault | `internal/domain/errors.go`, `internal/providers/ical/provider.go`, `internal/store/calendars.go`, `cmd/clical/calendars.go`, `cmd/clical/prompt.go` | Done |
 | M5 | Bubble Tea shell: sidebar + main pane + footer; Agenda; event detail; calendar toggles; golden snapshots | `internal/ui/model.go`, `view.go`, `rows.go`, `keymap.go`, `styles.go`, `cmd/clical/tui.go` | Done |
 | M6 | Week view (day-list columns), view switching that keeps the current day | `internal/ui/week.go`, `internal/ui/weekview.go`, `internal/agenda` (`WeekStart`) | Done |
-| M7 | Month view ("+N more", Enter → Agenda); shared `uniseg` width/truncation helper | `internal/ui/month.go`, `internal/ui/textwidth.go` | |
+| M7 | Month view (week-number column, "+N more", Enter → Agenda) | `internal/ui/month.go`, `internal/ui/monthview.go`, `internal/agenda` (`MonthGrid`) | Done |
 | M8 | "/" filter, "?" help (multi-account merge, toggles, permanent colors and theming already done) | `internal/ui/search.go`, `internal/ui/help.go` | |
 | M9 | YAML config for non-color settings (time format, first day of week, poll interval), mergo defaults, fsnotify hot-reload. No colors or themes: theming is delegated to the terminal | `internal/config/` | |
 | M10 | In-process polling (default 5 min for iCal), jittered per calendar | `internal/engine/scheduler.go`, `internal/engine/jitter.go` | |
@@ -603,4 +635,4 @@ to the first match, Esc clears.
 - Manual check of each CLI milestone against real feeds (your personal and
   work calendars) before building UI on top.
 - Cross-compile: `GOOS={darwin,linux} GOARCH={arm64,amd64} go build ./...`
-  (last passed at M6).
+  (last passed at M7).

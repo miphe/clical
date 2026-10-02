@@ -53,12 +53,14 @@ For each Google calendar you want in clical:
 
 | Key | Action |
 |---|---|
-| `tab`, `1` / `2` | Switch view: agenda / week (both stay on the same day) |
+| `tab`, `1` / `2` / `3` | Switch view: agenda / week / month (all stay on the same day) |
 | `j` / `k`, arrows | Move between events |
 | `g` / `G` | First / last event (of the day, in the week view) |
-| `h` / `l` (week view) | Previous / next day |
+| `h` / `l` (week, month) | Previous / next day |
+| `j` / `k` (month) | Previous / next week |
+| `enter` (month) | Open the selected day in the agenda |
 | `enter` | Event details (`esc` or `q` to close) |
-| `[` / `]` | Previous / next day in the agenda, week in the week view (the current day is marked ▸) |
+| `[` / `]` | Previous / next day in the agenda, week in the week view, month in the month view |
 | `t` | Back to today |
 | `r` | Sync now |
 | `h` / `l` | Focus the calendar list / back (in the week view, `h` on Monday) |
@@ -110,6 +112,8 @@ Notes for coding agents: [`AGENTS.md`](AGENTS.md).
 ## Status
 
 M0–M5 done: iCal provider with retries and dead-feed detection, calendar
-management, `sync`, plain-text `agenda`, and the full-screen TUI with Agenda and Week
-views, event details and calendar toggles. Next: the Month view (M7). Milestone table in
+management, `sync`, plain-text `agenda`, and the full-screen TUI with Agenda, Week and
+Month views, event details, calendar management in the TUI, and theming
+from the terminal palette. Next: search and help (M8) or background syncing
+(M10). Milestone table in
 [`docs/PLAN.md`](docs/PLAN.md).

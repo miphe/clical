@@ -46,7 +46,7 @@ func (m Model) busyLabel() string {
 		return "Removing"
 	case m.syncing:
 		return "Syncing"
-	case m.loading || m.week.loading:
+	case m.loading || m.week.loading || m.month.loading:
 		return "Loading"
 	}
 	return ""
