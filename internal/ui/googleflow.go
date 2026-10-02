@@ -261,7 +261,9 @@ func (m Model) googleMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 		g.acct, g.step = msg.acct, gListing
 		src, acct := m.src, msg.acct
 		return m, func() tea.Msg {
-			cals, err := src.GoogleCalendars(context.Background(), acct)
+			ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
+			defer cancel()
+			cals, err := src.GoogleCalendars(ctx, acct)
 			return googleCalendarsMsg{cals: cals, err: err}
 		}
 
