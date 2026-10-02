@@ -159,10 +159,27 @@ func (a *App) RemoveCalendar(ctx context.Context, cal CalendarInfo) error {
 	if a.vault == nil {
 		return ErrLocked
 	}
-	// Store first: a leftover encrypted URL is harmless, but a calendar whose
-	// URL is gone would fail every sync.
+	// Store first: a leftover encrypted secret is harmless, but a calendar
+	// whose secret is gone would fail every sync.
 	if err := a.store.DeleteCalendar(ctx, cal.Calendar); err != nil {
 		return err
+	}
+	if cal.Account.Provider == "google" {
+		// A Google account's sign-in is shared by its calendars; drop it with
+		// the last one.
+		rest, err := a.Calendars(ctx)
+		if err != nil {
+			return err
+		}
+		for _, c := range rest {
+			if c.Account.ID == cal.Account.ID {
+				return nil
+			}
+		}
+		if err := a.vault.DeleteToken(cal.Account.ID); err != nil {
+			return fmt.Errorf("calendar removed, but deleting the account's sign-in failed: %w", err)
+		}
+		return nil
 	}
 	if err := a.vault.DeleteSecret(ical.SecretKey(cal.Calendar.ID)); err != nil {
 		return fmt.Errorf("calendar removed, but deleting its stored URL failed: %w", err)
@@ -176,6 +193,9 @@ func (a *App) RemoveCalendar(ctx context.Context, cal CalendarInfo) error {
 func (a *App) SetCalendarURL(ctx context.Context, cal CalendarInfo, feed Feed) error {
 	if a.vault == nil {
 		return ErrLocked
+	}
+	if cal.Account.Provider != "ical" {
+		return errors.New("only iCal calendars have a feed URL")
 	}
 	if err := a.vault.SaveSecret(ical.SecretKey(cal.Calendar.ID), []byte(feed.url)); err != nil {
 		return fmt.Errorf("save feed URL: %w", err)

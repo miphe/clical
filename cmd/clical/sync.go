@@ -38,7 +38,13 @@ func (c *SyncCmd) Run() error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	for _, o := range outcomes {
 		status := "unchanged"
-		if u, ok := o.Unavailable(); ok {
+		if o.NeedsSignIn() {
+			failed++
+			status = "needs signing in again: open clical, select the account and press s"
+		} else if u, ok := o.Unavailable(); ok && o.Account.Provider != "ical" {
+			failed++
+			status = fmt.Sprintf("calendar no longer available (%s): it may have been deleted or unshared", u.Reason)
+		} else if u, ok := o.Unavailable(); ok {
 			failed++
 			status = fmt.Sprintf("feed URL no longer works (%s): replace it with 'clical calendars set-url %s'",
 				u.Reason, o.Calendar.ID)

@@ -42,6 +42,16 @@ func (nopSource) AddCalendar(context.Context, string, string, app.Feed) (app.Cal
 	return app.CalendarInfo{}, nil
 }
 func (nopSource) RemoveCalendar(context.Context, app.CalendarInfo) error { return nil }
+func (nopSource) SavedGoogleClientID() (string, error)                   { return "", nil }
+func (nopSource) BeginGoogleSignIn(string, *app.GoogleClient) (app.SignIn, error) {
+	return nil, errors.New("no")
+}
+func (nopSource) GoogleCalendars(context.Context, domain.Account) ([]app.RemoteCalendar, error) {
+	return nil, nil
+}
+func (nopSource) AddGoogleCalendars(context.Context, domain.Account, []app.RemoteCalendar) ([]app.CalendarInfo, error) {
+	return nil, nil
+}
 
 type fakeSource struct {
 	nopSource
@@ -791,7 +801,7 @@ func TestAddCalendarFromTheTUI(t *testing.T) {
 	m := loaded(t, 100, 24)
 	m.src = src
 
-	m, _ = send(t, m, press("a"))
+	m, _ = send(t, m, press("a"), press("enter"))
 	if m.form == nil || m.form.inputs[fieldAccount].Value() != "Personal" || m.form.focus != fieldName {
 		t.Fatal("a didn't open the form with the account filled in and the name focused")
 	}
@@ -823,7 +833,7 @@ func TestAddCalendarFromTheTUI(t *testing.T) {
 
 func TestAddFormValidatesAndShowsFeedErrors(t *testing.T) {
 	m := loaded(t, 100, 24)
-	m, _ = send(t, m, press("a"), press("enter"), press("enter")) // name → URL → submit
+	m, _ = send(t, m, press("a"), press("enter"), press("enter"), press("enter")) // name → URL → submit
 	if m.form.err != "Calendar name is required." || m.form.focus != fieldName {
 		t.Errorf("empty name: err %q focus %d", m.form.err, m.form.focus)
 	}
@@ -885,7 +895,7 @@ func TestEmptyStateInvitesAdding(t *testing.T) {
 	if !strings.Contains(sc, "No calendars yet.") || !strings.Contains(sc, "a add one") {
 		t.Errorf("empty sidebar doesn't explain how to add a calendar:\n%s", sc)
 	}
-	if m, _ = send(t, m, press("a")); m.form == nil || m.form.focus != fieldAccount {
+	if m, _ = send(t, m, press("a"), press("enter")); m.form == nil || m.form.focus != fieldAccount {
 		t.Error("a with no calendars should open the form on the account field")
 	}
 }
@@ -893,7 +903,7 @@ func TestEmptyStateInvitesAdding(t *testing.T) {
 func TestPopupsFitTheWindow(t *testing.T) {
 	for _, size := range [][2]int{{100, 24}, {56, 16}, {30, 12}} {
 		m := loaded(t, size[0], size[1])
-		form, _ := send(t, m, press("a"))
+		form, _ := send(t, m, press("a"), press("enter"))
 		confirm, _ := send(t, m, press("h"), press("j"), press("d"))
 		for name, mm := range map[string]Model{"form": form, "confirm": confirm} {
 			for i, l := range strings.Split(mm.View().Content, "\n") {
@@ -907,7 +917,7 @@ func TestPopupsFitTheWindow(t *testing.T) {
 
 func TestGoldenPopups(t *testing.T) {
 	m := loaded(t, 100, 24)
-	form, _ := send(t, m, press("a"))
+	form, _ := send(t, m, press("a"), press("enter"))
 	golden(t, "add_form", screen(form))
 	confirm, _ := send(t, m, press("h"), press("j"), press("d"))
 	golden(t, "remove_confirm", screen(confirm))
@@ -941,7 +951,7 @@ func screensToCheck(t *testing.T) map[string]Model {
 	m := loaded(t, 100, 24)
 	week := toWeek(t, m, testEvents())
 	side, _ := send(t, m, press("h"))
-	form, _ := send(t, m, press("a"))
+	form, _ := send(t, m, press("a"), press("enter"))
 	syncing, _ := send(t, m, press("r"))
 	month := toMonth(t, m, testEvents())
 	return map[string]Model{"agenda": m, "week": week, "month": month, "sidebar": side, "form": form, "syncing": syncing}
@@ -1343,5 +1353,399 @@ func TestDetailScrollsLongNotes(t *testing.T) {
 	m, _ = send(t, m, press("3")) // selecting a link scrolls it back into view
 	if !strings.Contains(screen(m), "▸ 3") {
 		t.Errorf("selected link row not scrolled into view:\n%s", screen(m))
+	}
+}
+
+// Google flow.
+
+type fakeSignIn struct {
+	url       string
+	acct      domain.Account
+	err       error
+	cancelled bool
+	onSuccess func()
+}
+
+func (f *fakeSignIn) URL() string { return f.url }
+func (f *fakeSignIn) Wait(context.Context) (domain.Account, error) {
+	if f.err == nil && f.onSuccess != nil {
+		f.onSuccess()
+	}
+	return f.acct, f.err
+}
+func (f *fakeSignIn) Cancel() { f.cancelled = true }
+
+// googleSource fakes the app's Google side, including its rule that a
+// typed-in client is saved only when a sign-in with it succeeds.
+type googleSource struct {
+	nopSource
+	savedID string
+	expects []string
+	clients []*app.GoogleClient // the typed-in client each sign-in got (nil = saved one)
+	signIn  *fakeSignIn
+	cals    []app.RemoteCalendar
+	added   []app.RemoteCalendar
+}
+
+func (g *googleSource) SavedGoogleClientID() (string, error) { return g.savedID, nil }
+func (g *googleSource) BeginGoogleSignIn(expect string, client *app.GoogleClient) (app.SignIn, error) {
+	g.expects = append(g.expects, expect)
+	g.clients = append(g.clients, client)
+	g.signIn.onSuccess = func() {
+		if client != nil {
+			g.savedID = client.ID
+		}
+	}
+	return g.signIn, nil
+}
+func (g *googleSource) GoogleCalendars(context.Context, domain.Account) ([]app.RemoteCalendar, error) {
+	return g.cals, nil
+}
+func (g *googleSource) AddGoogleCalendars(_ context.Context, acct domain.Account, picks []app.RemoteCalendar) ([]app.CalendarInfo, error) {
+	g.added = append(g.added, picks...)
+	var out []app.CalendarInfo
+	for _, p := range picks {
+		out = append(out, app.CalendarInfo{Account: acct, Calendar: domain.Calendar{ID: acct.ID + "/" + p.ID, AccountID: acct.ID, Name: p.Name}})
+	}
+	return out, nil
+}
+
+// run executes cmd (and any batch it returns), feeding back every message
+// that arrives within a moment; timers (spinner, flash) are left to expire.
+func run(t *testing.T, m Model, cmd tea.Cmd) (Model, tea.Cmd) {
+	t.Helper()
+	for _, msg := range quickMsgs(cmd) {
+		var next tea.Cmd
+		m, next = send(t, m, msg)
+		if next != nil {
+			m, _ = run(t, m, next)
+		}
+	}
+	return m, nil
+}
+
+func quickMsgs(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	ch := make(chan tea.Msg, 1)
+	go func() { ch <- cmd() }()
+	select {
+	case msg := <-ch:
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			var out []tea.Msg
+			for _, c := range batch {
+				out = append(out, quickMsgs(c)...)
+			}
+			return out
+		}
+		if msg == nil {
+			return nil
+		}
+		if _, ok := msg.(spinnerTick); ok {
+			return nil
+		}
+		return []tea.Msg{msg}
+	case <-time.After(150 * time.Millisecond):
+		return nil
+	}
+}
+
+type spinnerTick = interface{ ID() int }
+
+const signInURL = "https://accounts.google.com/o/oauth2/auth?client_id=cid.apps.googleusercontent.com&redirect_uri=http%3A%2F%2F127.0.0.1%3A49152%2Fcallback&response_type=code&scope=openid+email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar.readonly&state=abc&code_challenge=xyz&code_challenge_method=S256&access_type=offline"
+
+func TestGoogleFlowFirstTime(t *testing.T) {
+	work := domain.Account{ID: "g1", Provider: "google", Label: "me@company.com"}
+	src := &googleSource{
+		signIn: &fakeSignIn{url: signInURL, acct: work},
+		cals: []app.RemoteCalendar{
+			{ID: "me@company.com", Name: "Me", Primary: true},
+			{ID: "team@group", Name: "Team"},
+			{ID: "old@group", Name: "Old", Added: true},
+		},
+	}
+	var opened []string
+	m := loaded(t, 100, 30)
+	m.src = src
+	m.openURL = func(u string) error { opened = append(opened, u); return nil }
+
+	m, _ = send(t, m, press("a"))
+	if m.chooser == nil || !strings.Contains(screen(m), "Google account") {
+		t.Fatalf("a didn't offer the sources:\n%s", screen(m))
+	}
+	m, cmd := send(t, m, press("j"), press("enter"))
+	m, _ = run(t, m, cmd)
+	if m.gflow == nil || m.gflow.step != gClient || !strings.Contains(screen(m), "Client ID") {
+		t.Fatalf("no client setup on first use:\n%s", screen(m))
+	}
+
+	m = typeText(t, m, "cid.apps.googleusercontent.com")
+	m, _ = send(t, m, press("enter"), tea.PasteMsg{Content: "GOCSPX-secret"})
+	if strings.Contains(screen(m), "GOCSPX-secret") {
+		t.Fatal("client secret visible on screen")
+	}
+	m, cmd = send(t, m, press("enter"))
+	for _, msg := range quickMsgs(cmd) { // start the sign-in
+		m, cmd = send(t, m, msg)
+	}
+	if len(src.clients) != 1 || src.clients[0] == nil || *src.clients[0] != (app.GoogleClient{ID: "cid.apps.googleusercontent.com", Secret: "GOCSPX-secret"}) {
+		t.Errorf("sign-in got client %v, want the typed-in one", src.clients)
+	}
+	if src.savedID != "" {
+		t.Error("client saved before the sign-in finished")
+	}
+	if m.gflow.step != gWaiting {
+		t.Fatalf("step = %v, want waiting for the browser", m.gflow.step)
+	}
+	// The whole sign-in address is shown (wrapped), in case the browser didn't open.
+	sc := screen(m)
+	for _, chunk := range strings.Split(ansi.Hardwrap(signInURL, min(100-4, 72)-4, false), "\n") {
+		if !strings.Contains(sc, "│ "+chunk) {
+			t.Errorf("sign-in address line %q not on screen:\n%s", chunk, sc)
+		}
+	}
+	if got := activitySlot(m); !strings.HasSuffix(got, "Signing in") {
+		t.Errorf("activity = %q", got)
+	}
+
+	m, _ = run(t, m, cmd) // opens the browser, waits, lists calendars
+	if len(opened) != 1 || opened[0] != signInURL {
+		t.Errorf("browser opened %v", opened)
+	}
+	if m.gflow == nil || m.gflow.step != gPick {
+		t.Fatalf("no calendar picker after signing in")
+	}
+	sc = screen(m)
+	if !strings.Contains(sc, "[x] Me") || !strings.Contains(sc, "[ ] Team") || !strings.Contains(sc, "already added") {
+		t.Errorf("picker:\n%s", sc)
+	}
+	m, _ = send(t, m, press("j"), press("space"), press("j"), press("space")) // tick Team; Old can't be ticked
+	m, cmd = send(t, m, press("enter"))
+	m, _ = run(t, m, cmd)
+	if len(src.added) != 2 || src.added[0].ID != "me@company.com" || src.added[1].ID != "team@group" {
+		t.Errorf("added %v, want Me and Team", src.added)
+	}
+	if m.gflow != nil {
+		t.Error("flow still open after adding")
+	}
+}
+
+func TestGoogleFlowSkipsSetupWhenConfigured(t *testing.T) {
+	src := &googleSource{savedID: "cid.apps.googleusercontent.com", signIn: &fakeSignIn{url: signInURL, err: errors.New("pending")}}
+	m := loaded(t, 100, 30)
+	m.src = src
+	m.openURL = func(string) error { return nil }
+	m, cmd := send(t, m, press("a"), press("2"), press("enter"))
+	for range 2 { // configured? → start the sign-in
+		for _, msg := range quickMsgs(cmd) {
+			m, cmd = send(t, m, msg)
+		}
+	}
+	if len(src.expects) != 1 || src.expects[0] != "" || src.clients[0] != nil || m.gflow.step != gWaiting {
+		t.Errorf("expects %v step %v; want straight to sign-in", src.expects, m.gflow.step)
+	}
+}
+
+func TestSignInAgainFromTheSidebar(t *testing.T) {
+	work := domain.Account{ID: "g1", Provider: "google", Label: "me@company.com"}
+	workCal := domain.Calendar{ID: "g1/me@company.com", AccountID: "g1", Name: "Me", ColorSlot: 3}
+	src := &googleSource{savedID: "cid.apps.googleusercontent.com", signIn: &fakeSignIn{url: signInURL, acct: work}}
+	m := loaded(t, 100, 30)
+	m.src = src
+	m.openURL = func(string) error { return nil }
+	m = withCalendars(t, m, append(testCalendars, app.CalendarInfo{Account: work, Calendar: workCal}))
+
+	m, _ = send(t, m, syncDoneMsg{at: at(29, 14, 40), results: []app.SyncOutcome{
+		{CalendarInfo: app.CalendarInfo{Account: work, Calendar: workCal}, Err: &domain.ReauthRequiredError{AccountID: "g1"}},
+	}})
+	if !m.needsSignIn["g1"] || !strings.Contains(screen(m), "⚠ me@company.com") || !strings.Contains(screen(m), "sign in again") {
+		t.Fatalf("expired account not flagged:\n%s", screen(m))
+	}
+
+	m, _ = send(t, m, press("h"), press("G")) // the work account's calendar
+	m, cmd := send(t, m, press("s"))
+	if m.gflow == nil || m.gflow.expect != "me@company.com" {
+		t.Fatal("s didn't start signing that account in again")
+	}
+	m, _ = run(t, m, cmd)
+	if len(src.expects) != 1 || src.expects[0] != "me@company.com" {
+		t.Errorf("sign-in expected %v", src.expects)
+	}
+	if m.gflow != nil || m.needsSignIn["g1"] || m.flash != flashOK {
+		t.Errorf("after signing in again: flow %v, flagged %v, flash %v; want closed, cleared and synced", m.gflow != nil, m.needsSignIn["g1"], m.flash)
+	}
+}
+
+func TestEscCancelsSignIn(t *testing.T) {
+	signIn := &fakeSignIn{url: signInURL}
+	m := loaded(t, 100, 30)
+	m.src = &googleSource{savedID: "cid.apps.googleusercontent.com", signIn: signIn}
+	m, _ = send(t, m, press("a"), press("2"), press("enter"))
+	m, _ = send(t, m, signInStartedMsg{signIn: signIn})
+	m, _ = send(t, m, press("esc"))
+	if m.gflow != nil || !signIn.cancelled {
+		t.Error("esc didn't cancel the sign-in")
+	}
+	// A result arriving after cancelling is ignored.
+	m, _ = send(t, m, signInDoneMsg{acct: domain.Account{ID: "late"}})
+	if m.gflow != nil {
+		t.Error("a late sign-in result reopened the flow")
+	}
+}
+
+func TestGooglePopupsFitTheWindow(t *testing.T) {
+	for _, size := range [][2]int{{100, 30}, {60, 20}} {
+		m := loaded(t, size[0], size[1])
+		m.src = &googleSource{signIn: &fakeSignIn{url: signInURL}}
+		chooser, _ := send(t, m, press("a"))
+		client, _ := send(t, m, press("a"), press("2"), press("enter"))
+		client, _ = send(t, client, googleConfiguredMsg{})
+		waiting, _ := send(t, client, signInStartedMsg{signIn: &fakeSignIn{url: signInURL}})
+		for name, mm := range map[string]Model{"chooser": chooser, "client": client, "waiting": waiting} {
+			for i, l := range strings.Split(mm.View().Content, "\n") {
+				if w := ansi.StringWidth(l); w != size[0] {
+					t.Errorf("%s %dx%d line %d width %d: %q", name, size[0], size[1], i, w, ansi.Strip(l))
+				}
+			}
+		}
+	}
+}
+
+func TestGoldenGooglePopups(t *testing.T) {
+	m := loaded(t, 100, 30)
+	m.src = &googleSource{}
+	chooser, _ := send(t, m, press("a"))
+	golden(t, "add_chooser", screen(chooser))
+	waiting, _ := send(t, m, press("a"), press("2"), press("enter"))
+	waiting, _ = send(t, waiting, signInStartedMsg{signIn: &fakeSignIn{url: signInURL}})
+	golden(t, "google_signin", screen(waiting))
+	pick, _ := send(t, waiting, signInDoneMsg{acct: domain.Account{ID: "g1", Provider: "google", Label: "me@company.com"}})
+	pick, _ = send(t, pick, googleCalendarsMsg{cals: []app.RemoteCalendar{
+		{ID: "me", Name: "Me", Primary: true}, {ID: "team", Name: "Team"}, {ID: "fb", Name: "Room 4B", FreeBusyOnly: true},
+	}})
+	golden(t, "google_pick", screen(pick))
+}
+
+// toClientForm opens add → Google account and runs until the client form.
+func toClientForm(t *testing.T, m Model) Model {
+	t.Helper()
+	m, cmd := send(t, m, press("a"), press("2"), press("enter"))
+	for _, msg := range quickMsgs(cmd) {
+		m, _ = send(t, m, msg)
+	}
+	if m.gflow == nil || m.gflow.step != gClient {
+		t.Fatalf("not on the client form:\n%s", screen(m))
+	}
+	return m
+}
+
+func typeClient(t *testing.T, m Model, id, secret string) (Model, tea.Cmd) {
+	t.Helper()
+	m = typeText(t, m, id)
+	m, _ = send(t, m, press("enter"))
+	m = typeText(t, m, secret)
+	return send(t, m, press("enter"))
+}
+
+// The reported bug: esc after entering a client used to leave it saved, so
+// the form never came back to fix a typo.
+func TestEscAfterEnteringClientForgetsIt(t *testing.T) {
+	src := &googleSource{signIn: &fakeSignIn{url: signInURL}}
+	m := loaded(t, 100, 30)
+	m.src = src
+	m.openURL = func(string) error { return nil }
+
+	m = toClientForm(t, m)
+	m, cmd := typeClient(t, m, "typo.apps.googleusercontent.com", "wrong-secret")
+	for _, msg := range quickMsgs(cmd) {
+		m, _ = send(t, m, msg) // signing in, browser open
+	}
+	if m.gflow.step != gWaiting {
+		t.Fatalf("step %v, want waiting", m.gflow.step)
+	}
+	m, _ = send(t, m, press("esc"))
+	if src.savedID != "" {
+		t.Fatalf("esc left the typed client saved: %q", src.savedID)
+	}
+
+	m = toClientForm(t, m) // asks again, empty
+	if m.gflow.inputs[0].Value() != "" || m.gflow.inputs[1].Value() != "" {
+		t.Errorf("form not empty on the next try: %q / %q", m.gflow.inputs[0].Value(), m.gflow.inputs[1].Value())
+	}
+}
+
+func TestRejectedClientReturnsToTheForm(t *testing.T) {
+	src := &googleSource{signIn: &fakeSignIn{url: signInURL,
+		err: fmt.Errorf("%w (invalid_client)", app.ErrGoogleClientRejected)}}
+	m := loaded(t, 100, 30)
+	m.src = src
+	m.openURL = func(string) error { return nil }
+
+	m = toClientForm(t, m)
+	m, cmd := typeClient(t, m, "mine.apps.googleusercontent.com", "typo-secret")
+	m, _ = run(t, m, cmd) // sign in → Google rejects the secret
+	if m.gflow == nil || m.gflow.step != gClient {
+		t.Fatalf("not back on the client form after a rejection:\n%s", screen(m))
+	}
+	if m.gflow.inputs[0].Value() != "mine.apps.googleusercontent.com" || m.gflow.inputs[1].Value() != "" || m.gflow.focus != 1 {
+		t.Errorf("form = %q / %q focus %d; want the ID kept, the secret empty and focused",
+			m.gflow.inputs[0].Value(), m.gflow.inputs[1].Value(), m.gflow.focus)
+	}
+	if !strings.Contains(screen(m), "Google rejected the client ID or secret") {
+		t.Errorf("no rejection message:\n%s", screen(m))
+	}
+	if src.savedID != "" {
+		t.Error("a rejected client was saved")
+	}
+}
+
+func TestChangeClientWhileSigningIn(t *testing.T) {
+	signIn := &fakeSignIn{url: signInURL}
+	src := &googleSource{savedID: "saved.apps.googleusercontent.com", signIn: signIn}
+	m := loaded(t, 100, 30)
+	m.src = src
+	m.openURL = func(string) error { return nil }
+
+	m, cmd := send(t, m, press("a"), press("2"), press("enter"))
+	for range 2 { // saved client → sign in with it
+		for _, msg := range quickMsgs(cmd) {
+			m, cmd = send(t, m, msg)
+		}
+	}
+	if m.gflow.step != gWaiting || !strings.Contains(screen(m), "c change client") {
+		t.Fatalf("waiting popup lacks the change-client hint:\n%s", screen(m))
+	}
+
+	m, _ = send(t, m, press("c"))
+	if !signIn.cancelled || m.gflow.step != gClient {
+		t.Fatal("c didn't cancel the sign-in and reopen the client form")
+	}
+	if m.gflow.inputs[0].Value() != "saved.apps.googleusercontent.com" || m.gflow.inputs[1].Value() != "" {
+		t.Errorf("form = %q / %q; want the saved ID and an empty secret", m.gflow.inputs[0].Value(), m.gflow.inputs[1].Value())
+	}
+	if strings.Contains(screen(m), "saved-secret") {
+		t.Error("a secret is shown")
+	}
+
+	m = typeText(t, m, "new-secret")
+	m, cmd = send(t, m, press("enter"))
+	for _, msg := range quickMsgs(cmd) {
+		m, _ = send(t, m, msg)
+	}
+	last := src.clients[len(src.clients)-1]
+	if last == nil || last.ID != "saved.apps.googleusercontent.com" || last.Secret != "new-secret" {
+		t.Errorf("sign-in after changing the client got %+v", last)
+	}
+}
+
+func TestClientFormValidatesBeforeSigningIn(t *testing.T) {
+	src := &googleSource{signIn: &fakeSignIn{url: signInURL}}
+	m := loaded(t, 100, 30)
+	m.src = src
+	m = toClientForm(t, m)
+	m, cmd := typeClient(t, m, "not-a-client-id", "s")
+	if cmd != nil || len(src.expects) != 0 || !strings.Contains(screen(m), "doesn't look like an OAuth client ID") {
+		t.Errorf("a malformed ID started a sign-in (or wasn't explained):\n%s", screen(m))
 	}
 }

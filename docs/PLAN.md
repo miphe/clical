@@ -14,8 +14,8 @@ The integration is **iCal secret URLs**: every Google calendar exposes a private
 read-only feed ("Secret address in iCal format"). clical fetches that over
 HTTPS. No Google Cloud project, no OAuth, no token expiry. Other providers
 (Outlook, iCloud, Fastmail, CalDAV) publish the same kind of feed, so the same
-provider covers them. Google OAuth was the original plan; it's shelved (see
-Decisions) and kept only as a fallback.
+provider covers them. Google accounts can also sign in with OAuth, for
+calendars without a usable secret address (see "Google accounts").
 
 Phase 1: add calendars → sync feeds into SQLite → agenda/week/month TUI →
 multi-account merge → config/themes → in-process background polling.
@@ -36,12 +36,12 @@ multi-account merge → config/themes → in-process background polling.
 | — | Theming: terminal ANSI colors only (Omarchy-compatible), semantic roles, enforced | Done |
 | M7 | Month view | Done |
 | — | Event links: extraction, readable notes, select-and-open with the full address shown | Done |
+| — | Google accounts via OAuth (sign-in, calendar picker, sync, re-sign-in) | Done — live check pending |
 | M8–M11 | Search and help, config (non-color), background polling, polish | Not started |
 
-Deferred (2026-09-29): the **work** (Google Workspace) calendar. Focus is the
-personal calendar for now. Whether the work calendar exposes a secret iCal
-address (admins can disable it) decides whether the shelved OAuth path is
-revived or deleted — see "Google OAuth (shelved)".
+Work (Google Workspace) calendars, where admins disabled secret iCal
+addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
+"Google accounts").
 
 ## Decisions
 
@@ -101,7 +101,7 @@ revived or deleted — see "Google OAuth (shelved)".
 ```go
 type Account struct {
     ID       string // NewAccountID(provider, label): sha256("provider:label")[:16], hex
-    Provider string // "ical" (or "google" for the shelved path)
+    Provider string // "ical" or "google"
     Label    string // user-chosen group name, e.g. "Work"
 }
 
@@ -158,14 +158,83 @@ path's equivalent.
   304 / no-validator hash no-op / new-day refetch / URL never in errors.
   Also verified manually against Google's public US-holidays feed.
 
-## Google OAuth (shelved) — `internal/providers/google`
+## Google accounts (OAuth) — done (revived 2026-10-02)
 
-The loopback OAuth flow from the original plan (`oauth.go`: local redirect
-server, code exchange, `openid`+`email` scopes to read the account email,
-token saved to the vault). It no longer implements `CalendarProvider`. CLI:
-`clical auth add/list`, hidden from help. Revive only if a Workspace calendar
-has no secret iCal address; otherwise delete it. Its Google Cloud setup steps
-were in the README as of commit `4ab3788`.
+For calendars without a usable secret iCal address, e.g. work accounts whose
+Workspace admin disabled them. A *public* iCal address is the wrong fix for
+those: it contains the email address, so anyone can guess and read it, and
+it may be limited to free/busy anyway.
+
+**Who sets up what:** the user creates one OAuth client ("Desktop app") in
+a Google Cloud project under their *personal* account. The project owner
+gets no calendar access; each calendar account signs in separately with
+read-only scope. While the app is in "Testing", every account must be added
+as a test user, and sign-ins expire after 7 days (publishing to "In
+production" removes both; the unverified-app warning is expected). A
+company that blocks unconfigured third-party apps can trust the client ID
+in its Admin console.
+
+**Provider** (`internal/providers/google`):
+- Calls the Calendar REST API directly (`users/me/calendarList`,
+  `calendars/{id}/events`, `singleEvents=true`, only the needed `fields`)
+  instead of Google's large generated client library.
+- Sync = the whole −30/+365-day window every time, no-op'd by an events
+  hash, like iCal. Google's incremental sync tokens were skipped (window
+  drift, 410 handling); revisit if quota or speed ever matter.
+- Sign-in: installed-app loopback flow with PKCE, split into `BeginSignIn`
+  (returns the address, so the TUI can show it) and `Wait`. `login_hint`
+  preselects the account when signing in again. The callback checks
+  `state`.
+- Tokens: refreshed tokens are saved back to the vault; a refused refresh
+  (`invalid_grant` — revoked, or the 7-day Testing expiry) or a 401 becomes
+  `ReauthRequiredError`. 404/410 → `CalendarUnavailableError`. 429, 5xx and
+  403 rate limits are retried; other 403s keep Google's message (e.g. "access
+  blocked by your administrator", "Calendar API has not been used in
+  project…").
+- Events: cancelled and self-declined events are left out; an empty title
+  becomes "(No title)"; Google's exclusive all-day end matches ours. Links:
+  `hangoutLink` and video `conferenceData` entry points, Drive
+  `attachments` (as documents, titled), and the event's `htmlLink` as "Open
+  in Google Calendar" (last). Descriptions go through `eventtext` like iCal's.
+- Calendar IDs are `<accountID>/<Google calendar ID>`, so a shared calendar
+  seen from two accounts stays two calendars.
+
+**Link/notes extraction** moved from `providers/ical` into a
+provider-neutral core package, `internal/eventtext` (`Describe(Content)`),
+used by both providers.
+
+**App** (`internal/app/google.go`): `SavedGoogleClientID` (the secret is
+never handed out), `ValidateGoogleClient` (pure; the ID must end in
+`.apps.googleusercontent.com`), `BeginGoogleSignIn(expect, client)` returning
+an `app.SignIn` interface (`URL`, `Wait`, `Cancel`). `Wait` rejects a
+different account than expected and saves the token. **A typed-in client is
+saved only when a sign-in with it succeeds**: the first version saved it as
+soon as the form was submitted, so a typo followed by `esc` stuck, and the
+form never came back. Google refusing the client at the code exchange
+(`invalid_client`) surfaces as `app.ErrGoogleClientRejected`. Also `GoogleCalendars` (marks already-added and
+free/busy-only ones) and `AddGoogleCalendars`. Removing a Google account's
+last calendar also deletes its token. `SetCalendarURL` refuses non-iCal
+calendars. `SyncOutcome.NeedsSignIn()`.
+
+**TUI** (`internal/ui/googleflow.go`): `a` opens a source chooser (iCal link
+/ Google account). Google: with no saved client, a client ID + secret form
+(secret masked, paste works, validated before signing in). Then the browser
+opens on Google's sign-in page while the popup shows the full address (host
+bold, clickable; `o` opens it again). `esc` at any step discards a typed-in
+client. If Google rejects it, the form comes back with the ID kept and the
+secret cleared. A wrong ID can't be detected (Google shows its error page
+and never redirects back), so the popup says to press `c`, which reopens
+the form prefilled with the client ID in use; that also replaces a saved
+client (rotated secret, other project).
+Then a calendar picker: primary pre-ticked, already-added ones shown but not
+tickable, `space` ticks, `enter` adds and syncs them. An account whose
+access expired is flagged `⚠` in the sidebar and in the status line; `s`
+on it signs it in again (preselected) and resyncs it. `esc` cancels any
+step; late results are ignored. `clical sync` prints "needs signing in
+again" for such accounts.
+
+The shelved `clical auth` command was removed, and with it the only
+`internal/archtest` exemption.
 
 ## Secrets vault (`internal/secrets`) — done
 
@@ -229,7 +298,8 @@ add/remove/set-url flows, calendar lookup, provider↔vault wiring, the TUI's
 store adapter) moved into `app`, and `internal/ui` no longer imports
 `engine`. `*app.App` implements `ui.Source` directly. `internal/archtest`
 fails the build on a layering violation or an unclassified new package; the
-only exemption is the shelved `cmd/clical/auth.go`.
+only exemption was the shelved `cmd/clical/auth.go`, removed when Google
+sign-in moved into `app`; there are none now.
 
 ## Sync engine (`internal/engine`) — done; front-ends reach it via `app.Sync`
 
@@ -275,7 +345,8 @@ title. Used by `clical agenda` now and by the TUI Agenda view in M5.
   passphrase, no network). Times render as `HH:MM–HH:MM`, with `…` where an
   event continues from or into another day, `24:00` for a midnight end.
   Columns padded by display width (`uniseg`) so emoji/CJK titles align.
-- `auth add/list`: shelved OAuth, hidden from help.
+- Google accounts are added in the TUI (`a` → Google account); there's no
+  CLI command for it.
 
 ## Background polling — M10 (planned)
 

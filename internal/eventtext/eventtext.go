@@ -1,4 +1,8 @@
-package ical
+// Package eventtext turns an event's raw content — description (often
+// HTML), location and link fields — into readable notes and a clean list of
+// links. It's provider-neutral: the iCal and Google providers map their own
+// fields into Content.
+package eventtext
 
 import (
 	"net/url"
@@ -7,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/apognu/gocal"
 	"golang.org/x/net/html"
 
 	"github.com/miphe/clical/internal/domain"
@@ -23,36 +26,51 @@ import (
 //     X-ALT-DESC
 //   - bare URLs in plain-text descriptions (Zoom, Webex, pasted documents)
 //
-// describe gathers them all into one deduplicated list (video calls first),
+// Describe gathers them all into one deduplicated list (video calls first),
 // and turns the description into readable plain-text notes that refer to the
 // links as "[1]", "[2]", ... Only http(s) links are kept.
 
-// describe returns readable notes and the event's links.
-func describe(e gocal.Event) (string, []domain.Link) {
-	desc := e.Description
-	altHTML := e.CustomAttributes["X-ALT-DESC"]
+// Content is an event's raw, untrusted content, as a provider has it.
+type Content struct {
+	Description string   // plain text or HTML
+	AltHTML     string   // an HTML copy of the description, if any (Outlook's X-ALT-DESC)
+	Location    string   // may contain a URL
+	URL         string   // the event's own link field, if any
+	Conference  []string // video-call URLs from structured fields
+	// Extra are links the provider already knows the meaning of (e.g. Google
+	// Drive attachments); their labels and kinds are kept. Listed after links
+	// found in the content of the same kind.
+	Extra []domain.Link
+}
+
+// Describe returns readable notes and the event's links.
+func Describe(c Content) (string, []domain.Link) {
+	desc := c.Description
 	useHTML := looksLikeHTML(desc)
-	if !useHTML && looksLikeHTML(altHTML) {
-		desc, useHTML = altHTML, true
+	if !useHTML && looksLikeHTML(c.AltHTML) {
+		desc, useHTML = c.AltHTML, true
 	}
 	desc, meetLinks := stripGoogleMeetBlock(desc)
 
 	// Pass 1: collect every link, then fix their order (and so their numbers).
 	links := newLinkSet()
-	for _, key := range []string{"X-GOOGLE-CONFERENCE", "X-MICROSOFT-SKYPETEAMSMEETINGURL"} {
-		links.add(e.CustomAttributes[key], "")
+	for _, u := range c.Conference {
+		links.add(u, "")
 	}
 	for _, u := range meetLinks {
 		links.add(u, "")
 	}
-	links.add(e.URL, "")
-	for _, u := range findURLs(e.Location) {
+	links.add(c.URL, "")
+	for _, u := range findURLs(c.Location) {
 		links.add(u, "")
 	}
 	if useHTML {
 		htmlToText(desc, links.add)
 	} else {
 		plainToText(desc, links.add)
+	}
+	for _, l := range c.Extra {
+		links.addKnown(l)
 	}
 	links.sort()
 
@@ -97,6 +115,24 @@ func (s *linkSet) add(raw, label string) string {
 	s.index[key] = len(s.list)
 	s.list = append(s.list, l)
 	return label
+}
+
+// addKnown records a link whose label and kind the provider already knows.
+func (s *linkSet) addKnown(l domain.Link) {
+	u, ok := cleanURL(l.URL)
+	if !ok {
+		return
+	}
+	key := linkKey(u)
+	if _, seen := s.index[key]; seen {
+		return
+	}
+	if l.Label == "" {
+		l.Label = defaultLabel(u)
+	}
+	l.URL = u.String()
+	s.index[key] = len(s.list)
+	s.list = append(s.list, l)
 }
 
 // marker returns the notes text for a link: its label (or host) and number.

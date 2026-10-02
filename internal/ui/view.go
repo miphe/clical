@@ -51,6 +51,10 @@ func (m Model) render() string {
 	switch {
 	case m.form != nil:
 		body = overlay(body, m.renderForm(), m.width)
+	case m.gflow != nil:
+		body = overlay(body, m.renderGoogleFlow(), m.width)
+	case m.chooser != nil:
+		body = overlay(body, m.renderChooser(), m.width)
 	case m.confirmRemove != nil:
 		body = overlay(body, m.renderConfirm(), m.width)
 	}
@@ -254,6 +258,8 @@ func (m Model) renderFooter() []string {
 	switch {
 	case m.form != nil:
 		bindings = []key.Binding{hint("enter", "next/add"), hint("tab", "move"), hint("esc", "cancel")}
+	case m.gflow != nil || m.chooser != nil:
+		bindings = []key.Binding{hint("esc", "cancel")}
 	case m.confirmRemove != nil:
 		bindings = []key.Binding{hint("y", "remove"), hint("n", "cancel")}
 	case m.detail != nil && len(m.detail.Event.Links) > 0:
@@ -261,8 +267,11 @@ func (m Model) renderFooter() []string {
 	case m.detail != nil:
 		bindings = []key.Binding{hint("j/k", "scroll"), m.keys.Close}
 	case m.focus == focusSidebar:
-		bindings = []key.Binding{m.keys.Toggle, hint("enter", "fold"), m.keys.Add, m.keys.Remove,
-			m.keys.Collapse, m.keys.FocusMain, m.keys.Quit}
+		bindings = []key.Binding{m.keys.Toggle, hint("enter", "fold"), m.keys.Add, m.keys.Remove}
+		if acct, ok := m.selectedGoogleAccount(); ok && m.needsSignIn[acct.ID] {
+			bindings = append([]key.Binding{hint("s", "sign in again")}, bindings...)
+		}
+		bindings = append(bindings, m.keys.Collapse, m.keys.FocusMain, m.keys.Quit)
 	case m.view == viewWeek:
 		bindings = []key.Binding{hint("h/l", "day"), hint("j/k", "move"), m.keys.Open, hint("[/]", "week"),
 			m.keys.Today, hint("tab", "month"), m.keys.Sync, m.keys.Quit}

@@ -1,0 +1,30 @@
+╭─ Calendars ────────────╮╭─ [1] Agenda ─ [2] Week ─ [3] Month ───────────── 29 Sep – 28 Oct 2026 ─╮
+│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                   │
+│   ● Holidays           ││    ● all day      Name day                          Personal · Main    │
+│   ● Main               ││    ● 09:00–09:30  Standup                           Personal · Main    │
+│             ╭─ Add a Google account ───────────────────────────────────────────────╮─────────────│
+│             │ Your browser should open on Google's sign-in page. If it doesn't,    │al · Main    │
+│             │ open this address (o tries again):                                   │al · Main    │
+│             │                                                                      │             │
+│             │ https://accounts.google.com/o/oauth2/auth?client_id=cid.apps.googleu │             │
+│             │ sercontent.com&redirect_uri=http%3A%2F%2F127.0.0.1%3A49152%2Fcallbac │al · Main    │
+│             │ k&response_type=code&scope=openid+email+https%3A%2F%2Fwww.googleapis │al · Main    │
+│             │ .com%2Fauth%2Fcalendar.readonly&state=abc&code_challenge=xyz&code_ch │al · Main    │
+│             │ allenge_method=S256&access_type=offline                              │             │
+│             │                                                                      │             │
+│             │ Waiting for you to sign in…                                          │al · Main    │
+│             │ If Google shows an error about the app or client, press c to enter   │al · Holidays│
+│             │ the client again.                                                    │             │
+│             │                                                                      │             │
+│             │ o open again · c change client · esc cancel                          │al · Main    │
+│             ╰──────────────────────────────────────────────────────────────────────╯             │
+│                        ││   Sat 3 Oct                                                            │
+│                        ││    nothing scheduled                                                   │
+│                        ││                                                                        │
+│                        ││   Sun 4 Oct                                                            │
+│                        ││    nothing scheduled                                                   │
+│                        ││                                                                        │
+│                        ││   Mon 5 Oct                                                            │
+╰────────────────────────╯╰────────────────────────────────────────────────────────────────────────╯
+ esc cancel                                                                                         
+ ⠋ Signing in  Tue 29 Sep 14:30                                                        Synced 14:29 

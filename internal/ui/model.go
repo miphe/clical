@@ -29,6 +29,11 @@ type Source interface {
 	CheckFeed(ctx context.Context, rawURL string) (app.Feed, error)
 	AddCalendar(ctx context.Context, account, name string, feed app.Feed) (app.CalendarInfo, error)
 	RemoveCalendar(ctx context.Context, cal app.CalendarInfo) error
+
+	SavedGoogleClientID() (string, error)
+	BeginGoogleSignIn(expect string, client *app.GoogleClient) (app.SignIn, error)
+	GoogleCalendars(ctx context.Context, acct domain.Account) ([]app.RemoteCalendar, error)
+	AddGoogleCalendars(ctx context.Context, acct domain.Account, picks []app.RemoteCalendar) ([]app.CalendarInfo, error)
 }
 
 const (
@@ -124,7 +129,10 @@ type Model struct {
 	detail  *detailView
 	openURL func(string) error // opens a link in the browser; swapped in tests
 
-	// Popups (form.go).
+	// Popups (form.go, googleflow.go).
+	chooser       *int // add a calendar: which source is highlighted
+	gflow         *googleFlow
+	needsSignIn   map[string]bool // account ID → must sign in again
 	form          *addForm
 	confirmRemove *app.CalendarInfo
 	removing      bool
@@ -146,15 +154,16 @@ type Model struct {
 // 30-second tick.
 func New(src Source, loc *time.Location, now time.Time) Model {
 	m := Model{
-		src:      src,
-		keys:     defaultKeyMap(),
-		loc:      loc,
-		now:      now,
-		tick:     30 * time.Second,
-		calIndex: map[string]int{},
-		openURL:  openInBrowser,
-		hidden:   map[string]bool{},
-		days:     initialDays,
+		src:         src,
+		keys:        defaultKeyMap(),
+		loc:         loc,
+		now:         now,
+		tick:        30 * time.Second,
+		calIndex:    map[string]int{},
+		needsSignIn: map[string]bool{},
+		openURL:     openInBrowser,
+		hidden:      map[string]bool{},
+		days:        initialDays,
 		// Init starts both, and the spinner for them; Init can't record that
 		// itself.
 		loading:  true,
@@ -277,9 +286,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openedMsg:
 		return m.opened(msg)
 
+	case googleConfiguredMsg, signInStartedMsg, signInDoneMsg, googleCalendarsMsg, googleAddedMsg:
+		return m.googleMsg(msg)
+
 	case tea.PasteMsg:
-		if m.form != nil {
+		switch {
+		case m.form != nil:
 			return m.formPaste(msg)
+		case m.gflow != nil:
+			return m.googlePaste(msg)
 		}
 		return m, nil
 
@@ -313,8 +328,16 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncFailures = nil
 		changed := false
 		for _, r := range msg.results {
-			if _, ok := r.Unavailable(); ok {
+			if r.Err == nil {
+				delete(m.needsSignIn, r.Account.ID)
+			}
+			if r.NeedsSignIn() {
+				m.needsSignIn[r.Account.ID] = true
+				m.syncFailures = append(m.syncFailures, r.Account.Label+": sign in again (s on the account)")
+			} else if _, ok := r.Unavailable(); ok && r.Account.Provider == "ical" {
 				m.syncFailures = append(m.syncFailures, r.Label()+": feed URL no longer works")
+			} else if ok {
+				m.syncFailures = append(m.syncFailures, r.Label()+": calendar no longer available")
 			} else if r.Err != nil {
 				m.syncFailures = append(m.syncFailures, fmt.Sprintf("%s: %v", r.Label(), r.Err))
 			} else if r.Changed {
@@ -350,6 +373,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case m.form != nil:
 		return m.handleFormKey(msg)
+	case m.gflow != nil:
+		return m.handleGoogleKey(msg)
+	case m.chooser != nil:
+		return m.handleChooserKey(msg)
 	case m.confirmRemove != nil:
 		return m.handleConfirmKey(msg)
 	}
@@ -383,7 +410,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.NextView):
 		return m.switchView((m.view + 1) % viewCount)
 	case key.Matches(msg, m.keys.Add):
-		return m.openAddForm()
+		choice := sourceICal
+		m.chooser = &choice
+		return m, nil
 	}
 
 	switch {

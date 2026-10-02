@@ -19,6 +19,7 @@ import (
 
 	"github.com/miphe/clical/internal/domain"
 	"github.com/miphe/clical/internal/engine"
+	"github.com/miphe/clical/internal/providers/google"
 	"github.com/miphe/clical/internal/providers/ical"
 	"github.com/miphe/clical/internal/secrets"
 	"github.com/miphe/clical/internal/store"
@@ -58,6 +59,7 @@ type App struct {
 	store  *store.Store
 	vault  *secrets.Vault
 	engine *engine.Engine
+	google *google.Provider
 }
 
 // Open opens the data directory, creating it if needed. Calendars added
@@ -102,7 +104,8 @@ func (a *App) Unlock(passphrase string) error {
 		return string(b), err
 	})
 	a.vault = v
-	a.engine = engine.New(a.store, map[string]domain.CalendarProvider{"ical": provider})
+	a.google = google.New(a.googleConfig, vaultTokens{v})
+	a.engine = engine.New(a.store, map[string]domain.CalendarProvider{"ical": provider, "google": a.google})
 	return nil
 }
 

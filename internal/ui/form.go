@@ -82,9 +82,9 @@ func (f *addForm) focusField(i int) tea.Cmd {
 	return cmd
 }
 
-// openAddForm opens the form, defaulting the account to the one under the
-// sidebar cursor (or the first account).
-func (m Model) openAddForm() (tea.Model, tea.Cmd) {
+// openICalForm opens the iCal form, defaulting the account to the one under
+// the sidebar cursor (or the first account).
+func (m Model) openICalForm() (tea.Model, tea.Cmd) {
 	account := ""
 	if r, ok := m.selectedSidebarRow(); ok {
 		if r.kind == sideAccount {

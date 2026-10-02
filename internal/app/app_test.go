@@ -3,8 +3,11 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
+
+	"golang.org/x/oauth2"
 
 	"github.com/miphe/clical/internal/domain"
 	"github.com/miphe/clical/internal/providers/ical"
@@ -227,5 +230,132 @@ func TestAddCalendarRequiresNames(t *testing.T) {
 	}
 	if _, err := a.AddCalendar(context.Background(), " ", "Main", feed("https://x.test/a.ics")); err == nil {
 		t.Error("AddCalendar with an empty account error = nil")
+	}
+}
+
+func TestGoogleClientSetup(t *testing.T) {
+	a, _ := openTest(t)
+	if _, err := a.SavedGoogleClientID(); !errors.Is(err, ErrLocked) {
+		t.Errorf("before unlock: %v, want ErrLocked", err)
+	}
+	if err := a.Unlock("pw"); err != nil {
+		t.Fatal(err)
+	}
+	if id, err := a.SavedGoogleClientID(); id != "" || err != nil {
+		t.Errorf("fresh vault: saved ID %q, %v; want none", id, err)
+	}
+	if _, err := ValidateGoogleClient(GoogleClient{ID: "not-a-client-id", Secret: "s"}); err == nil {
+		t.Error("accepted a malformed client ID")
+	}
+	if _, err := ValidateGoogleClient(GoogleClient{ID: "123-abc.apps.googleusercontent.com", Secret: " "}); err == nil {
+		t.Error("accepted an empty secret")
+	}
+	if err := a.SetGoogleClient(GoogleClient{ID: " 123-abc.apps.googleusercontent.com ", Secret: "GOCSPX-x"}); err != nil {
+		t.Fatal(err)
+	}
+	if id, _ := a.SavedGoogleClientID(); id != "123-abc.apps.googleusercontent.com" {
+		t.Errorf("saved ID = %q", id)
+	}
+	cfg, err := a.googleConfig()
+	if err != nil || cfg.ClientSecret != "GOCSPX-x" {
+		t.Errorf("stored config = %+v, %v", cfg, err)
+	}
+}
+
+func TestTypedInClientIsSavedOnlyAfterASuccessfulSignIn(t *testing.T) {
+	a, _ := openTest(t)
+	if err := a.Unlock("pw"); err != nil {
+		t.Fatal(err)
+	}
+	typed := &GoogleClient{ID: "typo.apps.googleusercontent.com", Secret: "wrong"}
+
+	// Starting a sign-in with a typed-in client saves nothing, and neither
+	// does cancelling it.
+	s, err := a.BeginGoogleSignIn("", typed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Cancel()
+	if id, _ := a.SavedGoogleClientID(); id != "" {
+		t.Fatalf("client saved before Google accepted it: %q", id)
+	}
+
+	acct := domain.Account{ID: "g1", Provider: "google", Label: "me@company.com"}
+	signIn := func(err error) SignIn {
+		return &googleSignIn{app: a, client: typed, cancel: func() {},
+			wait: func(context.Context) (domain.Account, *oauth2.Token, error) {
+				if err != nil {
+					return domain.Account{}, nil, err
+				}
+				return acct, &oauth2.Token{AccessToken: "x"}, nil
+			}}
+	}
+
+	// Google rejects it: still not saved.
+	if _, err := signIn(fmt.Errorf("%w (invalid_client)", ErrGoogleClientRejected)).Wait(context.Background()); !errors.Is(err, ErrGoogleClientRejected) {
+		t.Errorf("rejected sign-in error = %v", err)
+	}
+	if id, _ := a.SavedGoogleClientID(); id != "" {
+		t.Fatalf("rejected client was saved: %q", id)
+	}
+
+	// Google accepts it: now it's saved, with the account's token.
+	if _, err := signIn(nil).Wait(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if id, _ := a.SavedGoogleClientID(); id != typed.ID {
+		t.Errorf("saved ID after success = %q", id)
+	}
+	if _, err := a.vault.LoadToken("g1"); err != nil {
+		t.Error("token not saved after success")
+	}
+}
+
+func TestGoogleCalendarsLifecycle(t *testing.T) {
+	a, _ := openTest(t)
+	ctx := context.Background()
+	if err := a.Unlock("pw"); err != nil {
+		t.Fatal(err)
+	}
+	acct := domain.Account{ID: domain.NewAccountID("google", "me@company.com"), Provider: "google", Label: "me@company.com"}
+	if err := a.vault.SaveToken(acct.ID, &oauth2.Token{AccessToken: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.AddGoogleCalendars(ctx, acct, nil); err == nil {
+		t.Error("adding no calendars error = nil")
+	}
+	added, err := a.AddGoogleCalendars(ctx, acct, []RemoteCalendar{
+		{ID: "me@company.com", Name: "Me", Primary: true},
+		{ID: "team@group.calendar.google.com", Name: "Team"},
+	})
+	if err != nil || len(added) != 2 {
+		t.Fatalf("AddGoogleCalendars = %v, %v", added, err)
+	}
+	if added[0].Calendar.ColorSlot == added[1].Calendar.ColorSlot || added[1].Calendar.ID != acct.ID+"/team@group.calendar.google.com" {
+		t.Errorf("added = %+v", added)
+	}
+	if err := a.SetCalendarURL(ctx, added[0], feed("https://x.test/a.ics")); err == nil {
+		t.Error("SetCalendarURL on a Google calendar error = nil")
+	}
+
+	// The sign-in stays while the account has calendars, and goes with the last.
+	if err := a.RemoveCalendar(ctx, added[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.vault.LoadToken(acct.ID); err != nil {
+		t.Error("token removed while the account still has a calendar")
+	}
+	if err := a.RemoveCalendar(ctx, added[1]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.vault.LoadToken(acct.ID); err == nil {
+		t.Error("token kept after the account's last calendar was removed")
+	}
+}
+
+func TestSyncOutcomeNeedsSignIn(t *testing.T) {
+	o := SyncOutcome{Err: fmt.Errorf("wrapped: %w", &domain.ReauthRequiredError{AccountID: "a"})}
+	if !o.NeedsSignIn() || (SyncOutcome{Err: errors.New("other")}).NeedsSignIn() {
+		t.Error("NeedsSignIn misreports")
 	}
 }

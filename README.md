@@ -1,4 +1,4 @@
-# clical
+# CLIcal
 
 Terminal calendar app for macOS and Arch Linux. Read-only in v1: it pulls your
 calendars (e.g. Google Calendar, personal and work) from their secret iCal
@@ -11,27 +11,28 @@ Full rationale in [`docs/PLAN.md`](docs/PLAN.md).
 
 - Go, single static binary, darwin+linux only (never Windows).
 - Elm architecture: immutable model, pure `Update`, all I/O as `tea.Cmd`.
-- Integration: iCal secret URLs — no Google Cloud project or OAuth. Google
-  OAuth code is kept but shelved as a fallback.
+- Integration: iCal secret URLs (no setup), or Google accounts signed in
+  with your own OAuth client (for calendars without a secret address, such
+  as many work accounts).
 - Secrets (feed URLs) live only in an age-encrypted vault, keyed by a
   passphrase held in memory for the session. No OS keychain.
 - Background sync is in-process polling while the TUI runs — no daemon.
 - All-day events are civil dates (no timezone), never UTC timestamps.
-- Colors come only from your terminal's 16 ANSI colors, so clical follows
+- Colors come only from your terminal's 16 ANSI colors, so CLIcal follows
   your terminal theme (including Omarchy themes) with no configuration, and
   respects `NO_COLOR`.
 
 ## Adding a calendar
 
-The easiest way is inside clical: open it with `clical` and press `a`. Fill
+The easiest way is inside CLIcal: open it with `clical` and press `a`. Fill
 in the account (a group name such as Personal or Work), a name, and the
 secret iCal URL (see step 2 below for where to find it). The URL is masked
 on screen and checked before it's saved. Or use the command line:
 
-Until there's a release, run clical from the repo with `go run ./cmd/clical`
+Until there's a release, run CLIcal from the repo with `go run ./cmd/clical`
 (or `go install ./cmd/clical` to get a `clical` binary on your `PATH`).
 
-For each Google calendar you want in clical:
+For each Google calendar you want in CLIcal:
 
 1. Open [Google Calendar](https://calendar.google.com/) → **Settings** → pick
    the calendar under "Settings for my calendars" → **Integrate calendar**.
@@ -43,36 +44,65 @@ For each Google calendar you want in clical:
        clical calendars add --account Work --name "Team"
 
    Paste the URL at the hidden prompt, then enter your vault passphrase (the
-   first time, this sets it — remember it). clical fetches the feed once to
+   first time, this sets it — remember it). CLIcal fetches the feed once to
    check it before saving.
+
 4. `clical calendars list` shows what's been added.
+
+## Adding a Google account (e.g. work calendars)
+
+Use this when a calendar has no "Secret address in iCal format", for example
+because your Workspace admin disabled it. Don't use the _public_ address for
+those: it contains your email address, so anyone can read the calendar.
+
+Once, in your **personal** Google account
+([Google Cloud Console](https://console.cloud.google.com/)):
+
+1. Create a project and enable the **Google Calendar API**.
+2. Under _Google Auth Platform_: set the audience to **External**, and add
+   the data-access scope `…/auth/calendar.readonly` (plus `openid`, `email`).
+3. Create an **OAuth client** of type **Desktop app**; note its client ID and
+   secret.
+4. While the app is in **Testing**, add every account you'll sign in with
+   under _Audience → Test users_; sign-ins then expire after 7 days. Press
+   **Publish app** to stop that (the "unverified app" warning on sign-in is
+   expected).
+
+Then in CLIcal, per account: press `a`, choose **Google account**, enter the
+client ID and secret (first time only), sign in in the browser that opens,
+and tick the calendars to show. When a sign-in expires, the account is
+marked ⚠ in the calendar list; select it and press `s`.
+
+If a company's sign-in says access is blocked by the administrator, ask IT
+to trust your OAuth client ID (Admin console → Security → API controls).
 
 ## Using it
 
     clical                 # open the calendar (asks for the passphrase, then syncs)
 
-| Key | Action |
-|---|---|
-| `tab`, `1` / `2` / `3` | Switch view: agenda / week / month (all stay on the same day) |
-| `j` / `k`, arrows | Move between events |
-| `g` / `G` | First / last event (of the day, in the week view) |
-| `h` / `l` (week, month) | Previous / next day |
-| `j` / `k` (month) | Previous / next week |
-| `enter` (month) | Open the selected day in the agenda |
-| `enter` | Event details (`esc` or `q` to close) |
-| `j` / `k`, `1`–`9` (event) | Select a link: its full address is shown at the bottom |
-| `enter` (event) | Open the selected link in your browser |
-| `PgUp` / `PgDn` (event) | Scroll long notes |
-| `[` / `]` | Previous / next day in the agenda, week in the week view, month in the month view |
-| `t` | Back to today |
-| `r` | Sync now |
-| `h` / `l` | Focus the calendar list / back (in the week view, `h` on Monday) |
-| `a` | Add a calendar |
-| `d` (calendar list) | Remove the selected calendar (asks first) |
-| `space` (calendar list) | Show or hide a calendar, or all of an account's calendars |
-| `enter` (calendar list) | Fold or unfold an account |
-| `c` (calendar list) | Collapse or expand the calendar list |
-| `q` | Quit |
+| Key                        | Action                                                                            |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| `tab`, `1` / `2` / `3`     | Switch view: agenda / week / month (all stay on the same day)                     |
+| `j` / `k`, arrows          | Move between events                                                               |
+| `g` / `G`                  | First / last event (of the day, in the week view)                                 |
+| `h` / `l` (week, month)    | Previous / next day                                                               |
+| `j` / `k` (month)          | Previous / next week                                                              |
+| `enter` (month)            | Open the selected day in the agenda                                               |
+| `enter`                    | Event details (`esc` or `q` to close)                                             |
+| `j` / `k`, `1`–`9` (event) | Select a link: its full address is shown at the bottom                            |
+| `enter` (event)            | Open the selected link in your browser                                            |
+| `PgUp` / `PgDn` (event)    | Scroll long notes                                                                 |
+| `[` / `]`                  | Previous / next day in the agenda, week in the week view, month in the month view |
+| `t`                        | Back to today                                                                     |
+| `r`                        | Sync now                                                                          |
+| `h` / `l`                  | Focus the calendar list / back (in the week view, `h` on Monday)                  |
+| `a`                        | Add a calendar (iCal link or Google account)                                      |
+| `s` (calendar list)        | Sign a Google account in again (when marked ⚠)                                    |
+| `d` (calendar list)        | Remove the selected calendar (asks first)                                         |
+| `space` (calendar list)    | Show or hide a calendar, or all of an account's calendars                         |
+| `enter` (calendar list)    | Fold or unfold an account                                                         |
+| `c` (calendar list)        | Collapse or expand the calendar list                                              |
+| `q`                        | Quit                                                                              |
 
 Without the full screen:
 
@@ -80,7 +110,7 @@ Without the full screen:
     clical agenda          # print the next 14 days from the local cache
     clical agenda --days 30
 
-The first time, clical creates the vault and asks for a new passphrase twice.
+The first time, CLIcal creates the vault and asks for a new passphrase twice.
 It can't be recovered if forgotten; the fix is to delete
 `~/.local/share/clical/vault/` and add your calendars again.
 
@@ -102,7 +132,8 @@ address leaks, use "Reset" next to it in Google Calendar, then
     internal/app/                the seam: the only API front-ends call
     internal/engine/             sync engine: provider → store                     ┐
     internal/providers/ical/     iCal feed provider (primary)                      │
-    internal/providers/google/   Google OAuth flow (shelved fallback)              │ core
+    internal/providers/google/   Google accounts: sign-in, calendar API            │ core
+    internal/eventtext/          readable notes and links from event content       │
     internal/store/              SQLite cache + sync tokens                        │
     internal/secrets/            age-encrypted secret vault                        │
     internal/agenda/             pure day-grouping of events                       │

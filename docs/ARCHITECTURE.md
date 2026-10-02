@@ -1,6 +1,6 @@
 # Architecture
 
-clical has two halves with one seam between them:
+CLIcal has two halves with one seam between them:
 
 - **The core** knows about calendars: feeds, recurrence, the encrypted vault,
   the SQLite cache, syncing. It knows nothing about terminals.
@@ -39,18 +39,19 @@ test ./...` if a package imports something its layer doesn't allow.
   shared data  internal/domain (types)   internal/agenda (pure day layout)
 ```
 
-| Package | Role | May import (clical packages) |
-|---|---|---|
-| `internal/domain` | Provider-agnostic types: `Event`, `Calendar`, `Account`, `CivilDate`, `CalendarProvider`, errors | — |
-| `internal/agenda` | Pure layout shared by every front-end: group events into local days, `Item.TimeLabel` | domain |
-| `internal/secrets` | age-encrypted vault for feed URLs | — |
-| `internal/store` | SQLite cache: accounts, calendars, events, sync tokens | domain |
-| `internal/providers/ical` | Fetch, retry and parse iCal feeds | domain |
-| `internal/providers/google` | Shelved OAuth flow | domain, secrets |
-| `internal/engine` | Run a provider sync, apply it to the store | domain, store |
-| `internal/app` | **The seam.** Composes the above into operations | domain, store, secrets, engine, providers/ical |
-| `internal/ui` | TUI: model, keys, rendering | app, agenda, domain |
-| `cmd/clical` | CLI commands, terminal prompts, starts the TUI | app, ui, agenda, domain |
+| Package                     | Role                                                                                             | May import (clical packages)                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `internal/domain`           | Provider-agnostic types: `Event`, `Calendar`, `Account`, `CivilDate`, `CalendarProvider`, errors | —                                                                |
+| `internal/agenda`           | Pure layout shared by every front-end: group events into local days, `Item.TimeLabel`            | domain                                                           |
+| `internal/secrets`          | age-encrypted vault for feed URLs                                                                | —                                                                |
+| `internal/store`            | SQLite cache: accounts, calendars, events, sync tokens                                           | domain                                                           |
+| `internal/providers/ical`   | Fetch, retry and parse iCal feeds                                                                | domain, eventtext                                                |
+| `internal/eventtext`        | Readable notes and a clean link list from an event's raw content (provider-neutral)              | domain                                                           |
+| `internal/providers/google` | Google Calendar API: sign-in, calendar list, event sync                                          | domain, eventtext                                                |
+| `internal/engine`           | Run a provider sync, apply it to the store                                                       | domain, store                                                    |
+| `internal/app`              | **The seam.** Composes the above into operations                                                 | domain, store, secrets, engine, providers/ical, providers/google |
+| `internal/ui`               | TUI: model, keys, rendering                                                                      | app, agenda, domain                                              |
+| `cmd/clical`                | CLI commands, terminal prompts, starts the TUI                                                   | app, ui, agenda, domain                                          |
 
 Front-ends may also use `domain` and `agenda` directly. Those are plain
 data and pure functions, so sharing them doesn't couple a front-end to how
@@ -59,14 +60,12 @@ calendars are stored or fetched.
 Only front-ends may import terminal/UI libraries: Charm (`charm.land/…`,
 `github.com/charmbracelet/…`), `kong`, `golang.org/x/term`, `uniseg`.
 
-The one exemption is `cmd/clical/auth.go`. It's the shelved Google OAuth
-command, which predates `app` and talks to the store and vault directly. If
-that path is ever revived, move its logic into `app` first and delete the
-exemption.
+There are no exemptions. (The shelved Google OAuth command was the one, until
+Google sign-in moved into `app`.)
 
 ## Theming
 
-Colors are a front-end concern, and clical delegates them to the terminal.
+Colors are a front-end concern, and CLIcal delegates them to the terminal.
 `internal/ui/theme.go` is the only file that names colors, and only as the
 terminal's 16 ANSI indices behind semantic roles. Core packages never deal
 with color; the closest they get is a calendar's permanent `ColorSlot`
@@ -76,7 +75,7 @@ reasons are in `docs/PLAN.md` ("Theming"); enforcement is in
 
 ## Where does new code go?
 
-Ask: *would a different UI need this too?*
+Ask: _would a different UI need this too?_
 
 - **Yes** → core. It's calendar behaviour: a new provider, a new kind of
   query, validation, anything touching the network, disk or vault. Put it in
@@ -87,16 +86,16 @@ Ask: *would a different UI need this too?*
 
 Some concrete cases:
 
-| Change | Goes in |
-|---|---|
-| A new feed provider (CalDAV, Outlook) | `internal/providers/<name>` + registration in `app.Unlock` |
-| Recognising a new video-call or document service | the host table in `internal/providers/ical/links.go` |
-| How links are listed, selected and opened | `internal/ui/detail.go` |
-| "Show only events matching X" as data | `app` method (or `store` query exposed via `app`) |
-| Which week a day belongs to, a month's grid (`agenda.WeekStart`, `MonthGrid`) | `agenda` (pure, reusable) |
-| The Week view's columns, keys, colors (`ui/week*.go`) | `internal/ui` |
-| A new CLI subcommand | `cmd/clical`, calling `app` |
-| How a dead feed is *worded* on screen | the front-end (`app` reports it as `SyncOutcome.Unavailable()`) |
+| Change                                                                        | Goes in                                                         |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| A new feed provider (CalDAV, Outlook)                                         | `internal/providers/<name>` + registration in `app.Unlock`      |
+| Recognising a new video-call or document service                              | the host table in `internal/eventtext/eventtext.go`             |
+| How links are listed, selected and opened                                     | `internal/ui/detail.go`                                         |
+| "Show only events matching X" as data                                         | `app` method (or `store` query exposed via `app`)               |
+| Which week a day belongs to, a month's grid (`agenda.WeekStart`, `MonthGrid`) | `agenda` (pure, reusable)                                       |
+| The Week view's columns, keys, colors (`ui/week*.go`)                         | `internal/ui`                                                   |
+| A new CLI subcommand                                                          | `cmd/clical`, calling `app`                                     |
+| How a dead feed is _worded_ on screen                                         | the front-end (`app` reports it as `SyncOutcome.Unavailable()`) |
 
 ## The contract front-ends rely on
 
@@ -105,7 +104,7 @@ Some concrete cases:
 - **`Unlock(passphrase)`** is needed for anything touching feed URLs: `Sync`,
   `AddCalendar`, `RemoveCalendar`, `SetCalendarURL`. Before that they return
   `app.ErrLocked`. `VaultExists()` tells a front-end whether this passphrase
-  will be a *new* one, so it can ask for confirmation.
+  will be a _new_ one, so it can ask for confirmation.
 - **Results are data, errors are typed.** Front-ends decide the wording:
   `SyncOutcome.Unavailable()` (feed URL reset or deleted),
   `*app.NoCalendarError`, `*app.AmbiguousCalendarError`, `app.ErrLocked`,
@@ -121,12 +120,13 @@ Some concrete cases:
 
 `internal/ui` follows the Elm architecture. `Update` is pure: it changes the
 model and returns commands, and never does I/O. All I/O goes through
-`ui.Source`, an interface *defined by the UI*: `Calendars`, `Events`,
+`ui.Source`, an interface _defined by the UI_: `Calendars`, `Events`,
 `Sync`, `SyncCalendar`, `CheckFeed`, `AddCalendar` and `RemoveCalendar`. `*app.App` satisfies it, and
 `cmd/clical/tui.go` passes the app straight in. Tests use a stub `Source`,
 feed messages into `Update`, and snapshot `View()` against golden files.
 
 To replace the TUI:
+
 1. Write a new package that uses `app` (directly, or through its own small
    interface the way `ui.Source` does).
 2. Add it to the layer table in `internal/archtest` as a front-end.

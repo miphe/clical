@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/miphe/clical/internal/app"
+	"github.com/miphe/clical/internal/domain"
 )
 
 // The sidebar lists calendars grouped by account. Account headers can be
@@ -130,6 +131,10 @@ func (m Model) handleSidebarKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.ensureSidebarSelection()
 	case key.Matches(msg, m.keys.FocusMain):
 		m.focus = focusMain
+	case msg.String() == "s":
+		if acct, ok := m.selectedGoogleAccount(); ok {
+			return m.startGoogleFlow(acct.Label)
+		}
 	case key.Matches(msg, m.keys.Remove):
 		if r, ok := m.selectedSidebarRow(); ok && r.kind == sideCalendar {
 			cal := r.cal
@@ -233,11 +238,15 @@ func (m Model) renderSidebarRow(r sideRow, width int, selected bool) string {
 		if m.side.folded[r.account] {
 			marker = "▸"
 		}
-		text := fmt.Sprintf(" %s %s (%d)", marker, r.label, r.count)
+		warn := ""
+		if m.needsSignIn[r.account] {
+			warn = "⚠ "
+		}
+		text := fmt.Sprintf(" %s %s%s (%d)", marker, warn, r.label, r.count)
 		if selected {
 			return selectedStyle.Render(fit(text, width))
 		}
-		return fit(" "+marker+" "+boldStyle.Render(r.label)+mutedStyle.Render(fmt.Sprintf(" (%d)", r.count)), width)
+		return fit(" "+marker+" "+errorStyle.Render(warn)+boldStyle.Render(r.label)+mutedStyle.Render(fmt.Sprintf(" (%d)", r.count)), width)
 	}
 
 	hidden := m.hidden[r.cal.Calendar.ID]
@@ -255,4 +264,19 @@ func (m Model) renderSidebarRow(r sideRow, width int, selected bool) string {
 	}
 	colored := calendarBullet(slot)
 	return fit(strings.Replace(text, swatch, colored, 1), width)
+}
+
+// selectedGoogleAccount is the Google account of the row under the cursor
+// (its header, or one of its calendars).
+func (m Model) selectedGoogleAccount() (domain.Account, bool) {
+	r, ok := m.selectedSidebarRow()
+	if !ok {
+		return domain.Account{}, false
+	}
+	for _, c := range m.calendars {
+		if c.Account.ID == r.account && c.Account.Provider == "google" {
+			return c.Account, true
+		}
+	}
+	return domain.Account{}, false
 }

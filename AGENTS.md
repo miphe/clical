@@ -1,6 +1,6 @@
-# Notes for agents working on clical
+# Notes for agents working on CLIcal
 
-clical is a read-only terminal calendar (Go, Bubble Tea v2) that syncs
+CLIcal is a read-only terminal calendar (Go, Bubble Tea v2) that syncs
 calendars from secret iCal feed URLs.
 
 ## Read first
@@ -16,7 +16,7 @@ Calendar logic lives in the core (`internal/domain`, `agenda`, `store`,
 only gather input and present output. They reach the core **only through
 `internal/app`**, plus the plain types in `domain` and `agenda`. Terminal and
 UI libraries are for front-ends only. `go test ./internal/archtest` enforces
-all of this. If it fails, fix the import, or change the layer table *and*
+all of this. If it fails, fix the import, or change the layer table _and_
 `docs/ARCHITECTURE.md` together. Don't add exemptions to get past it.
 
 ## Rules that aren't obvious from the code

@@ -25,13 +25,14 @@ var layers = map[string][]string{
 	// Core: calendar logic, no knowledge of any front-end.
 	"internal/domain":           {},
 	"internal/agenda":           {"internal/domain"},
+	"internal/eventtext":        {"internal/domain"},
 	"internal/secrets":          {},
 	"internal/store":            {"internal/domain"},
-	"internal/providers/ical":   {"internal/domain"},
-	"internal/providers/google": {"internal/domain", "internal/secrets"},
+	"internal/providers/ical":   {"internal/domain", "internal/eventtext"},
+	"internal/providers/google": {"internal/domain", "internal/eventtext"},
 	"internal/engine":           {"internal/domain", "internal/store"},
 	"internal/app": {"internal/domain", "internal/store", "internal/secrets",
-		"internal/engine", "internal/providers/ical"},
+		"internal/engine", "internal/providers/ical", "internal/providers/google"},
 
 	// Front-ends: talk to the core only through internal/app (plus the plain
 	// data types in domain and agenda).
@@ -57,12 +58,7 @@ var uiLibraries = []string{
 var exemptions = map[string]struct {
 	extra  []string
 	reason string
-}{
-	"cmd/clical/auth.go": {
-		extra:  []string{"internal/store", "internal/secrets", "internal/providers/google"},
-		reason: "shelved Google OAuth flow predates internal/app; move its logic into app before reviving it",
-	},
-}
+}{}
 
 func TestLayering(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))

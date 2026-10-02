@@ -47,6 +47,13 @@ func (a *App) Sync(ctx context.Context) ([]SyncOutcome, error) {
 	return out, nil
 }
 
+// NeedsSignIn reports whether the calendar's account must sign in again
+// (its access was revoked or expired).
+func (o SyncOutcome) NeedsSignIn() bool {
+	var r *domain.ReauthRequiredError
+	return errors.As(o.Err, &r)
+}
+
 // SyncCalendar syncs one calendar — e.g. one just added — without touching
 // the others.
 func (a *App) SyncCalendar(ctx context.Context, cal CalendarInfo) SyncOutcome {

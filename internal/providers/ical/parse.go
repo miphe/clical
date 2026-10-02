@@ -9,6 +9,7 @@ import (
 	"github.com/apognu/gocal"
 
 	"github.com/miphe/clical/internal/domain"
+	"github.com/miphe/clical/internal/eventtext"
 )
 
 // parse reads an iCalendar feed and returns every non-cancelled event
@@ -51,7 +52,13 @@ func toDomainEvent(calendarID string, e gocal.Event) domain.Event {
 		attrs["X-ALT-DESC"] = newlines.Replace(alt)
 		e.CustomAttributes = attrs
 	}
-	notes, links := describe(e)
+	notes, links := eventtext.Describe(eventtext.Content{
+		Description: e.Description,
+		AltHTML:     e.CustomAttributes["X-ALT-DESC"],
+		Location:    e.Location,
+		URL:         e.URL,
+		Conference:  []string{e.CustomAttributes["X-GOOGLE-CONFERENCE"], e.CustomAttributes["X-MICROSOFT-SKYPETEAMSMEETINGURL"]},
+	})
 	e.Description = notes
 	return toDomainEventWithNotes(calendarID, e).WithLinks(links)
 }
