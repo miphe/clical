@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -38,7 +37,9 @@ func (m Model) render() string {
 
 	bodyH := m.bodyHeight()
 	var body []string
-	if m.detail != nil {
+	if m.help != nil {
+		body = m.renderHelp(m.width, bodyH)
+	} else if m.detail != nil {
 		body = m.renderDetail(m.width, bodyH)
 	} else {
 		side := m.renderSidebar(bodyH)
@@ -255,50 +256,7 @@ func (m Model) calendarLabel(calendarID string) string {
 // Footer.
 
 func (m Model) renderFooter() []string {
-	hint := func(k, desc string) key.Binding { return key.NewBinding(key.WithHelp(k, desc)) }
-	var bindings []key.Binding
-	switch {
-	case m.form != nil:
-		bindings = []key.Binding{hint("enter", "next/add"), hint("tab", "move"), hint("esc", "cancel")}
-	case m.gflow != nil || m.chooser != nil:
-		bindings = []key.Binding{hint("esc", "cancel")}
-	case m.confirmRemove != nil:
-		bindings = []key.Binding{hint("y", "remove"), hint("n", "cancel")}
-	case m.rename != nil:
-		bindings = []key.Binding{hint("enter", "save"), hint("esc", "cancel")}
-	case m.detail != nil && len(m.detail.Event.Links) > 0:
-		bindings = []key.Binding{hint("j/k", "select link"), hint("enter", "open"), hint("pgup/pgdn", "scroll"), m.keys.Close}
-	case m.detail != nil:
-		bindings = []key.Binding{hint("j/k", "scroll"), m.keys.Close}
-	case m.focus == focusSidebar:
-		bindings = []key.Binding{hint("j/k", "move"), m.keys.Toggle, hint("enter", "fold"), m.keys.Add, m.keys.Rename, m.keys.Remove}
-		if acct, ok := m.selectedGoogleAccount(); ok && m.needsSignIn[acct.ID] {
-			bindings = append([]key.Binding{hint("s", "sign in again")}, bindings...)
-		}
-		bindings = append(bindings, m.keys.Collapse, m.keys.Sync, m.keys.Quit)
-	case m.view == viewWeek:
-		bindings = []key.Binding{hint("h/l", "day"), hint("j/k", "move"), m.keys.Open, hint("[/]", "week"),
-			m.keys.Today, m.keys.Sync, m.keys.Quit}
-	case m.view == viewMonth:
-		bindings = []key.Binding{hint("h/l", "day"), hint("j/k", "week"), hint("enter", "open day"), hint("[/]", "month"),
-			m.keys.Today, m.keys.Sync, m.keys.Quit}
-	default:
-		bindings = []key.Binding{hint("j/k", "move"), m.keys.Open, hint("[/]", "day"), m.keys.Today, m.keys.Sync, m.keys.Quit}
-	}
-	render := func(bs []key.Binding) string {
-		var hints []string
-		for _, b := range bs {
-			h := b.Help()
-			hints = append(hints, boldStyle.Render(h.Key)+" "+mutedStyle.Render(h.Desc))
-		}
-		return strings.Join(hints, mutedStyle.Render(" · "))
-	}
-	line := render(bindings)
-	if m.form == nil && m.gflow == nil && m.chooser == nil && m.confirmRemove == nil && m.rename == nil && m.detail == nil {
-		// Pane keys first, the same everywhere, so they're never cut off.
-		panes := render([]key.Binding{hint("0", "calendars"), hint("1-3", "views"), hint("tab", "switch pane")})
-		line = panes + mutedStyle.Render(" │ ") + line
-	}
+	line := fitHints(m.footerHints(), m.width-1)
 	hintLine := fit(" "+line, m.width)
 
 	left := " " + m.activity() + m.now.In(m.loc).Format("Mon 2 Jan 15:04")
@@ -340,4 +298,105 @@ func (m Model) status() string {
 		return mutedStyle.Render("Synced " + m.lastSync.In(m.loc).Format("15:04"))
 	}
 	return ""
+}
+
+// A footer hint, and how much it matters when the line is too narrow for
+// all of them: the least important go first, the rest keep their order.
+type footHint struct {
+	key, desc string
+	prio      int
+	newGroup  bool // starts a group, set apart by │
+}
+
+const (
+	prioLow  = iota + 1 // nice to know; also in ? help
+	prioMid             // frequent
+	prioHigh            // what this screen is for
+	prioMust            // never dropped
+)
+
+func (m Model) footerHints() []footHint {
+	h := func(k, desc string, prio int) footHint { return footHint{key: k, desc: desc, prio: prio} }
+	help := h("?", "help", prioMust)
+	switch {
+	case m.form != nil:
+		return []footHint{h("enter", "next/add", prioMust), h("tab", "move", prioMid), h("esc", "cancel", prioMust)}
+	case m.gflow != nil || m.chooser != nil:
+		return []footHint{h("esc", "cancel", prioMust)}
+	case m.confirmRemove != nil:
+		return []footHint{h("y", "remove", prioMust), h("n", "cancel", prioMust)}
+	case m.rename != nil:
+		return []footHint{h("enter", "save", prioMust), h("esc", "cancel", prioMust)}
+	case m.help != nil:
+		return []footHint{h("j/k", "scroll", prioMid), h("pgup/pgdn", "page", prioLow), h("esc", "close", prioMust)}
+	case m.detail != nil && len(m.detail.Event.Links) > 0:
+		return []footHint{h("j/k", "select link", prioMid), h("enter", "open", prioHigh), h("pgup/pgdn", "scroll", prioLow),
+			h("esc", "close", prioMust), help}
+	case m.detail != nil:
+		return []footHint{h("j/k", "scroll", prioMid), h("esc", "close", prioMust), help}
+	}
+
+	// Pane keys first, the same everywhere.
+	hints := []footHint{h("0", "calendars", prioHigh), h("1-3", "views", prioHigh), h("tab", "switch pane", prioMid)}
+	var view []footHint
+	switch {
+	case m.focus == focusSidebar:
+		if acct, ok := m.selectedGoogleAccount(); ok && m.needsSignIn[acct.ID] {
+			view = append(view, h("s", "sign in again", prioHigh))
+		}
+		view = append(view, h("j/k", "move", prioLow), h("space", "show/hide", prioHigh), h("enter", "fold", prioLow),
+			h("a", "add", prioHigh), h("n", "rename", prioMid), h("d", "remove", prioMid), h("c", "collapse", prioLow))
+	case m.view == viewWeek:
+		view = []footHint{h("h/l", "day", prioMid), h("j/k", "move", prioLow), h("enter", "details", prioHigh),
+			h("[/]", "week", prioMid), h("t", "today", prioMid)}
+	case m.view == viewMonth:
+		view = []footHint{h("h/l", "day", prioLow), h("j/k", "week", prioLow), h("enter", "open day", prioHigh),
+			h("[/]", "month", prioMid), h("t", "today", prioMid)}
+	default:
+		view = []footHint{h("j/k", "move", prioLow), h("enter", "details", prioHigh), h("[/]", "day", prioMid), h("t", "today", prioMid)}
+	}
+	view = append(view, h("r", "sync", prioLow), h("q", "quit", prioMid), help)
+	view[0].newGroup = true
+	return append(hints, view...)
+}
+
+// fitHints renders hints in width, leaving out the least important (the
+// rightmost first among equals) until they fit. If even the essential ones
+// don't, the line is cut.
+func fitHints(hints []footHint, width int) string {
+	hints = append([]footHint(nil), hints...)
+	for {
+		line := renderHints(hints)
+		if ansi.StringWidth(line) <= width {
+			return line
+		}
+		drop := -1
+		for i, hn := range hints {
+			if hn.prio < prioMust && (drop < 0 || hn.prio <= hints[drop].prio) {
+				drop = i
+			}
+		}
+		if drop < 0 {
+			return line
+		}
+		if hints[drop].newGroup && drop+1 < len(hints) {
+			hints[drop+1].newGroup = true
+		}
+		hints = append(hints[:drop], hints[drop+1:]...)
+	}
+}
+
+func renderHints(hints []footHint) string {
+	var b strings.Builder
+	for i, hn := range hints {
+		if i > 0 {
+			if hn.newGroup {
+				b.WriteString(mutedStyle.Render(" │ "))
+			} else {
+				b.WriteString(mutedStyle.Render(" · "))
+			}
+		}
+		b.WriteString(boldStyle.Render(hn.key) + " " + mutedStyle.Render(hn.desc))
+	}
+	return b.String()
 }

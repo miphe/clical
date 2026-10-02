@@ -105,6 +105,7 @@ to trust your OAuth client ID (Admin console → Security → API controls).
 | `enter` (calendar list)    | Fold or unfold an account                                                         |
 | `l` (calendar list)        | Back to the main view (same as `tab`)                                             |
 | `c` (calendar list)        | Collapse or expand the calendar list                                              |
+| `?`                        | All keys and what the status line shows                                           |
 | `q`                        | Quit                                                                              |
 
 Without the full screen:

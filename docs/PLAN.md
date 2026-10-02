@@ -38,7 +38,8 @@ multi-account merge → config/themes → in-process background polling.
 | — | Event links: extraction, readable notes, select-and-open with the full address shown | Done |
 | — | Google accounts via OAuth (sign-in, calendar picker, sync, re-sign-in) | Done — live check pending |
 | M10 | Background polling every 5 minutes; failures shown and retried | Done |
-| M8, M9, M11 | Search and help, config (non-color), polish | Not started |
+| M8 (help) | `?` help screen; footer keeps the most important keys when narrow | Done |
+| M8 (filter), M9, M11 | `/` filter, config (non-color), polish | Not started |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -745,7 +746,17 @@ terminal's ANSI palette — see "Theming".
 **Search**: "/" live-filters the current view by title/location; Enter jumps
 to the first match, Esc clears.
 **Mouse**: none in v1 (scroll wheel works via `bubbles/viewport`).
-**Help**: "?" opens a full-screen modal of all bindings (`bubbles/help`).
+**Help** (done): "?" opens a full-screen list of every key and interaction
+(`internal/ui/help.go`), grouped by where it works, in two columns when they
+fit and scrollable otherwise. It opens from the main screen and the event
+view (popups take `?` as text) and `esc`/`q`/`?` close it back to where it
+was. Written out by hand rather than `bubbles/help`, so each entry can say
+what a key does in that context.
+
+**Footer hints** (done): every hint has a priority. When the line is too
+narrow, the least important are left out, rightmost first among equals,
+instead of the line being cut; `? help` is never left out, so the full list
+is always one key away.
 
 **Pane keys** (decided 2026-10-02): every pane is reached the same way from
 anywhere outside a popup: `0` the calendar list, `1`/`2`/`3` the main view as
@@ -792,7 +803,7 @@ do both).
 | M5 | Bubble Tea shell: sidebar + main pane + footer; Agenda; event detail; calendar toggles; golden snapshots | `internal/ui/model.go`, `view.go`, `rows.go`, `keymap.go`, `styles.go`, `cmd/clical/tui.go` | Done |
 | M6 | Week view (day-list columns), view switching that keeps the current day | `internal/ui/week.go`, `internal/ui/weekview.go`, `internal/agenda` (`WeekStart`) | Done |
 | M7 | Month view (week-number column, "+N more", Enter → Agenda) | `internal/ui/month.go`, `internal/ui/monthview.go`, `internal/agenda` (`MonthGrid`) | Done |
-| M8 | "/" filter, "?" help (multi-account merge, toggles, permanent colors and theming already done) | `internal/ui/search.go`, `internal/ui/help.go` | |
+| M8 | "/" filter, "?" help (multi-account merge, toggles, permanent colors and theming already done) | `internal/ui/search.go`, `internal/ui/help.go` | Help done |
 | M9 | YAML config for non-color settings (time format, first day of week, poll interval), mergo defaults, fsnotify hot-reload. No colors or themes: theming is delegated to the terminal | `internal/config/` | |
 | M10 | In-process polling every 5 min, one schedule for all calendars | `internal/ui/model.go` | Done |
 | M11 | Revoked-feed flow in the TUI, `--logs` tail, cross-compile check | `internal/ui/revoked.go`, `cmd/clical/logs.go` | |

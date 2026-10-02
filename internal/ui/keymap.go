@@ -2,8 +2,9 @@ package ui
 
 import "charm.land/bubbles/v2/key"
 
-// keyMap holds every binding in one place so the footer hints (and later the
-// help modal and YAML remapping) share a single source of truth.
+// keyMap holds the bindings the main screen matches keys against. The
+// footer hints (footerHints in view.go) and the help screen (help.go) are
+// written out separately, so a changed binding must be changed there too.
 //
 // Panes are reached the same way from anywhere (outside popups): 0 is the
 // calendar list, 1/2/3 the main view as Agenda/Week/Month, and tab switches

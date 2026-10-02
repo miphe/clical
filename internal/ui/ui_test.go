@@ -2013,3 +2013,75 @@ func TestRenameFailureKeepsPopupOpen(t *testing.T) {
 		t.Error("esc didn't close the popup")
 	}
 }
+
+func TestGoldenHelp(t *testing.T) {
+	m, _ := send(t, loaded(t, 120, 40), press("?"))
+	golden(t, "help", screen(m))
+	narrow, _ := send(t, loaded(t, 60, 20), press("?"))
+	golden(t, "help_narrow", screen(narrow))
+}
+
+func TestHelpOpensScrollsAndCloses(t *testing.T) {
+	m := loaded(t, 60, 20)
+	m, _ = send(t, m, press("?"))
+	if m.help == nil || !strings.Contains(screen(m), "Everywhere") {
+		t.Fatalf("? didn't open the help:\n%s", screen(m))
+	}
+	m, _ = send(t, m, press("G"))
+	if s := screen(m); !strings.Contains(s, "Status line") || strings.Contains(s, "Everywhere") {
+		t.Errorf("G didn't scroll to the end:\n%s", s)
+	}
+	if m, _ = send(t, m, press("k")); m.help.scroll == 0 {
+		t.Error("k at the end didn't scroll back up at once")
+	}
+	for _, k := range []string{"esc", "q", "?"} {
+		mm, _ := send(t, m, press(k))
+		if mm.help != nil {
+			t.Errorf("%s didn't close the help", k)
+		}
+	}
+}
+
+func TestHelpFromEventDetailsReturnsThere(t *testing.T) {
+	m := loaded(t, 100, 24)
+	m, _ = send(t, m, press("enter"), press("?"))
+	if m.help == nil || m.detail == nil {
+		t.Fatal("? in the event view didn't open the help over it")
+	}
+	if m, _ = send(t, m, press("esc")); m.help != nil || m.detail == nil {
+		t.Error("closing the help didn't return to the event")
+	}
+}
+
+func TestQuestionMarkIsTypedInForms(t *testing.T) {
+	m := loaded(t, 100, 24)
+	m.focus = focusSidebar
+	m.side.sel = sideRow{kind: sideCalendar, cal: testCalendars[0]}.key()
+	m, _ = send(t, m, press("n"), press("?"))
+	if m.help != nil || m.rename.input.Value() != "Holidays?" {
+		t.Errorf("? in the rename popup: help %v, value %q", m.help != nil, m.rename.input.Value())
+	}
+}
+
+func TestFitHintsDropsLeastImportantFirst(t *testing.T) {
+	hints := []footHint{
+		{key: "0", desc: "calendars", prio: prioHigh},
+		{key: "j/k", desc: "move", prio: prioLow, newGroup: true},
+		{key: "enter", desc: "details", prio: prioHigh},
+		{key: "r", desc: "sync", prio: prioLow},
+		{key: "?", desc: "help", prio: prioMust},
+	}
+	if got := ansi.Strip(fitHints(hints, 100)); got != "0 calendars │ j/k move · enter details · r sync · ? help" {
+		t.Errorf("wide = %q", got)
+	}
+	// r sync goes before j/k move, and the group mark moves to enter.
+	if got := ansi.Strip(fitHints(hints, 47)); got != "0 calendars │ j/k move · enter details · ? help" {
+		t.Errorf("one dropped = %q", got)
+	}
+	if got := ansi.Strip(fitHints(hints, 36)); got != "0 calendars │ enter details · ? help" {
+		t.Errorf("two dropped = %q", got)
+	}
+	if got := ansi.Strip(fitHints(hints, 4)); got != "? help" {
+		t.Errorf("only the essential = %q", got)
+	}
+}

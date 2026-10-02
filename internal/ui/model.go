@@ -149,6 +149,7 @@ type Model struct {
 	form          *addForm
 	confirmRemove *app.CalendarInfo
 	rename        *renameForm // rename.go
+	help          *helpView   // help.go
 	removing      bool
 	actionErr     error // last add/remove failure outside the form
 
@@ -445,6 +446,11 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleConfirmKey(msg)
 	case m.rename != nil:
 		return m.handleRenameKey(msg)
+	case m.help != nil:
+		return m.handleHelpKey(msg)
+	case msg.String() == "?":
+		m.help = &helpView{}
+		return m, nil
 	}
 	if m.detail != nil {
 		return m.handleDetailKey(msg)
