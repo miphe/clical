@@ -1,6 +1,7 @@
 package ical
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
@@ -16,7 +17,14 @@ import (
 // overlapping [from, to), with recurring events expanded into one Event per
 // occurrence.
 func parse(r io.Reader, calendarID string, from, to time.Time) ([]domain.Event, error) {
-	p := gocal.NewParser(r)
+	feed, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("ical: read feed: %w", err)
+	}
+	if feed, err = guardRecurrence(feed, from, to); err != nil {
+		return nil, fmt.Errorf("ical: parse feed: %w", err)
+	}
+	p := gocal.NewParser(bytes.NewReader(feed))
 	p.Start, p.End = &from, &to
 	// All-day dates are read as UTC midnight so converting back to a civil
 	// date never shifts the day, whatever the local timezone is.

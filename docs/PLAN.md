@@ -85,6 +85,15 @@ addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
 - **Cancelled events** (`STATUS:CANCELLED`) are dropped at parse time.
 - **Library**: `github.com/apognu/gocal` v0.9.1 — parses feeds, expands
   RRULEs within a window, honors EXDATE and RECURRENCE-ID overrides.
+- **Recurrence guard** (`guard.go`): feeds are untrusted, and gocal loops
+  forever on some rules (`INTERVAL=0`, a `COUNT` that BYDAY never reaches).
+  Every RRULE is rewritten before gocal sees it so it always advances and ends
+  just past the window, and feeds that would still cost more than about two
+  seconds to expand are rejected. The costs follow what gocal actually does,
+  so a calendar with years of history isn't penalized for it. The rewrite
+  also fixes gocal's `UNTIL`, which it treats as exclusive (RFC 5545 makes it
+  inclusive), reads as the day before when date-only, and compares across
+  zones as wall-clock strings.
 
 ### Carried over from the original plan
 - **Vault KDF**: age's native scrypt passphrase mode; no separate argon2id
