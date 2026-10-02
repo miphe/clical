@@ -309,6 +309,14 @@ func (m Model) renderFooter() []string {
 	return []string{hintLine, fit(statusLine, m.width)}
 }
 
+// retryNote says when a failed sync will be tried again.
+func (m Model) retryNote() string {
+	if m.nextPoll.IsZero() || m.syncing {
+		return ""
+	}
+	return mutedStyle.Render(" · retry " + m.nextPoll.In(m.loc).Format("15:04"))
+}
+
 func (m Model) status() string {
 	switch {
 	case m.loadErr != nil:
@@ -316,13 +324,14 @@ func (m Model) status() string {
 	case m.actionErr != nil:
 		return errorStyle.Render(m.actionErr.Error())
 	case m.syncErr != nil:
-		return errorStyle.Render("Sync failed: " + m.syncErr.Error())
+		return errorStyle.Render("Sync failed: "+m.syncErr.Error()) + m.retryNote()
 	case len(m.syncFailures) > 0:
-		msg := m.syncFailures[0]
-		if n := len(m.syncFailures) - 1; n > 0 {
+		failures := m.failureList()
+		msg := failures[0]
+		if n := len(failures) - 1; n > 0 {
 			msg += fmt.Sprintf(" (+%d more)", n)
 		}
-		return errorStyle.Render(msg)
+		return errorStyle.Render(msg) + m.retryNote()
 	case !m.lastSync.IsZero():
 		return mutedStyle.Render("Synced " + m.lastSync.In(m.loc).Format("15:04"))
 	}

@@ -196,7 +196,7 @@ func (m Model) syncCalendarCmd(cal app.CalendarInfo) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
 		defer cancel()
 		o := src.SyncCalendar(ctx, cal)
-		return syncDoneMsg{at: time.Now(), results: []app.SyncOutcome{o}}
+		return syncDoneMsg{at: time.Now(), results: []app.SyncOutcome{o}, partial: true}
 	}
 }
 

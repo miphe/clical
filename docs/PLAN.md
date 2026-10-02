@@ -37,7 +37,8 @@ multi-account merge → config/themes → in-process background polling.
 | M7 | Month view | Done |
 | — | Event links: extraction, readable notes, select-and-open with the full address shown | Done |
 | — | Google accounts via OAuth (sign-in, calendar picker, sync, re-sign-in) | Done — live check pending |
-| M8–M11 | Search and help, config (non-color), background polling, polish | Not started |
+| M10 | Background polling every 5 minutes; failures shown and retried | Done |
+| M8, M9, M11 | Search and help, config (non-color), polish | Not started |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -357,33 +358,41 @@ title. Used by `clical agenda` now and by the TUI Agenda view in M5.
 - Google accounts are added in the TUI (`a` → Google account); there's no
   CLI command for it.
 
-## Background polling — M10 (planned)
+## Background polling — M10 done
 
-Per-calendar polling needs a per-calendar sync on the seam, so M10 adds
-`app.SyncCalendar(ctx, CalendarInfo) SyncOutcome` (wrapping
-`engine.SyncOne`) rather than letting the UI reach the engine. Sketch:
+One sync of every calendar runs at startup and then **5 minutes after the
+previous one finished** (`pollInterval`, configurable in M9). Scheduling from
+the finish, not on a fixed beat, means syncs never overlap however slow a
+feed is. `r` syncs at once and the next scheduled sync counts from it.
 
-```go
-type pollMsg struct{ CalendarID string }                // ui-internal
-func pollCmd(cal app.CalendarInfo, after time.Duration) tea.Cmd
-func syncCalendarCmd(src Source, cal app.CalendarInfo) tea.Cmd // → syncDoneMsg-like result
-func InitialDelay(calendarID string, interval time.Duration) time.Duration // FNV-hash phase offset (app or ui)
-```
-
-Since every iCal poll is a full download, the default poll interval for
-iCal calendars should be longer than the original 60s — **5 minutes**,
-configurable. `Update`: `TickMsg` → `tea.Batch(SyncCmd, PollCmd)`;
-`SyncCompletedMsg` → reload the visible range from the store (skip if
-nothing changed); `CalendarUnavailableMsg` → flag that calendar in the sidebar and
-footer; Enter on it prompts for a new URL — no restart, other calendars keep
-syncing.
+- Simpler than first sketched: one schedule for all calendars, running
+  `app.Sync` (the engine syncs them one after another), instead of a timer
+  and a jittered phase per calendar. With iCal feeds and a handful of
+  Google calendars there's nothing to spread out; per-calendar timers can
+  come back if many calendars on one server ever need it.
+- Each schedule carries a sequence number (`pollMsg{seq}`); `r` or a newer
+  schedule bumps it, so a replaced timer that still fires does nothing. A
+  scheduled sync that finds another sync running (a calendar just added)
+  waits another interval.
+- Go's timers stop while macOS sleeps, but the wall clock doesn't: the
+  30-second clock tick starts a sync that came due during sleep.
+- **Failures don't stop anything.** Each calendar's last failure is kept
+  (`syncFailures`, by calendar ID) until that calendar syncs cleanly again;
+  the calendar keeps working from the cache meanwhile. The status line
+  shows the first failure in sidebar order, `(+N more)`, and
+  `· retry HH:MM`, e.g. `Personal · Main: feed URL no longer works · retry
+  14:39`. Syncing one calendar alone (just added, or after signing in
+  again) updates only its own entry. Failures of removed calendars are
+  dropped. A dead feed or revoked access is retried like any other
+  failure: harmless, and it recovers by itself if the cause goes away.
 
 ## TUI (`internal/ui`) — M5 done
 
 `clical` with no command opens it (kong default command `open`). The vault is
 unlocked with a plain prompt *before* the TUI takes the screen; the passphrase
 then lives in memory for the session. No calendars → a hint instead of an
-empty screen. One sync runs at startup, `r` syncs again; the footer shows
+empty screen. One sync runs at startup and then every 5 minutes (M10); `r`
+syncs at once. The footer shows
 "Syncing…", "Synced HH:MM", or the first failure (a dead feed reads
 "Personal · Main: feed URL no longer works").
 
@@ -758,7 +767,7 @@ do both).
 | M7 | Month view (week-number column, "+N more", Enter → Agenda) | `internal/ui/month.go`, `internal/ui/monthview.go`, `internal/agenda` (`MonthGrid`) | Done |
 | M8 | "/" filter, "?" help (multi-account merge, toggles, permanent colors and theming already done) | `internal/ui/search.go`, `internal/ui/help.go` | |
 | M9 | YAML config for non-color settings (time format, first day of week, poll interval), mergo defaults, fsnotify hot-reload. No colors or themes: theming is delegated to the terminal | `internal/config/` | |
-| M10 | In-process polling (default 5 min for iCal), jittered per calendar | `internal/engine/scheduler.go`, `internal/engine/jitter.go` | |
+| M10 | In-process polling every 5 min, one schedule for all calendars | `internal/ui/model.go` | Done |
 | M11 | Revoked-feed flow in the TUI, `--logs` tail, cross-compile check | `internal/ui/revoked.go`, `cmd/clical/logs.go` | |
 
 ## Verification

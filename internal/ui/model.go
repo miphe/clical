@@ -8,6 +8,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"charm.land/bubbles/v2/key"
@@ -42,6 +43,10 @@ const (
 	footerHeight = 2
 	narrowWidth  = 70
 	syncTimeout  = 3 * time.Minute
+	// pollInterval is how long after one sync of every calendar finishes
+	// the next one starts. An iCal sync downloads the whole feed, so this
+	// stays well clear of a feed provider's patience.
+	pollInterval = 5 * time.Minute
 )
 
 type focus int
@@ -75,7 +80,12 @@ type (
 		at      time.Time
 		results []app.SyncOutcome
 		err     error
+		// partial is true when only some calendars were synced (one just
+		// added, or an account signed in again).
+		partial bool
 	}
+	// pollMsg starts a scheduled sync, unless a later schedule replaced it.
+	pollMsg        struct{ seq int }
 	monthLoadedMsg struct {
 		start  domain.CivilDate
 		weeks  int
@@ -97,6 +107,7 @@ type Model struct {
 	loc  *time.Location
 	now  time.Time
 	tick time.Duration // 0 disables the clock tick (tests)
+	poll time.Duration // 0 disables background syncing (tests)
 
 	width, height int
 
@@ -138,10 +149,14 @@ type Model struct {
 	removing      bool
 	actionErr     error // last add/remove failure outside the form
 
-	syncing      bool
-	lastSync     time.Time
-	syncFailures []string
+	syncing  bool
+	lastSync time.Time
+	// syncFailures is each calendar's last sync failure, kept until that
+	// calendar syncs again without one.
+	syncFailures map[string]string
 	syncErr      error
+	pollSeq      int       // the live schedule; older pollMsgs are ignored
+	nextPoll     time.Time // when the scheduled sync starts
 
 	// Activity indicator (activity.go).
 	spin       spinner.Model
@@ -154,16 +169,18 @@ type Model struct {
 // 30-second tick.
 func New(src Source, loc *time.Location, now time.Time) Model {
 	m := Model{
-		src:         src,
-		keys:        defaultKeyMap(),
-		loc:         loc,
-		now:         now,
-		tick:        30 * time.Second,
-		calIndex:    map[string]int{},
-		needsSignIn: map[string]bool{},
-		openURL:     openInBrowser,
-		hidden:      map[string]bool{},
-		days:        initialDays,
+		src:          src,
+		keys:         defaultKeyMap(),
+		loc:          loc,
+		now:          now,
+		tick:         30 * time.Second,
+		poll:         pollInterval,
+		calIndex:     map[string]int{},
+		needsSignIn:  map[string]bool{},
+		syncFailures: map[string]string{},
+		openURL:      openInBrowser,
+		hidden:       map[string]bool{},
+		days:         initialDays,
 		// Init starts both, and the spinner for them; Init can't record that
 		// itself.
 		loading:  true,
@@ -212,6 +229,17 @@ func (m Model) syncCmd() tea.Cmd {
 	}
 }
 
+// schedulePoll replaces any scheduled sync with one m.poll after at.
+func (m *Model) schedulePoll(at time.Time) tea.Cmd {
+	if m.poll == 0 {
+		return nil
+	}
+	m.pollSeq++
+	m.nextPoll = at.Add(m.poll)
+	seq := m.pollSeq
+	return tea.Tick(m.poll, func(time.Time) tea.Msg { return pollMsg{seq: seq} })
+}
+
 func (m Model) tickCmd() tea.Cmd {
 	if m.tick == 0 {
 		return nil
@@ -253,6 +281,13 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuild()
 		m.rebuildWeek()
 		m.rebuildMonth()
+		if m.poll != 0 && !m.syncing && !m.nextPoll.IsZero() && !m.now.Before(m.nextPoll) {
+			// Overdue: timers stop while the computer sleeps, but the clock
+			// doesn't, so a sync due during sleep starts on waking.
+			m.syncing = true
+			m.pollSeq++
+			return m, tea.Batch(m.tickCmd(), m.syncCmd())
+		}
 		return m, m.tickCmd()
 
 	case calendarsLoadedMsg:
@@ -264,6 +299,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.calIndex = make(map[string]int, len(msg.rows))
 		for i, r := range msg.rows {
 			m.calIndex[r.Calendar.ID] = i
+		}
+		for id := range m.syncFailures {
+			if _, ok := m.calIndex[id]; !ok {
+				delete(m.syncFailures, id) // the calendar was removed
+			}
 		}
 		m.ensureSidebarSelection()
 		m.rebuild()
@@ -321,34 +361,50 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case pollMsg:
+		if msg.seq != m.pollSeq {
+			return m, nil // r or a newer schedule replaced this one
+		}
+		if m.syncing {
+			// Something else is syncing; try again a full interval later.
+			return m, m.schedulePoll(m.now)
+		}
+		m.syncing = true
+		return m, m.syncCmd()
+
 	case syncDoneMsg:
 		m.syncing = false
 		m.lastSync = msg.at
-		m.syncErr = msg.err
-		m.syncFailures = nil
-		changed := false
+		var cmds []tea.Cmd
+		if !msg.partial {
+			// Whatever happened, the next sync is due an interval from now:
+			// a failure is retried then, and the calendar works meanwhile
+			// from the cache.
+			m.syncErr = msg.err
+			cmds = append(cmds, m.schedulePoll(msg.at))
+			if msg.err == nil {
+				m.syncFailures = map[string]string{}
+			}
+		}
+		changed, failed := false, false
 		for _, r := range msg.results {
 			if r.Err == nil {
 				delete(m.needsSignIn, r.Account.ID)
+				delete(m.syncFailures, r.Calendar.ID)
+				changed = changed || r.Changed
+				continue
 			}
+			failed = true
+			m.syncFailures[r.Calendar.ID] = describeSyncFailure(r)
 			if r.NeedsSignIn() {
 				m.needsSignIn[r.Account.ID] = true
-				m.syncFailures = append(m.syncFailures, r.Account.Label+": sign in again (s on the account)")
-			} else if _, ok := r.Unavailable(); ok && r.Account.Provider == "ical" {
-				m.syncFailures = append(m.syncFailures, r.Label()+": feed URL no longer works")
-			} else if ok {
-				m.syncFailures = append(m.syncFailures, r.Label()+": calendar no longer available")
-			} else if r.Err != nil {
-				m.syncFailures = append(m.syncFailures, fmt.Sprintf("%s: %v", r.Label(), r.Err))
-			} else if r.Changed {
-				changed = true
 			}
 		}
 		result := flashOK
-		if m.syncErr != nil || len(m.syncFailures) > 0 {
+		if msg.err != nil || failed {
 			result = flashFailed
 		}
-		cmds := []tea.Cmd{m.startFlash(result, msg.at)}
+		cmds = append(cmds, m.startFlash(result, msg.at))
 		if !changed {
 			return m, tea.Batch(cmds...)
 		}
@@ -392,6 +448,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.syncing = true
+		m.pollSeq++ // the next scheduled sync counts from this one
 		return m, m.syncCmd()
 	case key.Matches(msg, m.keys.Today):
 		switch m.view {
@@ -681,4 +738,47 @@ func (m *Model) ensureVisible() {
 		}
 	}
 	m.offset = min(max(m.offset, 0), max(0, len(m.rows)-h))
+}
+
+// describeSyncFailure words a calendar's failed sync for the status line.
+func describeSyncFailure(r app.SyncOutcome) string {
+	if r.NeedsSignIn() {
+		return r.Account.Label + ": sign in again (s on the account)"
+	}
+	if _, ok := r.Unavailable(); ok {
+		if r.Account.Provider == "ical" {
+			return r.Label() + ": feed URL no longer works"
+		}
+		return r.Label() + ": calendar no longer available"
+	}
+	return fmt.Sprintf("%s: %v", r.Label(), r.Err)
+}
+
+// failureList is the calendars' sync failures in sidebar order, each worded
+// once (an account that must sign in again fails for all its calendars).
+func (m Model) failureList() []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(f string) {
+		if !seen[f] {
+			seen[f] = true
+			out = append(out, f)
+		}
+	}
+	for _, c := range m.calendars {
+		if f, ok := m.syncFailures[c.Calendar.ID]; ok {
+			add(f)
+		}
+	}
+	var rest []string
+	for id, f := range m.syncFailures {
+		if _, ok := m.calIndex[id]; !ok {
+			rest = append(rest, f)
+		}
+	}
+	sort.Strings(rest)
+	for _, f := range rest {
+		add(f)
+	}
+	return out
 }

@@ -1825,3 +1825,96 @@ func TestClientFormValidatesBeforeSigningIn(t *testing.T) {
 		t.Errorf("a malformed ID started a sign-in (or wasn't explained):\n%s", screen(m))
 	}
 }
+
+func TestSyncSchedulesTheNext(t *testing.T) {
+	m := loaded(t, 100, 24)
+	if want := at(29, 14, 29).Add(pollInterval); !m.nextPoll.Equal(want) {
+		t.Fatalf("next sync at %v, want %v", m.nextPoll, want)
+	}
+	stale := pollMsg{seq: m.pollSeq - 1}
+	if m, _ = send(t, m, stale); m.syncing {
+		t.Error("a replaced schedule started a sync")
+	}
+	m, cmd := send(t, m, pollMsg{seq: m.pollSeq})
+	if !m.syncing || cmd == nil {
+		t.Fatal("the scheduled sync didn't start")
+	}
+	m, _ = send(t, m, syncDoneMsg{at: at(29, 14, 34)})
+	if want := at(29, 14, 39); !m.nextPoll.Equal(want) {
+		t.Errorf("next sync at %v, want %v", m.nextPoll, want)
+	}
+}
+
+func TestManualSyncReplacesTheSchedule(t *testing.T) {
+	m := loaded(t, 100, 24)
+	scheduled := pollMsg{seq: m.pollSeq}
+	m, _ = send(t, m, press("r"), syncDoneMsg{at: at(29, 14, 31)})
+	if m, _ = send(t, m, scheduled); m.syncing {
+		t.Error("the schedule from before r still started a sync")
+	}
+	if want := at(29, 14, 36); !m.nextPoll.Equal(want) {
+		t.Errorf("next sync at %v, want %v", m.nextPoll, want)
+	}
+}
+
+func TestScheduledSyncWaitsForOneInProgress(t *testing.T) {
+	m := loaded(t, 100, 24)
+	m.syncing = true // e.g. a calendar that was just added
+	seq := m.pollSeq
+	m, cmd := send(t, m, pollMsg{seq: seq})
+	if m.pollSeq == seq || cmd == nil {
+		t.Error("a scheduled sync during another wasn't rescheduled")
+	}
+}
+
+func TestFailedSyncIsRetriedAndCleared(t *testing.T) {
+	m := loaded(t, 140, 24)
+	offline := errors.New("dial tcp: no route to host")
+	m, _ = send(t, m, pollMsg{seq: m.pollSeq}, syncDoneMsg{at: at(29, 14, 34), results: []app.SyncOutcome{
+		{CalendarInfo: testCalendars[0], Err: offline},
+		{CalendarInfo: testCalendars[1], Err: offline},
+	}})
+	s := screen(m)
+	if !strings.Contains(s, "no route to host (+1 more) · retry 14:39") {
+		t.Errorf("status line doesn't show the failure and the retry:\n%s", s)
+	}
+	if !strings.Contains(s, "Dentist") {
+		t.Errorf("events gone after a failed sync:\n%s", s)
+	}
+
+	// Syncing one calendar on its own leaves the other's failure alone.
+	m, _ = send(t, m, syncDoneMsg{at: at(29, 14, 35), partial: true, results: []app.SyncOutcome{{CalendarInfo: testCalendars[0]}}})
+	if got := m.failureList(); len(got) != 1 || !strings.HasPrefix(got[0], testCalendars[1].Label()) {
+		t.Errorf("failures after a partial sync = %q", got)
+	}
+
+	m, _ = send(t, m, pollMsg{seq: m.pollSeq}, syncDoneMsg{at: at(29, 14, 39), results: []app.SyncOutcome{
+		{CalendarInfo: testCalendars[0]}, {CalendarInfo: testCalendars[1]},
+	}})
+	if s := screen(m); !strings.Contains(s, "Synced 14:39") || strings.Contains(s, "retry") {
+		t.Errorf("failure not cleared by the next sync:\n%s", s)
+	}
+}
+
+func TestRemovedCalendarsFailureIsDropped(t *testing.T) {
+	m := loaded(t, 100, 24)
+	m, _ = send(t, m,
+		syncDoneMsg{at: at(29, 14, 34), results: []app.SyncOutcome{{CalendarInfo: testCalendars[1], Err: errors.New("boom")}}},
+		calendarsLoadedMsg{rows: testCalendars[:1]},
+	)
+	if got := m.failureList(); len(got) != 0 {
+		t.Errorf("failures = %q, want none for a removed calendar", got)
+	}
+}
+
+func TestOverdueSyncStartsOnWaking(t *testing.T) {
+	m := loaded(t, 100, 24)
+	if m, _ = send(t, m, tickMsg(m.nextPoll.Add(-time.Second))); m.syncing {
+		t.Fatal("a sync started before it was due")
+	}
+	seq := m.pollSeq
+	m, _ = send(t, m, tickMsg(m.nextPoll.Add(time.Hour)))
+	if !m.syncing || m.pollSeq == seq {
+		t.Error("an overdue sync didn't start on the clock tick")
+	}
+}
