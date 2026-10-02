@@ -1,6 +1,6 @@
 // Package engine runs provider syncs and applies their results to the store.
-// It's the only place that connects providers to the store; the TUI will
-// drive it through tea.Cmds.
+// It's the only place that connects providers to the store. Front-ends don't
+// use it directly: internal/app wraps it (see app.Sync).
 package engine
 
 import (

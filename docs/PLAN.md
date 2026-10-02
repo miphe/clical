@@ -30,6 +30,7 @@ multi-account merge → config/themes → in-process background polling.
 | M3 | `clical sync` into SQLite + plain-text `clical agenda` | Done |
 | M4 | Feed errors, backoff, `calendars remove`/`set-url`, new-vault passphrase confirmation | Done |
 | M5 | TUI shell, Agenda view, event detail, calendar toggles | Done |
+| — | Application layer `internal/app` + enforced layering (`internal/archtest`) | Done |
 | M6–M11 | Week/Month views, help, filter, config/themes, polling | Not started |
 
 Deferred (2026-09-29): the **work** (Google Workspace) calendar. Focus is the
@@ -214,7 +215,18 @@ the delta and the sync-token update commit atomically:
 delete `DeletedIDs`; `INSERT OR REPLACE` `Upserted`; update `sync_token` and
 `last_synced_at`. A no-op result only updates the last two.
 
-## Sync engine (`internal/engine`) — done; UI wiring M5/M10
+## Application layer (`internal/app`) — done (2026-10-02)
+
+The seam between calendar logic and front-ends; full description and rules
+in `docs/ARCHITECTURE.md`. Added after M5 so a future UI can be swapped in
+without touching the core: logic that had grown in `cmd/clical` (feed check,
+add/remove/set-url flows, calendar lookup, provider↔vault wiring, the TUI's
+store adapter) moved into `app`, and `internal/ui` no longer imports
+`engine`. `*app.App` implements `ui.Source` directly. `internal/archtest`
+fails the build on a layering violation or an unclassified new package; the
+only exemption is the shelved `cmd/clical/auth.go`.
+
+## Sync engine (`internal/engine`) — done; front-ends reach it via `app.Sync`
 
 Named `engine`, not `sync`, to avoid clashing with the stdlib package.
 `engine.New(store, providers map[provider name]CalendarProvider)`;
@@ -260,17 +272,17 @@ title. Used by `clical agenda` now and by the TUI Agenda view in M5.
   Columns padded by display width (`uniseg`) so emoji/CJK titles align.
 - `auth add/list`: shelved OAuth, hidden from help.
 
-## Sync engine ↔ UI message flow — M5/M10
+## Background polling — M10 (planned)
+
+Per-calendar polling needs a per-calendar sync on the seam, so M10 adds
+`app.SyncCalendar(ctx, CalendarInfo) SyncOutcome` (wrapping
+`engine.SyncOne`) rather than letting the UI reach the engine. Sketch:
 
 ```go
-type TickMsg struct{ CalendarID string }
-type SyncCompletedMsg struct{ CalendarID string; Upserted, Deleted int }
-type SyncErrorMsg struct{ CalendarID string; Err error }
-type CalendarUnavailableMsg struct{ CalendarID, Reason string } // from domain.CalendarUnavailableError
-
-func PollCmd(cal domain.Calendar, after time.Duration) tea.Cmd
-func SyncCmd(e *engine.Engine, acct domain.Account, cal domain.Calendar) tea.Cmd
-func InitialDelay(calendarID string, interval time.Duration) time.Duration // FNV-hash phase offset
+type pollMsg struct{ CalendarID string }                // ui-internal
+func pollCmd(cal app.CalendarInfo, after time.Duration) tea.Cmd
+func syncCalendarCmd(src Source, cal app.CalendarInfo) tea.Cmd // → syncDoneMsg-like result
+func InitialDelay(calendarID string, interval time.Duration) time.Duration // FNV-hash phase offset (app or ui)
 ```
 
 Since every iCal poll is a full download, the default poll interval for
@@ -296,9 +308,9 @@ Implementation decisions:
   returns `tea.View` (alt screen and window title are fields on it) and keys
   arrive as `KeyPressMsg`.
 - **Pure Update, I/O via `ui.Source`** (`Calendars`, `Events(from, to)`,
-  `Sync`), called only from `tea.Cmd`s. `cmd/clical/tui.go` adapts the store
-  and engine to it. The clock is model state advanced by a 30s tick, so tests
-  are deterministic.
+  `Sync`), called only from `tea.Cmd`s. `*app.App` implements it, so
+  `cmd/clical/tui.go` passes the app straight in. The clock is model state
+  advanced by a 30s tick, so tests are deterministic.
 - **Golden tests call `View()` directly** after feeding messages to `Update`,
   instead of `teatest`: the Elm split makes the program runtime unnecessary
   for snapshots, and it avoids timing flakiness. Goldens (`testdata/*.golden`,

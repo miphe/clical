@@ -13,8 +13,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/miphe/clical/internal/app"
 	"github.com/miphe/clical/internal/domain"
-	"github.com/miphe/clical/internal/engine"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
@@ -23,11 +23,11 @@ var update = flag.Bool("update", false, "rewrite golden files")
 // directly, which is the point of keeping Update pure.
 type nopSource struct{}
 
-func (nopSource) Calendars(context.Context) ([]CalendarRow, error) { return nil, nil }
+func (nopSource) Calendars(context.Context) ([]app.CalendarInfo, error) { return nil, nil }
 func (nopSource) Events(context.Context, time.Time, time.Time) ([]domain.Event, error) {
 	return nil, nil
 }
-func (nopSource) Sync(context.Context) ([]engine.Result, error) { return nil, nil }
+func (nopSource) Sync(context.Context) ([]app.SyncOutcome, error) { return nil, nil }
 
 var (
 	loc      = time.FixedZone("EEST", 3*3600)
@@ -36,6 +36,11 @@ var (
 	mainCal  = domain.Calendar{ID: "main", AccountID: "p", Name: "Main"}
 	holidays = domain.Calendar{ID: "hol", AccountID: "p", Name: "Holidays"}
 )
+
+var testCalendars = []app.CalendarInfo{
+	{Account: personal, Calendar: holidays},
+	{Account: personal, Calendar: mainCal},
+}
 
 func at(day, h, m int) time.Time { return time.Date(2026, 9, day, h, m, 0, 0, loc) }
 
@@ -87,7 +92,7 @@ func loaded(t *testing.T, width, height int) Model {
 	m.tick = 0
 	m, _ = send(t, m,
 		tea.WindowSizeMsg{Width: width, Height: height},
-		calendarsLoadedMsg{rows: []CalendarRow{{personal, holidays}, {personal, mainCal}}},
+		calendarsLoadedMsg{rows: testCalendars},
 		eventsLoadedMsg{from: m.from, days: m.days, events: testEvents()},
 		syncDoneMsg{at: at(29, 14, 29)},
 	)
@@ -226,9 +231,9 @@ func TestSyncFailureShownInFooter(t *testing.T) {
 	if !strings.Contains(screen(m), "Syncing…") {
 		t.Error("footer doesn't show Syncing… after r")
 	}
-	m, cmd := send(t, m, syncDoneMsg{at: at(29, 14, 31), results: []engine.Result{
-		{Account: personal, Calendar: mainCal, Err: &domain.CalendarUnavailableError{CalendarID: "main", Reason: "HTTP 404 Not Found"}},
-		{Account: personal, Calendar: holidays, Changed: true, Events: 1},
+	m, cmd := send(t, m, syncDoneMsg{at: at(29, 14, 31), results: []app.SyncOutcome{
+		{CalendarInfo: app.CalendarInfo{Account: personal, Calendar: mainCal}, Err: &domain.CalendarUnavailableError{CalendarID: "main", Reason: "HTTP 404 Not Found"}},
+		{CalendarInfo: app.CalendarInfo{Account: personal, Calendar: holidays}, Changed: true, Events: 1},
 	}})
 	if !strings.Contains(screen(m), "Personal · Main: feed URL no longer works") {
 		t.Errorf("footer doesn't show the dead feed:\n%s", screen(m))
@@ -377,7 +382,7 @@ func TestDefaultSelectionStaysOnTodayAfterItsLastEvent(t *testing.T) {
 	m.tick = 0
 	m, _ = send(t, m,
 		tea.WindowSizeMsg{Width: 100, Height: 24},
-		calendarsLoadedMsg{rows: []CalendarRow{{personal, holidays}, {personal, mainCal}}},
+		calendarsLoadedMsg{rows: testCalendars},
 		eventsLoadedMsg{from: m.from, days: m.days, events: testEvents()},
 	)
 	if got := selected(m); got != "2026-09-29 train" {

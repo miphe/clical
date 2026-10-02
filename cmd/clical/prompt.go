@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/miphe/clical/internal/secrets"
+	"github.com/miphe/clical/internal/app"
 )
 
 // promptHidden reads a line from the terminal without echoing it, for
@@ -32,14 +32,19 @@ func fixedPassphrase(passphrase string) func() (string, error) {
 	return func() (string, error) { return passphrase, nil }
 }
 
-// unlockVault opens the vault, prompting for its passphrase. If no vault
-// exists yet, the user chooses a new passphrase and must type it twice.
-func unlockVault() (*secrets.Vault, error) {
-	exists, err := secrets.Exists(vaultDir())
-	if err != nil {
-		return nil, err
-	}
+const noCalendarsHint = "No calendars yet. Add one with `clical calendars add --account <group> --name <name>`."
 
+func openApp() (*app.App, error) {
+	return app.Open(app.DefaultPaths())
+}
+
+// unlock prompts for the vault passphrase and unlocks a. If no vault exists
+// yet, the user chooses a new passphrase and must type it twice.
+func unlock(a *app.App) error {
+	exists, err := a.VaultExists()
+	if err != nil {
+		return err
+	}
 	var passphrase string
 	if exists {
 		passphrase, err = promptHidden("Vault passphrase: ")
@@ -48,14 +53,12 @@ func unlockVault() (*secrets.Vault, error) {
 		passphrase, err = choosePassphrase(promptHidden)
 	}
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	vault, err := secrets.Open(vaultDir(), fixedPassphrase(passphrase))
-	if err != nil {
-		return nil, fmt.Errorf("open vault: %w", err)
+	if err := a.Unlock(passphrase); err != nil {
+		return fmt.Errorf("open vault: %w", err)
 	}
-	return vault, nil
+	return nil
 }
 
 // choosePassphrase asks for a new passphrase twice and requires both to

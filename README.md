@@ -80,17 +80,20 @@ address leaks, use "Reset" next to it in Google Calendar, then
 
 ## Layout
 
-    cmd/clical/                  entry point, CLI wiring (kong)
-    internal/domain/             provider-agnostic models + CalendarProvider interface
-    internal/providers/ical/     iCal feed provider (primary)
-    internal/providers/google/   Google OAuth flow (shelved fallback)
-    internal/store/              SQLite cache + sync-token persistence
-    internal/engine/             sync engine: provider → store
-    internal/agenda/             pure day-grouping of events (CLI + TUI)
-    internal/secrets/            age-encrypted secret vault
-    internal/config/             YAML load/merge/watch
-    internal/theme/              theme structs, embedded defaults, resolver
-    internal/ui/                 Bubble Tea v2 TUI: model, view, agenda rows, keymap
+    cmd/clical/                  CLI commands, terminal prompts, starts the TUI    ┐ front-ends
+    internal/ui/                 Bubble Tea v2 TUI: model, view, agenda rows, keys ┘
+    internal/app/                the seam: the only API front-ends call
+    internal/engine/             sync engine: provider → store                     ┐
+    internal/providers/ical/     iCal feed provider (primary)                      │
+    internal/providers/google/   Google OAuth flow (shelved fallback)              │ core
+    internal/store/              SQLite cache + sync tokens                        │
+    internal/secrets/            age-encrypted secret vault                        │
+    internal/agenda/             pure day-grouping of events                       │
+    internal/domain/             provider-agnostic types                           ┘
+    internal/archtest/           test that enforces the layering
+
+How the layers fit, and where new code goes: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Notes for coding agents: [`AGENTS.md`](AGENTS.md).
 
 ## Status
 

@@ -1,11 +1,12 @@
-// Package ui is clical's full-screen terminal interface. It follows the Elm
-// architecture: Update is pure and never touches the network or disk — all
-// I/O goes through Source, called from tea.Cmds.
+// Package ui is clical's full-screen terminal interface — presentation only.
+// It follows the Elm architecture: Update is pure and never touches the
+// network or disk. Everything it knows about calendars comes through Source
+// (implemented by *app.App), called only from tea.Cmds. Calendar logic
+// belongs in internal/app, not here; see docs/ARCHITECTURE.md.
 package ui
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -13,21 +14,16 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/miphe/clical/internal/agenda"
+	"github.com/miphe/clical/internal/app"
 	"github.com/miphe/clical/internal/domain"
-	"github.com/miphe/clical/internal/engine"
 )
 
-// CalendarRow is a calendar together with the account it belongs to.
-type CalendarRow struct {
-	Account  domain.Account
-	Calendar domain.Calendar
-}
-
-// Source is everything the UI needs from the outside world.
+// Source is everything the UI needs from the rest of clical. *app.App
+// implements it; tests use a stub.
 type Source interface {
-	Calendars(ctx context.Context) ([]CalendarRow, error)
+	Calendars(ctx context.Context) ([]app.CalendarInfo, error)
 	Events(ctx context.Context, from, to time.Time) ([]domain.Event, error)
-	Sync(ctx context.Context) ([]engine.Result, error)
+	Sync(ctx context.Context) ([]app.SyncOutcome, error)
 }
 
 const (
@@ -47,7 +43,7 @@ const (
 
 type (
 	calendarsLoadedMsg struct {
-		rows []CalendarRow
+		rows []app.CalendarInfo
 		err  error
 	}
 	eventsLoadedMsg struct {
@@ -58,7 +54,7 @@ type (
 	}
 	syncDoneMsg struct {
 		at      time.Time
-		results []engine.Result
+		results []app.SyncOutcome
 		err     error
 	}
 	tickMsg time.Time
@@ -74,7 +70,7 @@ type Model struct {
 
 	width, height int
 
-	calendars        []CalendarRow
+	calendars        []app.CalendarInfo
 	colors           map[string]int // calendar ID → palette index
 	hidden           map[string]bool
 	sidebarCursor    int
@@ -223,13 +219,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncFailures = nil
 		changed := false
 		for _, r := range msg.results {
-			var unavailable *domain.CalendarUnavailableError
-			switch {
-			case errors.As(r.Err, &unavailable):
-				m.syncFailures = append(m.syncFailures, fmt.Sprintf("%s · %s: feed URL no longer works", r.Account.Label, r.Calendar.Name))
-			case r.Err != nil:
-				m.syncFailures = append(m.syncFailures, fmt.Sprintf("%s · %s: %v", r.Account.Label, r.Calendar.Name, r.Err))
-			case r.Changed:
+			if _, ok := r.Unavailable(); ok {
+				m.syncFailures = append(m.syncFailures, r.Label()+": feed URL no longer works")
+			} else if r.Err != nil {
+				m.syncFailures = append(m.syncFailures, fmt.Sprintf("%s: %v", r.Label(), r.Err))
+			} else if r.Changed {
 				changed = true
 			}
 		}

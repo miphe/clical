@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/miphe/clical/internal/app"
 	"github.com/miphe/clical/internal/providers/google"
 	"github.com/miphe/clical/internal/secrets"
 	"github.com/miphe/clical/internal/store"
@@ -12,6 +13,9 @@ import (
 
 // AuthCmd is the shelved Google OAuth flow, hidden from help. It's kept as the
 // fallback for calendars whose Workspace admin has disabled secret iCal URLs.
+// It predates internal/app and still talks to the store and vault directly —
+// the one exemption in internal/archtest. If it's revived, move its logic
+// into app first.
 type AuthCmd struct {
 	Add  AuthAddCmd  `cmd:"" help:"Authenticate a new Google account."`
 	List AuthListCmd `cmd:"" help:"List connected accounts."`
@@ -29,7 +33,7 @@ func (c *AuthAddCmd) Run() error {
 	if err != nil {
 		return err
 	}
-	vault, err := secrets.Open(vaultDir(), fixedPassphrase(passphrase))
+	vault, err := secrets.Open(app.DefaultPaths().Vault, fixedPassphrase(passphrase))
 	if err != nil {
 		return fmt.Errorf("open vault: %w", err)
 	}
@@ -45,7 +49,7 @@ func (c *AuthAddCmd) Run() error {
 		return fmt.Errorf("authenticate: %w", err)
 	}
 
-	db, err := store.Open(dbPath())
+	db, err := store.Open(app.DefaultPaths().DB)
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)
 	}
@@ -63,7 +67,7 @@ func (c *AuthAddCmd) Run() error {
 type AuthListCmd struct{}
 
 func (c *AuthListCmd) Run() error {
-	db, err := store.Open(dbPath())
+	db, err := store.Open(app.DefaultPaths().DB)
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)
 	}
@@ -82,7 +86,7 @@ func (c *AuthListCmd) Run() error {
 	if err != nil {
 		return err
 	}
-	vault, err := secrets.Open(vaultDir(), fixedPassphrase(passphrase))
+	vault, err := secrets.Open(app.DefaultPaths().Vault, fixedPassphrase(passphrase))
 	if err != nil {
 		return fmt.Errorf("open vault: %w", err)
 	}

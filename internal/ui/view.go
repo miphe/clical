@@ -230,7 +230,7 @@ func (m Model) renderItem(r row, selected bool, width int) string {
 func (m Model) labelWidth() int {
 	w := 0
 	for _, cr := range m.calendars {
-		w = max(w, ansi.StringWidth(cr.Account.Label+" · "+cr.Calendar.Name))
+		w = max(w, ansi.StringWidth(cr.Label()))
 	}
 	return min(w, 28)
 }
@@ -240,8 +240,7 @@ func (m Model) calendarLabel(calendarID string) string {
 	if !ok || i >= len(m.calendars) {
 		return ""
 	}
-	cr := m.calendars[i]
-	return cr.Account.Label + " · " + cr.Calendar.Name
+	return m.calendars[i].Label()
 }
 
 // Event detail.

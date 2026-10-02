@@ -10,11 +10,10 @@ import (
 
 	"github.com/miphe/clical/internal/agenda"
 	"github.com/miphe/clical/internal/domain"
-	"github.com/miphe/clical/internal/store"
 )
 
 // AgendaCmd prints upcoming events from the local cache as plain text. It
-// reads only the store, so no passphrase or network is needed.
+// needs no passphrase or network.
 type AgendaCmd struct {
 	Days int `default:"14" help:"Number of days to show, starting today."`
 }
@@ -24,23 +23,27 @@ func (c *AgendaCmd) Run() error {
 		return fmt.Errorf("--days must be at least 1")
 	}
 
-	db, err := store.Open(dbPath())
-	if err != nil {
-		return fmt.Errorf("open store: %w", err)
-	}
-	defer db.Close()
-
-	ctx := context.Background()
-	labels, err := calendarLabels(ctx, db)
+	a, err := openApp()
 	if err != nil {
 		return err
+	}
+	defer a.Close()
+
+	ctx := context.Background()
+	cals, err := a.Calendars(ctx)
+	if err != nil {
+		return err
+	}
+	labels := make(map[string]string, len(cals))
+	for _, cal := range cals {
+		labels[cal.Calendar.ID] = cal.Label()
 	}
 
 	loc := time.Local
 	today := domain.CivilDateFromTime(time.Now().In(loc))
 	from, to := today.In(loc), today.AddDays(c.Days).In(loc)
 
-	events, err := db.EventsInRange(ctx, from, to)
+	events, err := a.Events(ctx, from, to)
 	if err != nil {
 		return err
 	}
@@ -90,25 +93,4 @@ func (c *AgendaCmd) Run() error {
 // padRight pads s with spaces to width terminal cells.
 func padRight(s string, width int) string {
 	return s + strings.Repeat(" ", max(0, width-uniseg.StringWidth(s)))
-}
-
-// calendarLabels maps calendar ID to "Account · Calendar".
-func calendarLabels(ctx context.Context, db *store.Store) (map[string]string, error) {
-	accounts, err := db.ListAccounts(ctx)
-	if err != nil {
-		return nil, err
-	}
-	acctLabel := make(map[string]string, len(accounts))
-	for _, a := range accounts {
-		acctLabel[a.ID] = a.Label
-	}
-	cals, err := db.ListCalendars(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[string]string, len(cals))
-	for _, cal := range cals {
-		out[cal.ID] = acctLabel[cal.AccountID] + " · " + cal.Name
-	}
-	return out, nil
 }
