@@ -20,8 +20,9 @@ import (
 
 var update = flag.Bool("update", false, "rewrite golden files")
 
-// The UI never calls the source in these tests: messages are fed to Update
-// directly, which is the point of keeping Update pure.
+// Most tests never call the source: messages are fed to Update directly,
+// which is the point of keeping Update pure. Tests that run a command to see
+// what it asks for use fakeSource's recording and canned answers.
 type nopSource struct{}
 
 func (nopSource) Calendars(context.Context) ([]app.CalendarInfo, error) { return nil, nil }
@@ -29,13 +30,48 @@ func (nopSource) Events(context.Context, time.Time, time.Time) ([]domain.Event, 
 	return nil, nil
 }
 func (nopSource) Sync(context.Context) ([]app.SyncOutcome, error) { return nil, nil }
+func (nopSource) SyncCalendar(_ context.Context, c app.CalendarInfo) app.SyncOutcome {
+	return app.SyncOutcome{CalendarInfo: c}
+}
+func (nopSource) CheckFeed(context.Context, string) (app.Feed, error) { return app.Feed{}, nil }
+func (nopSource) AddCalendar(context.Context, string, string, app.Feed) (app.CalendarInfo, error) {
+	return app.CalendarInfo{}, nil
+}
+func (nopSource) RemoveCalendar(context.Context, app.CalendarInfo) error { return nil }
+
+type fakeSource struct {
+	nopSource
+	checkErr  error
+	removeErr error
+	checked   []string
+	added     []string // "account/name"
+	removed   []string
+}
+
+func (f *fakeSource) CheckFeed(_ context.Context, raw string) (app.Feed, error) {
+	f.checked = append(f.checked, raw)
+	return app.Feed{Events: 3}, f.checkErr
+}
+
+func (f *fakeSource) AddCalendar(_ context.Context, account, name string, _ app.Feed) (app.CalendarInfo, error) {
+	f.added = append(f.added, account+"/"+name)
+	return app.CalendarInfo{
+		Account:  domain.Account{ID: "acct-" + account, Label: account},
+		Calendar: domain.Calendar{ID: "new", AccountID: "acct-" + account, Name: name, ColorSlot: 3},
+	}, nil
+}
+
+func (f *fakeSource) RemoveCalendar(_ context.Context, c app.CalendarInfo) error {
+	f.removed = append(f.removed, c.Calendar.ID)
+	return f.removeErr
+}
 
 var (
 	loc      = time.FixedZone("EEST", 3*3600)
 	testNow  = time.Date(2026, 9, 29, 14, 30, 0, 0, loc)
 	personal = domain.Account{ID: "p", Provider: "ical", Label: "Personal"}
-	mainCal  = domain.Calendar{ID: "main", AccountID: "p", Name: "Main"}
-	holidays = domain.Calendar{ID: "hol", AccountID: "p", Name: "Holidays"}
+	mainCal  = domain.Calendar{ID: "main", AccountID: "p", Name: "Main", ColorSlot: 1}
+	holidays = domain.Calendar{ID: "hol", AccountID: "p", Name: "Holidays", ColorSlot: 2}
 )
 
 var testCalendars = []app.CalendarInfo{
@@ -211,7 +247,7 @@ func TestSelectionSurvivesReload(t *testing.T) {
 
 func TestSidebarToggleHidesCalendar(t *testing.T) {
 	m := loaded(t, 100, 24)
-	m, _ = send(t, m, press("h"), press("space")) // cursor starts on Holidays
+	m, _ = send(t, m, press("h"), press("j"), press("space")) // header, then Holidays
 	for _, r := range m.rows {
 		if r.kind == rowItem && r.item.Event.CalendarID == "hol" {
 			t.Fatal("Holidays event still shown after hiding the calendar")
@@ -645,4 +681,222 @@ func TestPanelTopFitsAndDegrades(t *testing.T) {
 	if !strings.Contains(top, "[2] Week") || strings.Contains(top, "Week 40") {
 		t.Errorf("narrow top = %q, want tabs kept and right text dropped", top)
 	}
+}
+
+// manyCalendars returns n calendars split over two accounts.
+func manyCalendars(n int) []app.CalendarInfo {
+	work := domain.Account{ID: "w", Provider: "ical", Label: "Work"}
+	var out []app.CalendarInfo
+	for i := 0; i < n; i++ {
+		acct := personal
+		if i >= n/2 {
+			acct = work
+		}
+		out = append(out, app.CalendarInfo{Account: acct, Calendar: domain.Calendar{
+			ID: fmt.Sprintf("c%02d", i), AccountID: acct.ID, Name: fmt.Sprintf("Calendar %02d", i), ColorSlot: i + 1,
+		}})
+	}
+	return out
+}
+
+func withCalendars(t *testing.T, m Model, cals []app.CalendarInfo) Model {
+	t.Helper()
+	m, _ = send(t, m, calendarsLoadedMsg{rows: cals})
+	return m
+}
+
+func typeText(t *testing.T, m Model, s string) Model {
+	t.Helper()
+	for _, r := range s {
+		m, _ = send(t, m, tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+	return m
+}
+
+func TestSidebarScrollsToCursor(t *testing.T) {
+	m := withCalendars(t, loaded(t, 100, 14), manyCalendars(20))
+	m, _ = send(t, m, press("h"), press("G"))
+	sc := screen(m)
+	if !strings.Contains(sc, "Calendar 19") {
+		t.Errorf("last calendar not scrolled into view after G:\n%s", sc)
+	}
+	if !strings.Contains(sc, "22 of 22") { // 20 calendars + 2 account headers
+		t.Errorf("no scroll position in the sidebar title:\n%s", sc)
+	}
+	m, _ = send(t, m, press("g"))
+	if sc := screen(m); !strings.Contains(sc, "Personal (10)") {
+		t.Errorf("first row not back in view after g:\n%s", sc)
+	}
+}
+
+func TestSidebarFoldAndToggleAccount(t *testing.T) {
+	m := withCalendars(t, loaded(t, 100, 24), manyCalendars(4))
+	m, _ = send(t, m, press("h")) // cursor on the Personal header
+
+	m, _ = send(t, m, press("enter"))
+	if sc := screen(m); strings.Contains(sc, "Calendar 00") || !strings.Contains(sc, "▸ Personal (2)") {
+		t.Errorf("enter on the header didn't fold Personal:\n%s", sc)
+	}
+	if r, _ := m.selectedSidebarRow(); r.kind != sideAccount {
+		t.Error("cursor left the header after folding")
+	}
+	m, _ = send(t, m, press("enter"))
+	if sc := screen(m); !strings.Contains(sc, "Calendar 00") {
+		t.Errorf("enter again didn't unfold Personal:\n%s", sc)
+	}
+
+	m, _ = send(t, m, press("space"))
+	if !m.hidden["c00"] || !m.hidden["c01"] || m.hidden["c02"] {
+		t.Errorf("space on the header hid %v; want both Personal calendars and nothing else", m.hidden)
+	}
+	m, _ = send(t, m, press("space"))
+	if m.hidden["c00"] || m.hidden["c01"] {
+		t.Error("space again didn't show Personal's calendars")
+	}
+}
+
+func TestCalendarColorsFollowSlotsAndStayDistinct(t *testing.T) {
+	seen := map[string]int{}
+	for slot := 1; slot <= 40; slot++ {
+		key := fmt.Sprint(calendarColor(slot))
+		if prev, dup := seen[key]; dup {
+			t.Errorf("slots %d and %d share a color", prev, slot)
+		}
+		seen[key] = slot
+	}
+
+	// A calendar's color comes from its slot, not its place in the list.
+	m := withCalendars(t, loaded(t, 100, 24), []app.CalendarInfo{
+		{Account: personal, Calendar: domain.Calendar{ID: "x", AccountID: "p", Name: "X", ColorSlot: 5}},
+	})
+	if m.calendarColor("x") != calendarColor(5) {
+		t.Error("calendar color doesn't come from its slot")
+	}
+}
+
+func TestAddCalendarFromTheTUI(t *testing.T) {
+	src := &fakeSource{}
+	m := loaded(t, 100, 24)
+	m.src = src
+
+	m, _ = send(t, m, press("a"))
+	if m.form == nil || m.form.inputs[fieldAccount].Value() != "Personal" || m.form.focus != fieldName {
+		t.Fatal("a didn't open the form with the account filled in and the name focused")
+	}
+	m = typeText(t, m, "Family q") // q types, it doesn't quit
+	m, _ = send(t, m, press("enter"))
+	secret := "https://calendar.google.com/calendar/ical/x/private-s3cr3t/basic.ics"
+	m, _ = send(t, m, tea.PasteMsg{Content: secret})
+	if strings.Contains(screen(m), "s3cr3t") {
+		t.Fatal("the secret URL is visible on screen")
+	}
+
+	m, cmd := send(t, m, press("enter"))
+	if !m.form.checking || cmd == nil || !strings.Contains(screen(m), "Checking") {
+		t.Fatal("submitting didn't start the feed check")
+	}
+	msg := cmd()
+	if len(src.checked) != 1 || src.checked[0] != secret || len(src.added) != 1 || src.added[0] != "Personal/Family q" {
+		t.Fatalf("checked %v, added %v", src.checked, src.added)
+	}
+
+	m, cmd = send(t, m, msg)
+	if m.form != nil || !m.syncing || cmd == nil {
+		t.Fatal("after adding: want the form closed and the new calendar syncing")
+	}
+	if m.side.sel != "calendar|new" {
+		t.Errorf("sidebar selection = %q, want the new calendar", m.side.sel)
+	}
+}
+
+func TestAddFormValidatesAndShowsFeedErrors(t *testing.T) {
+	m := loaded(t, 100, 24)
+	m, _ = send(t, m, press("a"), press("enter"), press("enter")) // name → URL → submit
+	if m.form.err != "Calendar name is required." || m.form.focus != fieldName {
+		t.Errorf("empty name: err %q focus %d", m.form.err, m.form.focus)
+	}
+
+	m = typeText(t, m, "Main")
+	m, _ = send(t, m, press("enter"))
+	m = typeText(t, m, "https://x.test/a.ics")
+	m, _ = send(t, m, press("enter"),
+		addDoneMsg{err: &domain.CalendarUnavailableError{Reason: "HTTP 404 Not Found"}})
+	if m.form == nil || m.form.checking {
+		t.Fatal("a failed check closed the form or left it checking")
+	}
+	if sc := screen(m); !strings.Contains(sc, "That URL doesn't work (HTTP 404 Not Found)") {
+		t.Errorf("feed error not shown in the form:\n%s", sc)
+	}
+
+	m, _ = send(t, m, press("esc"))
+	if m.form != nil {
+		t.Error("esc didn't close the form")
+	}
+}
+
+func TestRemoveCalendarFromTheTUI(t *testing.T) {
+	src := &fakeSource{}
+	m := loaded(t, 100, 24)
+	m.src = src
+	m, _ = send(t, m, press("h"), press("j"), press("d")) // Holidays
+	if m.confirmRemove == nil || !strings.Contains(screen(m), "Remove Personal · Holidays?") {
+		t.Fatalf("d didn't ask to remove Holidays:\n%s", screen(m))
+	}
+	m, _ = send(t, m, press("n"))
+	if m.confirmRemove != nil || len(src.removed) != 0 {
+		t.Fatal("n didn't cancel")
+	}
+
+	m, _ = send(t, m, press("d"))
+	m, cmd := send(t, m, press("y"))
+	if cmd == nil || !strings.Contains(screen(m), "Removing") {
+		t.Fatal("y didn't start removing")
+	}
+	m, cmd = send(t, m, cmd())
+	if len(src.removed) != 1 || src.removed[0] != "hol" || cmd == nil {
+		t.Errorf("removed %v (reload cmd %v); want hol and a reload", src.removed, cmd != nil)
+	}
+
+	src.removeErr = errors.New("disk full")
+	m, _ = send(t, m, press("d"), press("y"))
+	m, _ = send(t, m, removeDoneMsg{err: src.removeErr})
+	if !strings.Contains(screen(m), "disk full") {
+		t.Error("a failed removal isn't reported")
+	}
+}
+
+func TestEmptyStateInvitesAdding(t *testing.T) {
+	m := New(nopSource{}, loc, testNow)
+	m.tick = 0
+	m, _ = send(t, m, tea.WindowSizeMsg{Width: 100, Height: 24}, calendarsLoadedMsg{rows: nil})
+	sc := screen(m)
+	if !strings.Contains(sc, "No calendars yet.") || !strings.Contains(sc, "a add one") {
+		t.Errorf("empty sidebar doesn't explain how to add a calendar:\n%s", sc)
+	}
+	if m, _ = send(t, m, press("a")); m.form == nil || m.form.focus != fieldAccount {
+		t.Error("a with no calendars should open the form on the account field")
+	}
+}
+
+func TestPopupsFitTheWindow(t *testing.T) {
+	for _, size := range [][2]int{{100, 24}, {56, 16}, {30, 12}} {
+		m := loaded(t, size[0], size[1])
+		form, _ := send(t, m, press("a"))
+		confirm, _ := send(t, m, press("h"), press("j"), press("d"))
+		for name, mm := range map[string]Model{"form": form, "confirm": confirm} {
+			for i, l := range strings.Split(mm.View().Content, "\n") {
+				if w := ansi.StringWidth(l); w != size[0] {
+					t.Errorf("%s %dx%d line %d width %d: %q", name, size[0], size[1], i, w, ansi.Strip(l))
+				}
+			}
+		}
+	}
+}
+
+func TestGoldenPopups(t *testing.T) {
+	m := loaded(t, 100, 24)
+	form, _ := send(t, m, press("a"))
+	golden(t, "add_form", screen(form))
+	confirm, _ := send(t, m, press("h"), press("j"), press("d"))
+	golden(t, "remove_confirm", screen(confirm))
 }

@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS calendars (
 	id             TEXT NOT NULL,
 	account_id     TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
 	name           TEXT NOT NULL,
-	color          TEXT NOT NULL,
+	color          TEXT NOT NULL, -- color slot as decimal text; '' = unassigned
 	sync_token     TEXT,
 	last_synced_at INTEGER,
 	PRIMARY KEY (account_id, id)

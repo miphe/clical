@@ -32,6 +32,7 @@ multi-account merge → config/themes → in-process background polling.
 | M5 | TUI shell, Agenda view, event detail, calendar toggles | Done |
 | — | Application layer `internal/app` + enforced layering (`internal/archtest`) | Done |
 | M6 | Week view | Done |
+| — | Many calendars: scrolling/foldable list, permanent colors, add/remove in the TUI | Done |
 | M7–M11 | Month view, help, filter, config/themes, polling | Not started |
 
 Deferred (2026-09-29): the **work** (Google Workspace) calendar. Focus is the
@@ -378,6 +379,52 @@ Implementation decisions:
 - Core addition: `agenda.WeekStart(day, first)` and `CivilDate.Weekday()`.
   Grouping a week is just `agenda.Build(events, start, 7, loc)`.
 
+## Many calendars, and managing them in the TUI — done
+
+**Scaling the list** (`internal/ui/sidebar.go`):
+- The calendar list is rows of two kinds: account headers (`▾ Personal (3)`)
+  and calendars. It scrolls to keep the cursor visible, and the bottom
+  border shows the position (`12 of 22`) when the list overflows.
+- `enter` on a header folds or unfolds that account. `space` on a header
+  shows or hides all its calendars (if any is shown, all are hidden). On a
+  calendar row, `space`/`enter` toggle just that one.
+- The cursor is keyed by row, not index, so it survives reloads, folding
+  and collapsing (falling back to the calendar's account header).
+
+**Permanent colors:**
+- `domain.Calendar.ColorSlot` (1-based; 0 = unassigned) replaces the unused
+  `Color` hex field. It's stored as decimal text in the existing `color`
+  column (`''` = unassigned), so no migration was needed.
+- `app` assigns slots: the lowest free one when adding, kept when a feed
+  is re-added, freed on removal (and reused first). Calendars from before
+  slots existed are backfilled in list order on `app.Open`.
+- Before, colors followed list order, so adding a calendar that sorted
+  earlier shifted every color below it.
+- The UI maps slots to colors: 1–12 use the terminal's six normal and six
+  bright colors (following its theme), and later slots get generated hues
+  (go-colorful HCL, golden-angle hue steps, mid lightness for light and
+  dark backgrounds).
+
+**Adding and removing in the TUI** (`internal/ui/form.go`, `overlay.go`):
+- `a` (anywhere outside a popup) opens an "Add calendar" popup over the
+  screen: account (prefilled from the sidebar cursor), name, and secret URL.
+  The URL is masked with `•`, and pasting works (bracketed paste routes to
+  the form). The popup takes every key while open, so typing `q` types `q`.
+- `enter` advances fields and submits from the last one. The feed check and
+  save run in a command (activity slot: `Checking`); failures show in the
+  form with the same advice as the CLI, so the user can fix the URL.
+- On success the popup closes, the new calendar is selected in the sidebar
+  and synced on its own via the new `app.SyncCalendar`.
+- `d` on a calendar row opens a y/N popup; `y` removes it (activity:
+  `Removing`) and reloads. A failure shows on the right of the status line.
+- `clical` now opens with no calendars at all; the sidebar says
+  `No calendars yet. / a add one`.
+- `ui.Source` gained `SyncCalendar`, `CheckFeed`, `AddCalendar` and
+  `RemoveCalendar`, all implemented by `*app.App`.
+
+Not done (yet): rename, or replacing a calendar's URL from the TUI (the CLI
+has `calendars set-url`).
+
 ## Panels (`internal/ui/panel.go`) — done
 
 lazygit-style panels: the calendar list, the main view and the event detail
@@ -395,7 +442,8 @@ two rows and make them compete with the panels.
   didn't lose height to the borders.
 - **Degrading:** when the top edge is too narrow, the right-hand text goes
   first, then titles are truncated; a collapsed sidebar has no title.
-- `panel(width, height, focused, tabs, right, content)` is the one helper;
+- `panel(width, height, frame{focused, tabs, right, bottom}, content)` is
+  the one helper (`bottom` is a bottom-right label, e.g. a list position);
   views render only their inside area.
 
 ## Activity indicator (`internal/ui/activity.go`) — done
@@ -489,7 +537,7 @@ to the first match, Esc clears.
 | M5 | Bubble Tea shell: sidebar + main pane + footer; Agenda; event detail; calendar toggles; golden snapshots | `internal/ui/model.go`, `view.go`, `rows.go`, `keymap.go`, `styles.go`, `cmd/clical/tui.go` | Done |
 | M6 | Week view (day-list columns), view switching that keeps the current day | `internal/ui/week.go`, `internal/ui/weekview.go`, `internal/agenda` (`WeekStart`) | Done |
 | M7 | Month view ("+N more", Enter → Agenda); shared `uniseg` width/truncation helper | `internal/ui/month.go`, `internal/ui/textwidth.go` | |
-| M8 | Theme-assigned colors, "/" filter, "?" help (multi-account merge and toggles already work) | `internal/theme/resolve.go`, `internal/ui/search.go`, `internal/ui/help.go` | |
+| M8 | Theme-assigned colors, "/" filter, "?" help (multi-account merge, toggles, permanent color slots already done) | `internal/theme/resolve.go`, `internal/ui/search.go`, `internal/ui/help.go` | |
 | M9 | YAML config + themes, mergo defaults, fsnotify hot-reload (config/theme only) | `internal/config/`, `internal/theme/` | |
 | M10 | In-process polling (default 5 min for iCal), jittered per calendar | `internal/engine/scheduler.go`, `internal/engine/jitter.go` | |
 | M11 | Revoked-feed flow in the TUI, `--logs` tail, cross-compile check | `internal/ui/revoked.go`, `cmd/clical/logs.go` | |

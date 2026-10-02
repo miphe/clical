@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -20,16 +18,9 @@ func (c *TUICmd) Run() error {
 	}
 	defer a.Close()
 
-	cals, err := a.Calendars(context.Background())
-	if err != nil {
-		return err
-	}
-	if len(cals) == 0 {
-		fmt.Println(noCalendarsHint)
-		return nil
-	}
 	// Unlocked once, before the TUI takes over the terminal; the passphrase
-	// then lives in memory for the session.
+	// then lives in memory for the session. With no calendars yet the TUI
+	// still opens, so they can be added from inside it.
 	if err := unlock(a); err != nil {
 		return err
 	}

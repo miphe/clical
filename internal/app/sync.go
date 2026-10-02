@@ -46,3 +46,13 @@ func (a *App) Sync(ctx context.Context) ([]SyncOutcome, error) {
 	}
 	return out, nil
 }
+
+// SyncCalendar syncs one calendar — e.g. one just added — without touching
+// the others.
+func (a *App) SyncCalendar(ctx context.Context, cal CalendarInfo) SyncOutcome {
+	if a.engine == nil {
+		return SyncOutcome{CalendarInfo: cal, Err: ErrLocked}
+	}
+	r := a.engine.SyncOne(ctx, cal.Account, cal.Calendar)
+	return SyncOutcome{CalendarInfo: cal, Changed: r.Changed, Events: r.Events, Err: r.Err}
+}

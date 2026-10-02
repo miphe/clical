@@ -170,7 +170,7 @@ func (m Model) weekItemLines(date domain.CivilDate, it agenda.Item, width int, a
 		return []string{dimStyle.Render(fit(plainWhen, width)), dimStyle.Render(fit(it.Event.Title, width))}
 	}
 
-	color := lipgloss.NewStyle().Foreground(calendarColor(m.colors[it.Event.CalendarID]))
+	color := lipgloss.NewStyle().Foreground(m.calendarColor(it.Event.CalendarID))
 	first := color.Render(fit(when, width))
 	if bullet {
 		first = fit(color.Render("●")+" "+dimStyle.Render(when), width)

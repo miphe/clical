@@ -1,7 +1,7 @@
 ╭─ Calendars ────────────╮╭─ [1] Agenda ─ [2] Week ───────────────────────── 29 Sep – 28 Oct 2026 ─╮
-│ Personal               ││ ▸ Tue 29 Sep · today                                                   │
-│  ● Holidays            ││    ● all day      Name day                          Personal · Main    │
-│  ● Main                ││    ● 09:00–09:30  Standup                           Personal · Main    │
+│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                   │
+│   ● Holidays           ││    ● all day      Name day                          Personal · Main    │
+│   ● Main               ││    ● 09:00–09:30  Standup                           Personal · Main    │
 │                        ││    ── now 14:30 ───────────────────────────────────────────────────────│
 │                        ││    ● 15:00–16:00  Dentist                           Personal · Main    │
 │                        ││    ● 23:00–…      Night train                       Personal · Main    │
@@ -20,5 +20,5 @@
 │                        ││                                                                        │
 │                        ││   Sat 3 Oct                                                            │
 ╰────────────────────────╯╰────────────────────────────────────────────────────────────────────────╯
- j/k move · space show/hide · c collapse · l back · q quit                                          
+ space show/hide · enter fold · a add · d remove · c collapse · l back · q quit                     
  ◦ Idle        Tue 29 Sep 14:30                                                        Synced 14:29 

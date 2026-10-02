@@ -22,10 +22,18 @@ type tab struct {
 	active bool
 }
 
-// panel draws content inside a width×height box. tabs go top-left (a single
-// tab is just a title), right goes top-right if there's room. content lines
-// are fitted to the inner width and padded to the inner height.
-func panel(width, height int, focused bool, tabs []tab, right string, content []string) []string {
+// frame is what a panel shows around its content.
+type frame struct {
+	focused bool
+	tabs    []tab  // top-left; a single tab is just a title
+	right   string // top-right, if there's room
+	bottom  string // bottom-right, e.g. a list position "3 of 15"
+}
+
+// panel draws content inside a width×height box. content lines are fitted to
+// the inner width and padded to the inner height.
+func panel(width, height int, f frame, content []string) []string {
+	focused, tabs, right := f.focused, f.tabs, f.right
 	if width < 2 || height < 2 {
 		return padLines(nil, height, max(width, 0))
 	}
@@ -44,8 +52,19 @@ func panel(width, height int, focused bool, tabs []tab, right string, content []
 		}
 		lines = append(lines, border.Render("│")+fit(line, inner)+border.Render("│"))
 	}
-	lines = append(lines, border.Render("╰"+strings.Repeat("─", inner)+"╯"))
+	lines = append(lines, panelBottom(inner, border, f.bottom))
 	return lines
+}
+
+func panelBottom(inner int, border lipgloss.Style, label string) string {
+	if label != "" {
+		label = " " + dimStyle.Render(label) + " "
+	}
+	if label == "" || ansi.StringWidth(label)+2 > inner {
+		return border.Render("╰" + strings.Repeat("─", max(inner, 0)) + "╯")
+	}
+	fill := inner - 1 - ansi.StringWidth(label)
+	return border.Render("╰"+strings.Repeat("─", fill)) + label + border.Render("─╯")
 }
 
 // panelTop renders "╭─ Title ─ Other ──── right ─╮" in exactly inner+2 cells,

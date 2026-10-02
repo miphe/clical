@@ -60,13 +60,19 @@ type App struct {
 	engine *engine.Engine
 }
 
-// Open opens the data directory, creating it if needed.
+// Open opens the data directory, creating it if needed. Calendars added
+// before color slots existed get one here.
 func Open(p Paths) (*App, error) {
 	s, err := store.Open(p.DB)
 	if err != nil {
 		return nil, fmt.Errorf("open store: %w", err)
 	}
-	return &App{paths: p, store: s}, nil
+	a := &App{paths: p, store: s}
+	if err := a.assignMissingSlots(context.Background()); err != nil {
+		s.Close()
+		return nil, err
+	}
+	return a, nil
 }
 
 // Close releases the store.

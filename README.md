@@ -21,6 +21,11 @@ Full rationale in [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Adding a calendar
 
+The easiest way is inside clical: open it with `clical` and press `a`. Fill
+in the account (a group name such as Personal or Work), a name, and the
+secret iCal URL (see step 2 below for where to find it). The URL is masked
+on screen and checked before it's saved. Or use the command line:
+
 Until there's a release, run clical from the repo with `go run ./cmd/clical`
 (or `go install ./cmd/clical` to get a `clical` binary on your `PATH`).
 
@@ -55,7 +60,10 @@ For each Google calendar you want in clical:
 | `t` | Back to today |
 | `r` | Sync now |
 | `h` / `l` | Focus the calendar list / back (in the week view, `h` on Monday) |
-| `space` (calendar list) | Show or hide a calendar |
+| `a` | Add a calendar |
+| `d` (calendar list) | Remove the selected calendar (asks first) |
+| `space` (calendar list) | Show or hide a calendar, or all of an account's calendars |
+| `enter` (calendar list) | Fold or unfold an account |
 | `c` (calendar list) | Collapse or expand the calendar list |
 | `q` | Quit |
 

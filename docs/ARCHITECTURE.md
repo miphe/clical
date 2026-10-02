@@ -101,14 +101,16 @@ Some concrete cases:
   `CheckFeed`.
 - **`app.Feed` can only come from `CheckFeed`,** so no front-end can store an
   unchecked URL.
-- **`Events` never touches the network;** only `Sync` does.
+- **`Events` never touches the network;** only `Sync`/`SyncCalendar` do.
+- **Colors are slots, not colors.** `app` gives each calendar a permanent
+  `ColorSlot`; each front-end decides what color a slot is.
 
 ## How the TUI stays a pure presentation layer
 
 `internal/ui` follows the Elm architecture. `Update` is pure: it changes the
 model and returns commands, and never does I/O. All I/O goes through
-`ui.Source`, an interface *defined by the UI* with three methods:
-`Calendars`, `Events` and `Sync`. `*app.App` satisfies it, and
+`ui.Source`, an interface *defined by the UI*: `Calendars`, `Events`,
+`Sync`, `SyncCalendar`, `CheckFeed`, `AddCalendar` and `RemoveCalendar`. `*app.App` satisfies it, and
 `cmd/clical/tui.go` passes the app straight in. Tests use a stub `Source`,
 feed messages into `Update`, and snapshot `View()` against golden files.
 

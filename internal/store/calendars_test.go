@@ -144,3 +144,30 @@ func TestResetSyncToken(t *testing.T) {
 		t.Errorf("SyncToken() after reset = %q, %v; want empty", tok, err)
 	}
 }
+
+func TestColorSlotRoundTrip(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	if err := s.UpsertAccount(ctx, domain.Account{ID: "a", Provider: "ical", Label: "A"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []domain.Calendar{
+		{ID: "unset", AccountID: "a", Name: "Unset"},
+		{ID: "seven", AccountID: "a", Name: "Seven", ColorSlot: 7},
+	} {
+		if err := s.UpsertCalendar(ctx, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cals, err := s.ListCalendars(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int{}
+	for _, c := range cals {
+		got[c.ID] = c.ColorSlot
+	}
+	if got["unset"] != 0 || got["seven"] != 7 {
+		t.Errorf("slots = %v, want unset:0 seven:7", got)
+	}
+}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -39,8 +40,17 @@ func (a *App) AddCalendar(ctx context.Context, account, name string, feed Feed) 
 	if a.vault == nil {
 		return CalendarInfo{}, ErrLocked
 	}
+	if strings.TrimSpace(account) == "" || strings.TrimSpace(name) == "" {
+		return CalendarInfo{}, errors.New("account and calendar name must not be empty")
+	}
 	acct := domain.Account{ID: domain.NewAccountID("ical", account), Provider: "ical", Label: account}
 	cal := domain.Calendar{ID: ical.CalendarID(feed.url), AccountID: acct.ID, Name: name}
+
+	existing, err := a.Calendars(ctx)
+	if err != nil {
+		return CalendarInfo{}, err
+	}
+	cal.ColorSlot = slotFor(existing, cal)
 
 	if err := a.vault.SaveSecret(ical.SecretKey(cal.ID), []byte(feed.url)); err != nil {
 		return CalendarInfo{}, fmt.Errorf("save feed URL: %w", err)
@@ -52,6 +62,44 @@ func (a *App) AddCalendar(ctx context.Context, account, name string, feed Feed) 
 		return CalendarInfo{}, err
 	}
 	return CalendarInfo{Account: acct, Calendar: cal}, nil
+}
+
+// slotFor keeps cal's slot if it already exists (re-adding a feed), else
+// picks the lowest slot no other calendar uses, so a removed calendar's color
+// is reused before new ones are introduced.
+func slotFor(existing []CalendarInfo, cal domain.Calendar) int {
+	used := map[int]bool{}
+	for _, c := range existing {
+		if c.Calendar.ID == cal.ID && c.Calendar.AccountID == cal.AccountID && c.Calendar.ColorSlot > 0 {
+			return c.Calendar.ColorSlot
+		}
+		used[c.Calendar.ColorSlot] = true
+	}
+	slot := 1
+	for used[slot] {
+		slot++
+	}
+	return slot
+}
+
+// assignMissingSlots gives every calendar without a color slot one, in list
+// order.
+func (a *App) assignMissingSlots(ctx context.Context) error {
+	cals, err := a.Calendars(ctx)
+	if err != nil {
+		return err
+	}
+	for i, c := range cals {
+		if c.Calendar.ColorSlot > 0 {
+			continue
+		}
+		c.Calendar.ColorSlot = slotFor(cals, c.Calendar)
+		if err := a.store.UpsertCalendar(ctx, c.Calendar); err != nil {
+			return err
+		}
+		cals[i] = c
+	}
+	return nil
 }
 
 // NoCalendarError means FindCalendar matched nothing.

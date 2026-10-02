@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 
 	"github.com/miphe/clical/internal/domain"
 )
 
-// UpsertCalendar inserts cal, or updates its name and color in place if it
-// already exists. The calendar's sync token is left untouched on update.
+// UpsertCalendar inserts cal, or updates its name and color slot in place if
+// it already exists. The calendar's sync token is left untouched on update.
 func (s *Store) UpsertCalendar(ctx context.Context, cal domain.Calendar) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -17,7 +18,7 @@ func (s *Store) UpsertCalendar(ctx context.Context, cal domain.Calendar) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO calendars (id, account_id, name, color) VALUES (?, ?, ?, ?)
 		ON CONFLICT(account_id, id) DO UPDATE SET name = excluded.name, color = excluded.color
-	`, cal.ID, cal.AccountID, cal.Name, cal.Color)
+	`, cal.ID, cal.AccountID, cal.Name, encodeSlot(cal.ColorSlot))
 	if err != nil {
 		return fmt.Errorf("store: upsert calendar: %w", err)
 	}
@@ -39,15 +40,34 @@ func (s *Store) ListCalendars(ctx context.Context) ([]domain.Calendar, error) {
 	var out []domain.Calendar
 	for rows.Next() {
 		var c domain.Calendar
-		if err := rows.Scan(&c.ID, &c.AccountID, &c.Name, &c.Color); err != nil {
+		var slot string
+		if err := rows.Scan(&c.ID, &c.AccountID, &c.Name, &slot); err != nil {
 			return nil, fmt.Errorf("store: scan calendar: %w", err)
 		}
+		c.ColorSlot = decodeSlot(slot)
 		out = append(out, c)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("store: list calendars: %w", err)
 	}
 	return out, nil
+}
+
+// The color column predates color slots and holds the slot as decimal text;
+// ” (from before slots existed) reads as 0, unassigned.
+func encodeSlot(slot int) string {
+	if slot <= 0 {
+		return ""
+	}
+	return strconv.Itoa(slot)
+}
+
+func decodeSlot(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }
 
 // DeleteCalendar removes cal and its events, and removes its account too if

@@ -46,6 +46,10 @@ func newSpinner() spinner.Model {
 // busyLabel names what clical is doing right now, or "" when idle.
 func (m Model) busyLabel() string {
 	switch {
+	case m.form != nil && m.form.checking:
+		return "Checking"
+	case m.removing:
+		return "Removing"
 	case m.syncing:
 		return "Syncing"
 	case m.loading || m.week.loading:

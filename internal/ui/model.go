@@ -25,6 +25,10 @@ type Source interface {
 	Calendars(ctx context.Context) ([]app.CalendarInfo, error)
 	Events(ctx context.Context, from, to time.Time) ([]domain.Event, error)
 	Sync(ctx context.Context) ([]app.SyncOutcome, error)
+	SyncCalendar(ctx context.Context, cal app.CalendarInfo) app.SyncOutcome
+	CheckFeed(ctx context.Context, rawURL string) (app.Feed, error)
+	AddCalendar(ctx context.Context, account, name string, feed app.Feed) (app.CalendarInfo, error)
+	RemoveCalendar(ctx context.Context, cal app.CalendarInfo) error
 }
 
 const (
@@ -84,9 +88,9 @@ type Model struct {
 	width, height int
 
 	calendars        []app.CalendarInfo
-	colors           map[string]int // calendar ID → palette index
+	calIndex         map[string]int // calendar ID → index in calendars
 	hidden           map[string]bool
-	sidebarCursor    int
+	side             sidebarState
 	sidebarCollapsed bool
 	focus            focus
 	view             viewKind
@@ -110,6 +114,12 @@ type Model struct {
 
 	detail *agenda.Item
 
+	// Popups (form.go).
+	form          *addForm
+	confirmRemove *app.CalendarInfo
+	removing      bool
+	actionErr     error // last add/remove failure outside the form
+
 	syncing      bool
 	lastSync     time.Time
 	syncFailures []string
@@ -126,14 +136,14 @@ type Model struct {
 // 30-second tick.
 func New(src Source, loc *time.Location, now time.Time) Model {
 	m := Model{
-		src:    src,
-		keys:   defaultKeyMap(),
-		loc:    loc,
-		now:    now,
-		tick:   30 * time.Second,
-		colors: map[string]int{},
-		hidden: map[string]bool{},
-		days:   initialDays,
+		src:      src,
+		keys:     defaultKeyMap(),
+		loc:      loc,
+		now:      now,
+		tick:     30 * time.Second,
+		calIndex: map[string]int{},
+		hidden:   map[string]bool{},
+		days:     initialDays,
 		// Init starts both, and the spinner for them; Init can't record that
 		// itself.
 		loading:  true,
@@ -230,17 +240,29 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.calendars = msg.rows
-		m.colors = make(map[string]int, len(msg.rows))
+		m.calIndex = make(map[string]int, len(msg.rows))
 		for i, r := range msg.rows {
-			m.colors[r.Calendar.ID] = i
+			m.calIndex[r.Calendar.ID] = i
 		}
-		m.sidebarCursor = min(m.sidebarCursor, max(0, len(m.calendars)-1))
+		m.ensureSidebarSelection()
 		m.rebuild()
 		m.rebuildWeek()
 		return m, nil
 
 	case weekLoadedMsg:
 		return m.weekLoaded(msg), nil
+
+	case addDoneMsg:
+		return m.addDone(msg)
+
+	case removeDoneMsg:
+		return m.removeDone(msg)
+
+	case tea.PasteMsg:
+		if m.form != nil {
+			return m.formPaste(msg)
+		}
+		return m, nil
 
 	case eventsLoadedMsg:
 		if msg.from != m.from || msg.days != m.days {
@@ -303,6 +325,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case m.form != nil:
+		return m.handleFormKey(msg)
+	case m.confirmRemove != nil:
+		return m.handleConfirmKey(msg)
+	}
 	if m.detail != nil {
 		switch {
 		case msg.String() == "ctrl+c":
@@ -333,6 +361,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.switchView(viewWeek)
 	case key.Matches(msg, m.keys.NextView):
 		return m.switchView((m.view + 1) % 2)
+	case key.Matches(msg, m.keys.Add):
+		return m.openAddForm()
 	}
 
 	switch {
@@ -404,27 +434,6 @@ func (m Model) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case key.Matches(msg, m.keys.FocusSidebar):
 		m.focus = focusSidebar
-	}
-	return m, nil
-}
-
-func (m Model) handleSidebarKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch {
-	case key.Matches(msg, m.keys.Down):
-		m.sidebarCursor = min(m.sidebarCursor+1, max(0, len(m.calendars)-1))
-	case key.Matches(msg, m.keys.Up):
-		m.sidebarCursor = max(m.sidebarCursor-1, 0)
-	case key.Matches(msg, m.keys.Toggle):
-		if m.sidebarCursor < len(m.calendars) {
-			id := m.calendars[m.sidebarCursor].Calendar.ID
-			m.hidden[id] = !m.hidden[id]
-			m.rebuild()
-			m.rebuildWeek()
-		}
-	case key.Matches(msg, m.keys.Collapse):
-		m.sidebarCollapsed = !m.sidebarCollapsed
-	case key.Matches(msg, m.keys.FocusMain):
-		m.focus = focusMain
 	}
 	return m, nil
 }

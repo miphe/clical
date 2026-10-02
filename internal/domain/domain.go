@@ -32,7 +32,10 @@ type Calendar struct {
 	ID        string
 	AccountID string
 	Name      string
-	Color     string // hex, e.g. "#3B82F6"
+	// ColorSlot is the calendar's permanent place in the color palette,
+	// starting at 1; 0 means not assigned yet. Front-ends map slots to actual
+	// colors, so a calendar keeps its color when others are added or removed.
+	ColorSlot int
 }
 
 // CivilDate is a timezone-less calendar date. All-day events are represented

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
@@ -51,6 +52,12 @@ func (m Model) render() string {
 			body[i] = side[i] + main[i]
 		}
 	}
+	switch {
+	case m.form != nil:
+		body = overlay(body, m.renderForm(), m.width)
+	case m.confirmRemove != nil:
+		body = overlay(body, m.renderConfirm(), m.width)
+	}
 
 	return strings.Join(append(body, m.renderFooter()...), "\n")
 }
@@ -72,49 +79,6 @@ func padLines(lines []string, height, width int) []string {
 }
 
 // Sidebar.
-
-// renderSidebar draws the calendar list panel, height lines tall.
-func (m Model) renderSidebar(height int) []string {
-	width := sidebarInner
-	var tabs []tab
-	if m.sidebarCollapsed {
-		width = collapsedSidebarInner
-	} else {
-		tabs = []tab{{label: "Calendars", active: true}}
-	}
-	focused := m.focus == focusSidebar
-
-	var lines []string
-
-	lastAccount := ""
-	for i, cr := range m.calendars {
-		if !m.sidebarCollapsed && cr.Account.ID != lastAccount {
-			lines = append(lines, fit(" "+dimStyle.Render(cr.Account.Label), width))
-			lastAccount = cr.Account.ID
-		}
-		swatch, name := "●", cr.Calendar.Name
-		if m.hidden[cr.Calendar.ID] {
-			swatch = "○"
-		}
-		text := "  " + swatch + " " + name
-		if m.sidebarCollapsed {
-			text = " " + swatch + " "
-		}
-
-		var line string
-		switch {
-		case focused && i == m.sidebarCursor:
-			line = selectedStyle.Render(fit(text, width))
-		case m.hidden[cr.Calendar.ID]:
-			line = dimStyle.Render(fit(text, width))
-		default:
-			sw := lipgloss.NewStyle().Foreground(calendarColor(m.colors[cr.Calendar.ID])).Render(swatch)
-			line = fit(strings.Replace(text, swatch, sw, 1), width)
-		}
-		lines = append(lines, line)
-	}
-	return panel(width+2, height, focused, tabs, "", lines)
-}
 
 // renderMain draws the main panel: the current view inside a border whose
 // title doubles as the view tabs.
@@ -138,7 +102,7 @@ func (m Model) renderMain(width, height int) []string {
 		}
 		right = m.agendaSpan()
 	}
-	return panel(width, height, m.focus == focusMain, tabs, right, content)
+	return panel(width, height, frame{focused: m.focus == focusMain, tabs: tabs, right: right}, content)
 }
 
 // agendaSpan is the loaded agenda window, e.g. "29 Sep – 28 Oct 2026".
@@ -235,7 +199,7 @@ func (m Model) renderItem(r row, selected bool, width int) string {
 	}
 
 	ended := !it.Event.AllDay && !it.End.After(m.now)
-	swatch := lipgloss.NewStyle().Foreground(calendarColor(m.colors[it.Event.CalendarID])).Render("●")
+	swatch := lipgloss.NewStyle().Foreground(m.calendarColor(it.Event.CalendarID)).Render("●")
 	s := itemIndent + swatch + " " + fit(when, timeColumn) + "  " + fit(it.Event.Title, titleW)
 	if labelW > 0 {
 		s += "  " + dimStyle.Render(fit(label, labelW))
@@ -256,8 +220,16 @@ func (m Model) labelWidth() int {
 	return min(w, 28)
 }
 
+// calendarColor is the color of the calendar an event belongs to.
+func (m Model) calendarColor(calendarID string) color.Color {
+	if i, ok := m.calIndex[calendarID]; ok && i < len(m.calendars) {
+		return calendarColor(m.calendars[i].Calendar.ColorSlot)
+	}
+	return calendarColor(1)
+}
+
 func (m Model) calendarLabel(calendarID string) string {
-	i, ok := m.colors[calendarID]
+	i, ok := m.calIndex[calendarID]
 	if !ok || i >= len(m.calendars) {
 		return ""
 	}
@@ -275,7 +247,7 @@ func (m Model) renderDetail(width, height int) []string {
 	parts = append(parts, boldStyle.Render(e.Title))
 	parts = append(parts, m.detailWhen())
 	if label := m.calendarLabel(e.CalendarID); label != "" {
-		sw := lipgloss.NewStyle().Foreground(calendarColor(m.colors[e.CalendarID])).Render("●")
+		sw := lipgloss.NewStyle().Foreground(m.calendarColor(e.CalendarID)).Render("●")
 		parts = append(parts, sw+" "+label)
 	}
 	if e.Location != "" {
@@ -289,7 +261,7 @@ func (m Model) renderDetail(width, height int) []string {
 	for _, line := range strings.Split(strings.Join(parts, "\n"), "\n") {
 		content = append(content, " "+line)
 	}
-	return panel(width, height, true, []tab{{label: "Event", active: true}}, "", content)
+	return panel(width, height, frame{focused: true, tabs: []tab{{label: "Event", active: true}}}, content)
 }
 
 func (m Model) detailWhen() string {
@@ -335,10 +307,15 @@ func (m Model) renderFooter() []string {
 	hint := func(k, desc string) key.Binding { return key.NewBinding(key.WithHelp(k, desc)) }
 	var bindings []key.Binding
 	switch {
+	case m.form != nil:
+		bindings = []key.Binding{hint("enter", "next/add"), hint("tab", "move"), hint("esc", "cancel")}
+	case m.confirmRemove != nil:
+		bindings = []key.Binding{hint("y", "remove"), hint("n", "cancel")}
 	case m.detail != nil:
 		bindings = []key.Binding{m.keys.Close}
 	case m.focus == focusSidebar:
-		bindings = []key.Binding{hint("j/k", "move"), m.keys.Toggle, m.keys.Collapse, m.keys.FocusMain, m.keys.Quit}
+		bindings = []key.Binding{m.keys.Toggle, hint("enter", "fold"), m.keys.Add, m.keys.Remove,
+			m.keys.Collapse, m.keys.FocusMain, m.keys.Quit}
 	case m.view == viewWeek:
 		bindings = []key.Binding{hint("h/l", "day"), hint("j/k", "move"), m.keys.Open, hint("[/]", "week"),
 			m.keys.Today, hint("tab", "agenda"), m.keys.Sync, m.keys.Quit}
@@ -369,6 +346,8 @@ func (m Model) status() string {
 	switch {
 	case m.loadErr != nil:
 		return errorStyle.Render("Can't read cache: " + m.loadErr.Error())
+	case m.actionErr != nil:
+		return errorStyle.Render(m.actionErr.Error())
 	case m.syncErr != nil:
 		return errorStyle.Render("Sync failed: " + m.syncErr.Error())
 	case len(m.syncFailures) > 0:
