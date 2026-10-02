@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -138,5 +139,58 @@ func TestExists(t *testing.T) {
 	}
 	if ok, err := Exists(dir); err != nil || !ok {
 		t.Errorf("Exists(vault with secret) = %v, %v; want true, nil", ok, err)
+	}
+}
+
+func TestFailedSaveKeepsPreviousSecret(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores the directory permissions this test relies on")
+	}
+	dir := t.TempDir()
+	v, err := Open(dir, fixedPrompt("passphrase"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	if err := v.SaveSecret("feed", []byte("old")); err != nil {
+		t.Fatalf("SaveSecret() error = %v", err)
+	}
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	if err := v.SaveSecret("feed", []byte("new")); err == nil {
+		t.Fatal("SaveSecret() into a read-only vault succeeded")
+	}
+	got, err := v.LoadSecret("feed")
+	if err != nil || string(got) != "old" {
+		t.Errorf("LoadSecret() = %q, %v; want the previous secret", got, err)
+	}
+}
+
+func TestSaveLeavesNoTemporaryFiles(t *testing.T) {
+	dir := t.TempDir()
+	v, err := Open(dir, fixedPrompt("passphrase"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	for _, s := range []string{"one", "two"} {
+		if err := v.SaveSecret("feed", []byte(s)); err != nil {
+			t.Fatalf("SaveSecret() error = %v", err)
+		}
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.Name() != "feed"+secretExt {
+			t.Errorf("unexpected file %q in vault", e.Name())
+		}
+		if info, err := e.Info(); err == nil && info.Mode().Perm() != 0o600 {
+			t.Errorf("%s mode = %v, want 0600", e.Name(), info.Mode().Perm())
+		}
+	}
+	if got, _ := v.LoadSecret("feed"); string(got) != "two" {
+		t.Errorf("LoadSecret() = %q, want %q", got, "two")
 	}
 }

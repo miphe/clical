@@ -118,10 +118,14 @@ func (v *Vault) SaveSecret(key string, data []byte) error {
 		return err
 	}
 
-	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	// Write to a temporary file and rename it into place, so a failed or
+	// interrupted write never destroys the secret it was replacing.
+	f, err := os.CreateTemp(v.dir, "."+key+"-*.tmp")
 	if err != nil {
-		return fmt.Errorf("secrets: open secret file: %w", err)
+		return fmt.Errorf("secrets: create secret file: %w", err)
 	}
+	tmp := f.Name()
+	defer os.Remove(tmp)
 	defer f.Close()
 
 	w, err := age.Encrypt(f, v.recipient)
@@ -131,7 +135,32 @@ func (v *Vault) SaveSecret(key string, data []byte) error {
 	if _, err := w.Write(data); err != nil {
 		return fmt.Errorf("secrets: write: %w", err)
 	}
-	return w.Close()
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("secrets: write: %w", err)
+	}
+	if err := f.Sync(); err != nil {
+		return fmt.Errorf("secrets: write: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("secrets: write: %w", err)
+	}
+	if err := os.Rename(tmp, p); err != nil {
+		return fmt.Errorf("secrets: save secret file: %w", err)
+	}
+	// Sync the directory too, so the rename itself survives a crash.
+	if err := syncDir(v.dir); err != nil {
+		return fmt.Errorf("secrets: save secret file: %w", err)
+	}
+	return nil
+}
+
+func syncDir(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	return d.Sync()
 }
 
 // LoadSecret decrypts and returns the secret stored under key.
