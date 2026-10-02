@@ -3,14 +3,11 @@ package ui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-
-	"github.com/miphe/clical/internal/domain"
 )
 
 const (
@@ -249,71 +246,6 @@ func (m Model) calendarLabel(calendarID string) string {
 	return m.calendars[i].Label()
 }
 
-// Event detail.
-
-// renderDetail draws the event detail as a full-width panel.
-func (m Model) renderDetail(width, height int) []string {
-	e := m.detail.Event
-	textW := min(width-4, 76) // inside the border, one column of padding each side
-
-	var parts []string
-	parts = append(parts, boldStyle.Render(e.Title))
-	parts = append(parts, m.detailWhen())
-	if label := m.calendarLabel(e.CalendarID); label != "" {
-		sw := calendarBullet(m.calendarSlot(e.CalendarID))
-		parts = append(parts, sw+" "+label)
-	}
-	if e.Location != "" {
-		parts = append(parts, "", mutedStyle.Render("Location")+"  "+e.Location)
-	}
-	if notes := strings.TrimSpace(e.Notes); notes != "" {
-		parts = append(parts, "", lipgloss.NewStyle().Width(textW).Render(notes))
-	}
-
-	var content []string
-	for _, line := range strings.Split(strings.Join(parts, "\n"), "\n") {
-		content = append(content, " "+line)
-	}
-	return panel(width, height, frame{focused: true, tabs: []tab{{label: "Event", active: true}}}, content)
-}
-
-func (m Model) detailWhen() string {
-	e := m.detail.Event
-	if ds, de, ok := e.DateRange(); ok {
-		last := de.AddDays(-1)
-		if last == ds || de == ds {
-			return ds.In(m.loc).Format("Mon 2 Jan 2006") + " · all day"
-		}
-		return ds.In(m.loc).Format("Mon 2 Jan") + " – " + last.In(m.loc).Format("Mon 2 Jan 2006") + " · all day"
-	}
-	start, end := m.detail.Start, m.detail.End
-	dur := formatDuration(end.Sub(start))
-	if domain.CivilDateFromTime(start) == domain.CivilDateFromTime(end) || end.Equal(start) {
-		s := start.Format("Mon 2 Jan 2006") + " · " + start.Format("15:04")
-		if !end.Equal(start) {
-			s += "–" + end.Format("15:04") + " (" + dur + ")"
-		}
-		return s
-	}
-	return start.Format("Mon 2 Jan 15:04") + " – " + end.Format("Mon 2 Jan 2006 15:04") + " (" + dur + ")"
-}
-
-func formatDuration(d time.Duration) string {
-	d = d.Round(time.Minute)
-	days, hours, mins := int(d/(24*time.Hour)), int(d%(24*time.Hour)/time.Hour), int(d%time.Hour/time.Minute)
-	var parts []string
-	if days > 0 {
-		parts = append(parts, fmt.Sprintf("%dd", days))
-	}
-	if hours > 0 {
-		parts = append(parts, fmt.Sprintf("%dh", hours))
-	}
-	if mins > 0 || len(parts) == 0 {
-		parts = append(parts, fmt.Sprintf("%dm", mins))
-	}
-	return strings.Join(parts, " ")
-}
-
 // Footer.
 
 func (m Model) renderFooter() []string {
@@ -324,8 +256,10 @@ func (m Model) renderFooter() []string {
 		bindings = []key.Binding{hint("enter", "next/add"), hint("tab", "move"), hint("esc", "cancel")}
 	case m.confirmRemove != nil:
 		bindings = []key.Binding{hint("y", "remove"), hint("n", "cancel")}
+	case m.detail != nil && len(m.detail.Event.Links) > 0:
+		bindings = []key.Binding{hint("j/k", "select link"), hint("enter", "open"), hint("pgup/pgdn", "scroll"), m.keys.Close}
 	case m.detail != nil:
-		bindings = []key.Binding{m.keys.Close}
+		bindings = []key.Binding{hint("j/k", "scroll"), m.keys.Close}
 	case m.focus == focusSidebar:
 		bindings = []key.Binding{m.keys.Toggle, hint("enter", "fold"), m.keys.Add, m.keys.Remove,
 			m.keys.Collapse, m.keys.FocusMain, m.keys.Quit}

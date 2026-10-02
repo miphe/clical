@@ -121,7 +121,8 @@ type Model struct {
 	week  weekState
 	month monthState
 
-	detail *agenda.Item
+	detail  *detailView
+	openURL func(string) error // opens a link in the browser; swapped in tests
 
 	// Popups (form.go).
 	form          *addForm
@@ -151,6 +152,7 @@ func New(src Source, loc *time.Location, now time.Time) Model {
 		now:      now,
 		tick:     30 * time.Second,
 		calIndex: map[string]int{},
+		openURL:  openInBrowser,
 		hidden:   map[string]bool{},
 		days:     initialDays,
 		// Init starts both, and the spinner for them; Init can't record that
@@ -272,6 +274,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case removeDoneMsg:
 		return m.removeDone(msg)
 
+	case openedMsg:
+		return m.opened(msg)
+
 	case tea.PasteMsg:
 		if m.form != nil {
 			return m.formPaste(msg)
@@ -349,13 +354,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleConfirmKey(msg)
 	}
 	if m.detail != nil {
-		switch {
-		case msg.String() == "ctrl+c":
-			return m, tea.Quit
-		case key.Matches(msg, m.keys.Close):
-			m.detail = nil
-		}
-		return m, nil
+		return m.handleDetailKey(msg)
 	}
 
 	switch {
@@ -469,8 +468,7 @@ func (m Model) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.stepDay(-1)
 	case key.Matches(msg, m.keys.Open):
 		if i := m.selIndex(); i >= 0 && m.rows[i].kind == rowItem {
-			it := m.rows[i].item
-			m.detail = &it
+			m.openDetail(m.rows[i].item)
 		}
 	case key.Matches(msg, m.keys.FocusSidebar):
 		m.focus = focusSidebar

@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"path/filepath"
 	"sort"
 	"testing"
 	"time"
@@ -170,5 +172,59 @@ func TestEventsInRangeRoundTripsFields(t *testing.T) {
 	}
 	if e.Title != "Dentist" || e.Location != "Main St" || e.Notes != "Bring card" || e.CalendarID != "c" {
 		t.Errorf("fields = %+v", e)
+	}
+}
+
+func TestLinksRoundTrip(t *testing.T) {
+	s := openTestStore(t)
+	cal := seedCalendar(t, s)
+	ctx := context.Background()
+	links := []domain.Link{
+		{URL: "https://meet.google.com/abc", Label: "Join Google Meet", Kind: domain.LinkVideoCall},
+		{URL: "https://docs.google.com/document/d/1", Label: "Agenda", Kind: domain.LinkDocument},
+	}
+	e := timed("with-links", day.Add(9*time.Hour), time.Hour).WithLinks(links)
+	if err := s.ApplySync(ctx, cal, domain.SyncResult{Upserted: []domain.Event{e, timed("none", day.Add(11*time.Hour), time.Hour)}, FullResync: true}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.EventsInRange(ctx, day, day.AddDate(0, 0, 1))
+	if err != nil || len(got) != 2 {
+		t.Fatalf("EventsInRange() = %d events, %v", len(got), err)
+	}
+	for _, g := range got {
+		switch g.ID {
+		case "with-links":
+			if len(g.Links) != 2 || g.Links[0] != links[0] || g.Links[1] != links[1] {
+				t.Errorf("links = %+v, want %+v", g.Links, links)
+			}
+		case "none":
+			if len(g.Links) != 0 {
+				t.Errorf("event without links got %+v", g.Links)
+			}
+		}
+	}
+}
+
+func TestMigrationAddsLinksColumnToOldDatabase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	// A database from before links existed.
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`CREATE TABLE events (id TEXT NOT NULL, calendar_id TEXT NOT NULL, account_id TEXT NOT NULL,
+		title TEXT NOT NULL, all_day INTEGER NOT NULL, start_utc INTEGER, end_utc INTEGER, start_date TEXT, end_date TEXT,
+		location TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', PRIMARY KEY (account_id, calendar_id, id))`); err != nil {
+		t.Fatal(err)
+	}
+	old.Close()
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open() on an old database error = %v", err)
+	}
+	defer s.Close()
+	if ok, err := s.hasColumn(context.Background(), "events", "links"); err != nil || !ok {
+		t.Errorf("links column after migration: %v, %v", ok, err)
 	}
 }

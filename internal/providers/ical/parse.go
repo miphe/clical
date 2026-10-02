@@ -34,7 +34,29 @@ func parse(r io.Reader, calendarID string, from, to time.Time) ([]domain.Event, 
 	return out, nil
 }
 
+// newlines decodes iCalendar's escaped line breaks ("\n", "\N"). gocal
+// decodes the other TEXT escapes (\\ \; \,) but not these, so without this a
+// multi-line description shows literal backslash-n sequences.
+var newlines = strings.NewReplacer(`\n`, "\n", `\N`, "\n")
+
 func toDomainEvent(calendarID string, e gocal.Event) domain.Event {
+	e.Summary = newlines.Replace(e.Summary)
+	e.Location = newlines.Replace(e.Location)
+	e.Description = newlines.Replace(e.Description)
+	if alt, ok := e.CustomAttributes["X-ALT-DESC"]; ok {
+		attrs := make(map[string]string, len(e.CustomAttributes))
+		for k, v := range e.CustomAttributes {
+			attrs[k] = v
+		}
+		attrs["X-ALT-DESC"] = newlines.Replace(alt)
+		e.CustomAttributes = attrs
+	}
+	notes, links := describe(e)
+	e.Description = notes
+	return toDomainEventWithNotes(calendarID, e).WithLinks(links)
+}
+
+func toDomainEventWithNotes(calendarID string, e gocal.Event) domain.Event {
 	if isAllDay(e) {
 		start := domain.CivilDateFromTime(e.Start.In(time.UTC))
 		end := start.AddDays(1)

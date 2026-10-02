@@ -26,6 +26,10 @@ all of this. If it fails, fix the import, or change the layer table *and*
   from HTTP errors. Read them from hidden prompts.
 - **All-day events are `domain.CivilDate`, never `time.Time`.** End dates are
   exclusive.
+- **Event content is untrusted** (it comes from whoever sent the invite).
+  Only http(s) links are kept or opened, and a link may only be opened while
+  its full address is on screen (`detail.go`). Never pass event text through
+  a shell.
 - **`ui.Update` must stay pure:** no network, disk or clock reads. I/O goes
   through `ui.Source` in a `tea.Cmd`, and time arrives as `tickMsg`.
 - **Colors come only from the terminal's ANSI palette.** Use a role from

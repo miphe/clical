@@ -139,7 +139,11 @@ func eventsHash(events []domain.Event) string {
 			ts, te, _ := e.TimeRange()
 			span = ts.Format(time.RFC3339) + "/" + te.Format(time.RFC3339)
 		}
-		keys = append(keys, strings.Join([]string{e.ID, e.Title, span, e.Location, e.Notes}, "\x00"))
+		var links []string
+		for _, l := range e.Links {
+			links = append(links, fmt.Sprintf("%s\x01%s\x01%d", l.URL, l.Label, l.Kind))
+		}
+		keys = append(keys, strings.Join([]string{e.ID, e.Title, span, e.Location, e.Notes, strings.Join(links, "\x02")}, "\x00"))
 	}
 	sort.Strings(keys)
 	h := sha256.New()

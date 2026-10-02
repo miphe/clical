@@ -1179,3 +1179,169 @@ func TestMoreLabel(t *testing.T) {
 		}
 	}
 }
+
+const longURL = "https://docs.google.com/document/d/1aBcD3fGhIjKlMnOpQrStUvWxYz0123456789abcdefghijklmnopqrstuvwxyzABCDEFG/edit?usp=sharing&ouid=112233445566778899000&rtpof=true&sd=true&tracking=" +
+	"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa#heading=h.xyz"
+
+func linkEvent() domain.Event {
+	return domain.NewTimedEvent("sync", "main", "Weekly sync", at(29, 15, 0), at(29, 15, 30), "",
+		"Agenda in the Agenda doc [2]. Recording notes in [3].").WithLinks([]domain.Link{
+		{URL: "https://meet.google.com/abc-defg-hij", Label: "Join Google Meet", Kind: domain.LinkVideoCall},
+		{URL: "https://docs.google.com/document/d/abc/edit", Label: "Agenda doc", Kind: domain.LinkDocument},
+		{URL: longURL, Label: "Recording notes", Kind: domain.LinkDocument},
+	})
+}
+
+// detailOn opens the event view for ev in a w×h window.
+func detailOn(t *testing.T, w, h int, ev domain.Event) Model {
+	t.Helper()
+	m := loaded(t, w, h)
+	m, _ = send(t, m, eventsLoadedMsg{from: m.from, days: m.days, events: []domain.Event{ev}})
+	m, _ = send(t, m, press("enter"))
+	if m.detail == nil || m.detail.Event.ID != ev.ID {
+		t.Fatalf("enter didn't open %s", ev.ID)
+	}
+	return m
+}
+
+// stripText is the plain text of the "Opens" strip below the rule.
+func stripText(m Model) string {
+	lines := strings.Split(screen(m), "\n")
+	var out []string
+	in := false
+	for _, l := range lines {
+		plain := strings.Trim(ansi.Strip(l), "│ ")
+		if strings.HasPrefix(plain, "─ Opens") {
+			in = true
+			continue
+		}
+		if in {
+			if strings.HasPrefix(plain, "╰") || strings.HasPrefix(ansi.Strip(l), "╰") {
+				break
+			}
+			out = append(out, plain)
+		}
+	}
+	return strings.Join(out, "")
+}
+
+func TestGoldenDetailWithLinks(t *testing.T) {
+	m := detailOn(t, 90, 24, linkEvent())
+	golden(t, "detail_links", screen(m))
+	m, _ = send(t, m, press("3"))
+	golden(t, "detail_long_link", screen(m))
+}
+
+func TestFullAddressIsNeverTruncated(t *testing.T) {
+	for _, w := range []int{120, 80, 50, 34} {
+		m := detailOn(t, w, 40, linkEvent())
+		m, _ = send(t, m, press("3"))
+		if got := stripText(m); got != longURL {
+			t.Errorf("width %d: strip shows %q, want the whole URL", w, got)
+		}
+		for i, l := range strings.Split(m.View().Content, "\n") {
+			if lw := ansi.StringWidth(l); lw != w {
+				t.Errorf("width %d line %d is %d wide", w, i, lw)
+			}
+		}
+	}
+}
+
+func TestLinkCanOnlyOpenWhenFullyVisible(t *testing.T) {
+	var opened []string
+	m := detailOn(t, 40, 12, linkEvent()) // the long URL can't fit here
+	m.openURL = func(u string) error { opened = append(opened, u); return nil }
+	m, _ = send(t, m, press("3"))
+	if !strings.Contains(screen(m), "Window too small") {
+		t.Errorf("no notice that the address doesn't fit:\n%s", screen(m))
+	}
+	m, cmd := send(t, m, press("enter"))
+	if cmd != nil || len(opened) != 0 || m.actionErr == nil {
+		t.Error("a link opened without its full address on screen")
+	}
+}
+
+func TestSelectAndOpenLinks(t *testing.T) {
+	var opened []string
+	m := detailOn(t, 100, 30, linkEvent())
+	m.openURL = func(u string) error { opened = append(opened, u); return nil }
+
+	if stripText(m) != "https://meet.google.com/abc-defg-hij" {
+		t.Errorf("video call isn't selected first: strip %q", stripText(m))
+	}
+	m, _ = send(t, m, press("j"))
+	if stripText(m) != "https://docs.google.com/document/d/abc/edit" {
+		t.Errorf("j: strip %q", stripText(m))
+	}
+	m, _ = send(t, m, press("1"), press("2"))
+	if m.detail.link != 1 {
+		t.Errorf("2 selected link %d, want index 1", m.detail.link)
+	}
+
+	m, cmd := send(t, m, press("enter"))
+	if cmd == nil || m.detail == nil {
+		t.Fatal("enter didn't start opening (or closed the view)")
+	}
+	m, _ = send(t, m, cmd())
+	if len(opened) != 1 || opened[0] != "https://docs.google.com/document/d/abc/edit" {
+		t.Errorf("opened %v, want the selected doc only", opened)
+	}
+	if got := activitySlot(m); got != "↗ Opened" {
+		t.Errorf("activity after opening = %q", got)
+	}
+
+	m, _ = send(t, m, openedMsg{err: errors.New("no browser found")})
+	if !strings.Contains(screen(m), "no browser found") {
+		t.Error("a failure to open isn't reported")
+	}
+}
+
+func TestOnlyWebLinksOpen(t *testing.T) {
+	var opened []string
+	ev := domain.NewTimedEvent("x", "main", "X", at(29, 15, 0), at(29, 16, 0), "", "").WithLinks([]domain.Link{
+		{URL: "javascript:alert(1)", Label: "Click me"},
+	})
+	m := detailOn(t, 100, 30, ev)
+	m.openURL = func(u string) error { opened = append(opened, u); return nil }
+	m, cmd := send(t, m, press("enter"))
+	if cmd != nil || len(opened) != 0 || m.actionErr == nil {
+		t.Error("a non-web link was opened")
+	}
+	if err := openInBrowser("file:///etc/passwd"); err == nil {
+		t.Error("openInBrowser accepted a file: URL")
+	}
+}
+
+func TestAddressShowsHostInBoldAndIsClickable(t *testing.T) {
+	m := detailOn(t, 100, 30, linkEvent())
+	raw := m.View().Content
+	if !strings.Contains(raw, boldStyle.Render("meet.google.com")) {
+		t.Error("host isn't bold in the address strip")
+	}
+	if !strings.Contains(raw, ansi.SetHyperlink("https://meet.google.com/abc-defg-hij")) {
+		t.Error("address isn't a terminal hyperlink")
+	}
+}
+
+func TestDetailScrollsLongNotes(t *testing.T) {
+	notes := strings.Repeat("A long line of notes that wraps. ", 60)
+	ev := linkEvent()
+	ev.Notes = notes
+	m := detailOn(t, 80, 20, ev)
+	if !strings.Contains(screen(m), "lines 1–") {
+		t.Fatalf("no scroll position for long notes:\n%s", screen(m))
+	}
+	before := screen(m)
+	m, _ = send(t, m, press("pgdown"))
+	if screen(m) == before || m.detail.scroll == 0 {
+		t.Error("pgdown didn't scroll")
+	}
+	// The address strip stays put while the body scrolls.
+	if stripText(m) != "https://meet.google.com/abc-defg-hij" {
+		t.Errorf("strip changed while scrolling: %q", stripText(m))
+	}
+	m, _ = send(t, m, press("3")) // selecting a link scrolls it back into view
+	if !strings.Contains(screen(m), "▸ 3") {
+		t.Errorf("selected link row not scrolled into view:\n%s", screen(m))
+	}
+}

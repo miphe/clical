@@ -35,6 +35,7 @@ multi-account merge → config/themes → in-process background polling.
 | — | Many calendars: scrolling/foldable list, permanent colors, add/remove in the TUI | Done |
 | — | Theming: terminal ANSI colors only (Omarchy-compatible), semantic roles, enforced | Done |
 | M7 | Month view | Done |
+| — | Event links: extraction, readable notes, select-and-open with the full address shown | Done |
 | M8–M11 | Search and help, config (non-color), background polling, polish | Not started |
 
 Deferred (2026-09-29): the **work** (Google Workspace) calendar. Focus is the
@@ -381,6 +382,55 @@ Implementation decisions:
   selected event. Hidden calendars are filtered as in the agenda.
 - Core addition: `agenda.WeekStart(day, first)` and `CivilDate.Weekday()`.
   Grouping a week is just `agenda.Build(events, start, 7, loc)`.
+
+## Event links and readable notes — done
+
+**Core** (`internal/providers/ical/links.go`, stored as JSON in
+`events.links`, added to old databases by a small column migration in
+`store.migrate`). An event's content is untrusted input from whoever sent
+the invite, and links arrive inconsistently, so one extractor gathers them:
+- Sources: `X-GOOGLE-CONFERENCE`, `X-MICROSOFT-SKYPETEAMSMEETINGURL`, `URL`,
+  URLs in `LOCATION`, `<a href>` in HTML descriptions (Google writes HTML
+  into `DESCRIPTION` despite the spec; Outlook adds `X-ALT-DESC`), and bare
+  URLs in plain text.
+- Only http(s). Google's `google.com/url?q=` tracker and Outlook Safe Links
+  are unwrapped, so the real destination is what's shown and judged.
+  Deduplicated by destination, then ordered video calls → documents →
+  other.
+- Kinds and labels come from a host table: Meet, Zoom, Teams, Webex,
+  Whereby, Jitsi, GoTo, Chime, FaceTime → "Join … meeting". Google
+  Docs/Sheets/Slides/Drive, Notion, Confluence/Atlassian, SharePoint,
+  OneDrive, Dropbox, GitHub/GitLab, Figma, Miro → documents. An anchor's own
+  text becomes the label when it isn't just the URL.
+- Notes become readable plain text: HTML converted with `x/net/html` (line
+  breaks, `• ` list items, entities; scripts/styles dropped), each link
+  written as `label [n]` matching the list, and Google's "Join with Google
+  Meet… Please do not edit this section" block removed (its Meet link is
+  kept if `X-GOOGLE-CONFERENCE` is missing).
+- **Found while testing:** gocal decodes `\\ \; \,` but not `\n`, so any
+  multi-line description used to show literal backslash-n.
+  `parse.go` now decodes line breaks in summary, location and descriptions.
+- Links are part of the sync change-hash, so already-cached events get
+  their links on the next sync.
+
+**Event view** (`internal/ui/detail.go`):
+- A numbered **Links** list (`▸ 1 ▶ Join Google Meet   meet.google.com`),
+  video calls first and selected by default. `j`/`k` or `1`–`9` select;
+  `enter` (or `o`) opens in the default browser via `open`/`xdg-open`, with
+  the URL as a single argument and no shell. `PgUp`/`PgDn` scroll long
+  notes, with the position on the bottom border.
+- **Links never open blind:** the selected link's **full address** is
+  always shown in a fixed "Opens" strip at the bottom. It's hard-wrapped
+  over as many lines as it needs, never truncated, with the host in bold
+  (the part that matters for spotting `docs.google.com.evil.example`).
+  If the window can't fit the whole address, the strip says so and the
+  link won't open until the window is enlarged.
+- Only http(s) opens, checked again in the UI and in `openInBrowser`.
+- The address is also an OSC 8 hyperlink, so terminals that support it
+  (iTerm2, kitty, WezTerm, Ghostty, recent Alacritty) can click it.
+- The activity slot confirms with `↗ Opened`; failures show on the status
+  line.
+- Not done: a `J` "join from anywhere" shortcut (deferred by request).
 
 ## Month view (`internal/ui/month.go`, `monthview.go`) — M7 done
 

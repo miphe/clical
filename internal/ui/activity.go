@@ -27,6 +27,7 @@ const (
 	flashNone flashKind = iota
 	flashOK
 	flashFailed
+	flashOpened
 )
 
 // flashEndMsg clears the flash it was scheduled for; a newer flash (from a
@@ -59,6 +60,8 @@ func (m Model) activity() string {
 		s = m.spin.View() + " " + busyStyle.Render(m.busyLabel())
 	case m.flash == flashOK:
 		s = successStyle.Render("✓") + boldStyle.Render(" Synced")
+	case m.flash == flashOpened:
+		s = accentStyle.Render("↗ Opened")
 	case m.flash == flashFailed:
 		s = errorStyle.Render("✗") + boldStyle.Render(" Sync failed")
 	default:

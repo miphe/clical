@@ -127,6 +127,32 @@ type Event struct {
 
 	start, end         time.Time
 	startDate, endDate CivilDate
+
+	// Links found in the event (conference link, documents, ...), in display
+	// order: video calls first. Notes refer to them as "[1]", "[2]", ...
+	Links []Link
+}
+
+// LinkKind says what a link is for.
+type LinkKind int
+
+const (
+	LinkOther LinkKind = iota
+	LinkVideoCall
+	LinkDocument
+)
+
+// Link is a web address attached to an event. URL is always http or https.
+type Link struct {
+	URL   string
+	Label string // human-readable, e.g. "Join Google Meet" or a link's text
+	Kind  LinkKind
+}
+
+// WithLinks returns e with links attached.
+func (e Event) WithLinks(links []Link) Event {
+	e.Links = links
+	return e
 }
 
 // NewTimedEvent builds a timed (non-all-day) event. start/end are converted

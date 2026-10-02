@@ -60,6 +60,9 @@ For each Google calendar you want in clical:
 | `j` / `k` (month) | Previous / next week |
 | `enter` (month) | Open the selected day in the agenda |
 | `enter` | Event details (`esc` or `q` to close) |
+| `j` / `k`, `1`–`9` (event) | Select a link: its full address is shown at the bottom |
+| `enter` (event) | Open the selected link in your browser |
+| `PgUp` / `PgDn` (event) | Scroll long notes |
 | `[` / `]` | Previous / next day in the agenda, week in the week view, month in the month view |
 | `t` | Back to today |
 | `r` | Sync now |

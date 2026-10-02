@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS events (
 	end_date    TEXT,
 	location    TEXT NOT NULL DEFAULT '',
 	notes       TEXT NOT NULL DEFAULT '',
+	links       TEXT NOT NULL DEFAULT '', -- JSON array of links; '' = none
 	PRIMARY KEY (account_id, calendar_id, id),
 	FOREIGN KEY (account_id, calendar_id) REFERENCES calendars(account_id, id) ON DELETE CASCADE
 );
@@ -83,7 +84,41 @@ func (s *Store) migrate(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("store: migrate: %w", err)
 	}
+	// Columns added after the first release: CREATE TABLE IF NOT EXISTS
+	// doesn't add them to an existing database.
+	added := []struct{ table, column, def string }{
+		{"events", "links", "TEXT NOT NULL DEFAULT ''"},
+	}
+	for _, c := range added {
+		exists, err := s.hasColumn(ctx, c.table, c.column)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			if _, err := s.db.ExecContext(ctx, "ALTER TABLE "+c.table+" ADD COLUMN "+c.column+" "+c.def); err != nil {
+				return fmt.Errorf("store: add %s.%s: %w", c.table, c.column, err)
+			}
+		}
+	}
 	return nil
+}
+
+func (s *Store) hasColumn(ctx context.Context, table, column string) (bool, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT name FROM pragma_table_info(?)", table)
+	if err != nil {
+		return false, fmt.Errorf("store: inspect %s: %w", table, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return false, err
+		}
+		if name == column {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }
 
 // Close closes the underlying database handle.

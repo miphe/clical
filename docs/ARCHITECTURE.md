@@ -90,6 +90,8 @@ Some concrete cases:
 | Change | Goes in |
 |---|---|
 | A new feed provider (CalDAV, Outlook) | `internal/providers/<name>` + registration in `app.Unlock` |
+| Recognising a new video-call or document service | the host table in `internal/providers/ical/links.go` |
+| How links are listed, selected and opened | `internal/ui/detail.go` |
 | "Show only events matching X" as data | `app` method (or `store` query exposed via `app`) |
 | Which week a day belongs to, a month's grid (`agenda.WeekStart`, `MonthGrid`) | `agenda` (pure, reusable) |
 | The Week view's columns, keys, colors (`ui/week*.go`) | `internal/ui` |
