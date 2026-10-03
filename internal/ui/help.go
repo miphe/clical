@@ -31,8 +31,17 @@ func helpSections() []helpSection {
 			{"t", "Today"},
 			{"r", "Sync now (also every 5 minutes)"},
 			{"a", "Add a calendar: iCal link or Google"},
+			{"/", "Filter events by title or location"},
 			{"?", "This help"},
 			{"q  ctrl+c", "Quit"},
+		}},
+		{"Filter", []helpEntry{
+			{"type", "Narrows as you type; all words match"},
+			{"enter", "Keep the filter, move around again"},
+			{"esc", "Clear the filter"},
+			{"/", "Change the filter"},
+			{"", "The agenda searches a year ahead and"},
+			{"", "[ ] jump between days with matches"},
 		}},
 		{"Agenda", []helpEntry{
 			{"j k  ↓ ↑", "Next, previous event"},

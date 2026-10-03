@@ -72,7 +72,7 @@ func (m *Model) rebuildMonth() {
 	}
 	var visible []domain.Event
 	for _, e := range m.month.events {
-		if !m.hidden[e.CalendarID] {
+		if m.shows(e) {
 			visible = append(visible, e)
 		}
 	}

@@ -2085,3 +2085,111 @@ func TestFitHintsDropsLeastImportantFirst(t *testing.T) {
 		t.Errorf("only the essential = %q", got)
 	}
 }
+
+// agendaTitles lists the agenda's event titles, top to bottom.
+func agendaTitles(m Model) []string {
+	var out []string
+	for _, r := range m.rows {
+		if r.kind == rowItem {
+			out = append(out, r.item.Event.Title)
+		}
+	}
+	return out
+}
+
+func TestFilterNarrowsAsYouType(t *testing.T) {
+	m := loaded(t, 100, 24)
+	m, cmd := send(t, m, press("/"), press("d"))
+	if m.filterInput == nil || m.days != filterDays || cmd == nil {
+		t.Fatalf("filter didn't start or didn't load a year: input %v, days %d", m.filterInput != nil, m.days)
+	}
+	m = typeText(t, m, "ent")
+	if got := agendaTitles(m); len(got) != 1 || got[0] != "Dentist" {
+		t.Errorf("agenda filtered by %q = %q", m.filter, got)
+	}
+	s := screen(m)
+	if !strings.Contains(s, "/dent") || !strings.Contains(s, "enter keep · esc clear") || strings.Contains(s, "Wed 30 Sep") {
+		t.Errorf("screen while typing:\n%s", s)
+	}
+
+	m, _ = send(t, m, press("enter"))
+	if m.filterInput != nil || m.filter != "dent" {
+		t.Fatal("enter didn't keep the filter")
+	}
+	if s := screen(m); !strings.Contains(s, "/dent · esc clear │") {
+		t.Errorf("active filter not shown in the footer:\n%s", s)
+	}
+	// Moving around works again, and esc clears.
+	if m, _ = send(t, m, press("j")); m.filter != "dent" {
+		t.Error("j changed the filter")
+	}
+	m, _ = send(t, m, press("esc"))
+	if m.filter != "" || len(agendaTitles(m)) < 5 {
+		t.Errorf("esc didn't clear the filter: %q, %q", m.filter, agendaTitles(m))
+	}
+}
+
+func TestFilterMatchesEveryWordInTitleOrLocation(t *testing.T) {
+	m := loaded(t, 100, 24)
+	m, _ = send(t, m, press("/"))
+	m = typeText(t, m, "ST main")
+	if got := agendaTitles(m); len(got) != 1 || got[0] != "Dentist" {
+		t.Errorf("filter %q = %q, want the event at Main St", m.filter, got)
+	}
+	m, _ = send(t, m, press("esc"))
+	if m.filter != "" || m.filterInput != nil {
+		t.Error("esc while typing didn't clear and close the filter")
+	}
+}
+
+func TestFilterWithoutMatches(t *testing.T) {
+	m := loaded(t, 100, 24)
+	m, _ = send(t, m, press("/"))
+	m = typeText(t, m, "zebra")
+	m, _ = send(t, m, eventsLoadedMsg{from: m.from, days: m.days, events: testEvents()}) // the year it asked for
+	if s := screen(m); !strings.Contains(s, "No events match “zebra” in the 365 days from Tue 29 Sep.") {
+		t.Errorf("no-match text missing:\n%s", s)
+	}
+}
+
+func TestFilterStepsBetweenMatchingDays(t *testing.T) {
+	m := loaded(t, 100, 24)
+	m, _ = send(t, m, press("/"))
+	m = typeText(t, m, "conference")
+	m, _ = send(t, m, press("enter"))
+	if day := m.currentDay(); day != domain.NewCivilDate(2026, 9, 30) {
+		t.Fatalf("selected day %v, want the first match", day)
+	}
+	if m, _ = send(t, m, press("]")); m.currentDay() != domain.NewCivilDate(2026, 10, 1) {
+		t.Errorf("] went to %v, want the next day with a match", m.currentDay())
+	}
+	if m, _ = send(t, m, press("]")); m.currentDay() != domain.NewCivilDate(2026, 10, 1) {
+		t.Errorf("] past the last match moved to %v", m.currentDay())
+	}
+	if m, _ = send(t, m, press("[")); m.currentDay() != domain.NewCivilDate(2026, 9, 30) {
+		t.Errorf("[ went to %v", m.currentDay())
+	}
+}
+
+func TestFilterAppliesToWeekAndMonth(t *testing.T) {
+	m := toWeek(t, loaded(t, 120, 30), testEvents())
+	m, _ = send(t, m, press("/"))
+	m = typeText(t, m, "train")
+	s := screen(m)
+	if !strings.Contains(s, "Night train") || strings.Contains(s, "Standup") {
+		t.Errorf("week not filtered:\n%s", s)
+	}
+	m, _ = send(t, m, press("enter"), press("3"))
+	m, _ = send(t, m, monthLoadedMsg{start: m.month.start, weeks: m.month.weeks, events: testEvents()})
+	if s := screen(m); !strings.Contains(s, "Night train") || strings.Contains(s, "Standup") {
+		t.Errorf("month not filtered:\n%s", s)
+	}
+}
+
+func TestFilterTakesPaste(t *testing.T) {
+	m := loaded(t, 100, 24)
+	m, _ = send(t, m, press("/"), tea.PasteMsg{Content: "standup"})
+	if got := agendaTitles(m); len(got) != 1 || got[0] != "Standup" {
+		t.Errorf("pasted filter = %q, agenda %q", m.filter, got)
+	}
+}

@@ -6,15 +6,15 @@
 │ t                 Today                                  │
 │ r                 Sync now (also every 5 minutes)        │
 │ a                 Add a calendar: iCal link or Google    │
+│ /                 Filter events by title or location     │
 │ ?                 This help                              │
 │ q  ctrl+c         Quit                                   │
 │                                                          │
-│ Agenda                                                   │
-│ j k  ↓ ↑          Next, previous event                   │
-│ g G               First, last event                      │
-│ [ ]  pgup pgdn    Previous, next day                     │
-│ enter             Event details                          │
-│                   Moving past the end loads more days    │
-╰─────────────────────────────────────── lines 1–16 of 63 ─╯
+│ Filter                                                   │
+│ type              Narrows as you type; all words match   │
+│ enter             Keep the filter, move around again     │
+│ esc               Clear the filter                       │
+│ /                 Change the filter                      │
+╰─────────────────────────────────────── lines 1–16 of 72 ─╯
  j/k scroll · pgup/pgdn page · esc close                    
  ◦ Idle        Tue 29 Sep 14:30                Synced 14:29 

@@ -13,6 +13,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/miphe/clical/internal/agenda"
@@ -150,8 +151,13 @@ type Model struct {
 	confirmRemove *app.CalendarInfo
 	rename        *renameForm // rename.go
 	help          *helpView   // help.go
-	removing      bool
-	actionErr     error // last add/remove failure outside the form
+
+	// The event filter (filter.go): filter is applied to every view;
+	// filterInput is non-nil while it's being typed.
+	filter      string
+	filterInput *textinput.Model
+	removing    bool
+	actionErr   error // last add/remove failure outside the form
 
 	syncing  bool
 	lastSync time.Time
@@ -342,6 +348,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.formPaste(msg)
 		case m.rename != nil:
 			return m.renamePaste(msg)
+		case m.filterInput != nil:
+			return m.filterPaste(msg)
 		case m.gflow != nil:
 			return m.googlePaste(msg)
 		}
@@ -448,6 +456,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleRenameKey(msg)
 	case m.help != nil:
 		return m.handleHelpKey(msg)
+	case m.filterInput != nil:
+		return m.handleFilterKey(msg)
 	case msg.String() == "?":
 		m.help = &helpView{}
 		return m, nil
@@ -459,6 +469,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Quit):
 		return m, tea.Quit
+	case key.Matches(msg, m.keys.Filter):
+		return m.startFilter()
+	case msg.String() == "esc" && m.filter != "":
+		return m.setFilter("")
 	case key.Matches(msg, m.keys.Sync):
 		if m.syncing {
 			return m, nil
@@ -612,7 +626,29 @@ func (m Model) currentDay() domain.CivilDate {
 
 // stepDay moves the selection to the first row of the day before or after
 // the current one, growing the loaded window when that day is outside it.
+// While filtering it moves to the previous or next day with matches.
 func (m Model) stepDay(delta int) (tea.Model, tea.Cmd) {
+	if m.filter != "" {
+		cur := m.currentDay()
+		items := selectable(m.rows)
+		if delta < 0 {
+			for i := len(items) - 1; i >= 0; i-- {
+				if r := m.rows[items[i]]; r.date.Before(cur) {
+					m.selectDay(r.date)
+					break
+				}
+			}
+		} else {
+			for _, i := range items {
+				if r := m.rows[i]; cur.Before(r.date) {
+					m.selectDay(r.date)
+					break
+				}
+			}
+		}
+		m.ensureVisible()
+		return m, nil
+	}
 	target := m.currentDay().AddDays(delta)
 	switch {
 	case target.Before(m.from):
@@ -673,11 +709,23 @@ func (m Model) moveSelection(delta int) (tea.Model, tea.Cmd) {
 func (m *Model) rebuild() {
 	var visible []domain.Event
 	for _, e := range m.events {
-		if !m.hidden[e.CalendarID] {
+		if m.shows(e) {
 			visible = append(visible, e)
 		}
 	}
-	m.rows = buildRows(agenda.Build(visible, m.from, m.days, m.loc), m.today(), m.now)
+	days := agenda.Build(visible, m.from, m.days, m.loc)
+	if m.filter != "" {
+		// Only days with matches: a year of "nothing scheduled" would bury
+		// them.
+		var matched []agenda.Day
+		for _, d := range days {
+			if len(d.Items) > 0 {
+				matched = append(matched, d)
+			}
+		}
+		days = matched
+	}
+	m.rows = buildRows(days, m.today(), m.now)
 	if m.selIndex() < 0 {
 		m.sel = m.defaultSel()
 	}

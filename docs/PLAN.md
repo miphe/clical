@@ -36,10 +36,10 @@ multi-account merge → config/themes → in-process background polling.
 | — | Theming: terminal ANSI colors only (Omarchy-compatible), semantic roles, enforced | Done |
 | M7 | Month view | Done |
 | — | Event links: extraction, readable notes, select-and-open with the full address shown | Done |
-| — | Google accounts via OAuth (sign-in, calendar picker, sync, re-sign-in) | Done — live check pending |
+| — | Google accounts via OAuth (sign-in, calendar picker, sync, re-sign-in) | Done — live-checked with real accounts |
 | M10 | Background polling every 5 minutes; failures shown and retried | Done |
-| M8 (help) | `?` help screen; footer keeps the most important keys when narrow | Done |
-| M8 (filter), M9, M11 | `/` filter, config (non-color), polish | Not started |
+| M8 | `?` help screen, footer keeps the most important keys when narrow, `/` filter | Done |
+| M9, M11 | Config (non-color), polish | Not started |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -743,8 +743,18 @@ colors, which the iCal feed doesn't carry reliably); everything comes from the
 terminal's ANSI palette — see "Theming".
 
 **Time format**: 24-hour default, 12-hour configurable (M9).
-**Search**: "/" live-filters the current view by title/location; Enter jumps
-to the first match, Esc clears.
+**Filter** (done, `internal/ui/filter.go`): `/` opens an input in place of
+the footer's hint line. Every view narrows as you type to events whose
+title or location contains each word, case-insensitively; hidden calendars
+stay hidden. `enter` keeps the filter (shown first in the footer, `esc`
+clears it), `esc` while typing clears it, `/` edits it. Deviations from the
+first sketch, to make it useful for finding things:
+- One filter for all views, kept when switching, like calendar toggles.
+- The agenda loads a year ahead while filtering and leaves out days without
+  matches; `[`/`]` step between days with matches. No jump on `enter`: the
+  selection is already on the first match, and stays on the event found
+  when the filter is cleared, so its surroundings show.
+- Past events aren't searched (the agenda starts at its first day).
 **Mouse**: none in v1 (scroll wheel works via `bubbles/viewport`).
 **Help** (done): "?" opens a full-screen list of every key and interaction
 (`internal/ui/help.go`), grouped by where it works, in two columns when they
@@ -803,7 +813,7 @@ do both).
 | M5 | Bubble Tea shell: sidebar + main pane + footer; Agenda; event detail; calendar toggles; golden snapshots | `internal/ui/model.go`, `view.go`, `rows.go`, `keymap.go`, `styles.go`, `cmd/clical/tui.go` | Done |
 | M6 | Week view (day-list columns), view switching that keeps the current day | `internal/ui/week.go`, `internal/ui/weekview.go`, `internal/agenda` (`WeekStart`) | Done |
 | M7 | Month view (week-number column, "+N more", Enter → Agenda) | `internal/ui/month.go`, `internal/ui/monthview.go`, `internal/agenda` (`MonthGrid`) | Done |
-| M8 | "/" filter, "?" help (multi-account merge, toggles, permanent colors and theming already done) | `internal/ui/search.go`, `internal/ui/help.go` | Help done |
+| M8 | "/" filter, "?" help (multi-account merge, toggles, permanent colors and theming already done) | `internal/ui/filter.go`, `internal/ui/help.go` | Done |
 | M9 | YAML config for non-color settings (time format, first day of week, poll interval), mergo defaults, fsnotify hot-reload. No colors or themes: theming is delegated to the terminal | `internal/config/` | |
 | M10 | In-process polling every 5 min, one schedule for all calendars | `internal/ui/model.go` | Done |
 | M11 | Revoked-feed flow in the TUI, `--logs` tail, cross-compile check | `internal/ui/revoked.go`, `cmd/clical/logs.go` | |

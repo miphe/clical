@@ -137,6 +137,8 @@ func (m Model) renderAgenda(width, height int) []string {
 		lines = []string{errorStyle.Render("Can't read the local cache: " + m.loadErr.Error())}
 	case len(m.rows) == 0 && m.loading:
 		lines = []string{mutedStyle.Render("Loading…")}
+	case len(m.rows) == 0 && m.filter != "":
+		lines = []string{mutedStyle.Render(m.noMatches())}
 	case len(m.rows) == 0:
 		lines = []string{mutedStyle.Render(fmt.Sprintf("Nothing scheduled in the %d days from %s.",
 			m.days, m.from.In(m.loc).Format("Mon 2 Jan")))}
@@ -257,6 +259,9 @@ func (m Model) calendarLabel(calendarID string) string {
 
 func (m Model) renderFooter() []string {
 	line := fitHints(m.footerHints(), m.width-1)
+	if m.filterInput != nil {
+		line = m.filterLine()
+	}
 	hintLine := fit(" "+line, m.width)
 
 	left := " " + m.activity() + m.now.In(m.loc).Format("Mon 2 Jan 15:04")
@@ -338,6 +343,11 @@ func (m Model) footerHints() []footHint {
 
 	// Pane keys first, the same everywhere.
 	hints := []footHint{h("0", "calendars", prioHigh), h("1-3", "views", prioHigh), h("tab", "switch pane", prioMid)}
+	if m.filter != "" {
+		// The active filter leads, so it's clear why events are missing.
+		hints = append([]footHint{h("/"+m.filter, "", prioMust), h("esc", "clear", prioMust)}, hints...)
+		hints[2].newGroup = true
+	}
 	var view []footHint
 	switch {
 	case m.focus == focusSidebar:
@@ -348,12 +358,13 @@ func (m Model) footerHints() []footHint {
 			h("a", "add", prioHigh), h("n", "rename", prioMid), h("d", "remove", prioMid), h("c", "collapse", prioLow))
 	case m.view == viewWeek:
 		view = []footHint{h("h/l", "day", prioMid), h("j/k", "move", prioLow), h("enter", "details", prioHigh),
-			h("[/]", "week", prioMid), h("t", "today", prioMid)}
+			h("[/]", "week", prioMid), h("t", "today", prioMid), h("/", "filter", prioMid)}
 	case m.view == viewMonth:
 		view = []footHint{h("h/l", "day", prioLow), h("j/k", "week", prioLow), h("enter", "open day", prioHigh),
-			h("[/]", "month", prioMid), h("t", "today", prioMid)}
+			h("[/]", "month", prioMid), h("t", "today", prioMid), h("/", "filter", prioMid)}
 	default:
-		view = []footHint{h("j/k", "move", prioLow), h("enter", "details", prioHigh), h("[/]", "day", prioMid), h("t", "today", prioMid)}
+		view = []footHint{h("j/k", "move", prioLow), h("enter", "details", prioHigh), h("[/]", "day", prioMid), h("t", "today", prioMid),
+			h("/", "filter", prioMid)}
 	}
 	view = append(view, h("r", "sync", prioLow), h("q", "quit", prioMid), help)
 	view[0].newGroup = true
@@ -396,7 +407,10 @@ func renderHints(hints []footHint) string {
 				b.WriteString(mutedStyle.Render(" · "))
 			}
 		}
-		b.WriteString(boldStyle.Render(hn.key) + " " + mutedStyle.Render(hn.desc))
+		b.WriteString(boldStyle.Render(hn.key))
+		if hn.desc != "" {
+			b.WriteString(" " + mutedStyle.Render(hn.desc))
+		}
 	}
 	return b.String()
 }

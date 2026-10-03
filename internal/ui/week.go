@@ -82,7 +82,7 @@ func (m *Model) rebuildWeek() {
 	}
 	var visible []domain.Event
 	for _, e := range m.week.events {
-		if !m.hidden[e.CalendarID] {
+		if m.shows(e) {
 			visible = append(visible, e)
 		}
 	}
