@@ -27,6 +27,7 @@ var layers = map[string][]string{
 	"internal/agenda":           {"internal/domain"},
 	"internal/eventtext":        {"internal/domain"},
 	"internal/secrets":          {},
+	"internal/config":           {},
 	"internal/store":            {"internal/domain"},
 	"internal/providers/ical":   {"internal/domain", "internal/eventtext"},
 	"internal/providers/google": {"internal/domain", "internal/eventtext"},
@@ -37,7 +38,7 @@ var layers = map[string][]string{
 	// Front-ends: talk to the core only through internal/app (plus the plain
 	// data types in domain and agenda).
 	"internal/ui": {"internal/app", "internal/agenda", "internal/domain"},
-	"cmd/clical":  {"internal/app", "internal/ui", "internal/agenda", "internal/domain"},
+	"cmd/clical":  {"internal/app", "internal/ui", "internal/agenda", "internal/domain", "internal/config"},
 
 	// Tooling.
 	"internal/archtest": {},

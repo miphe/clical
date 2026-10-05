@@ -154,6 +154,7 @@ func (g *googleSignIn) URL() string { return g.url }
 func (g *googleSignIn) Wait(ctx context.Context) (domain.Account, error) {
 	acct, tok, err := g.wait(ctx)
 	if err != nil {
+		g.app.log.Warn("Google sign-in failed", "error", err.Error())
 		return domain.Account{}, err
 	}
 	if g.expect != "" && !strings.EqualFold(acct.Label, g.expect) {
@@ -168,6 +169,7 @@ func (g *googleSignIn) Wait(ctx context.Context) (domain.Account, error) {
 	if err := g.app.vault.SaveToken(acct.ID, tok); err != nil {
 		return domain.Account{}, fmt.Errorf("save the sign-in: %w", err)
 	}
+	g.app.log.Info("signed in to Google", "account", acct.Label)
 	return acct, nil
 }
 
@@ -238,6 +240,9 @@ func (a *App) AddGoogleCalendars(ctx context.Context, acct domain.Account, picks
 			return nil, err
 		}
 		out = append(out, CalendarInfo{Account: acct, Calendar: cal})
+	}
+	for _, c := range out {
+		a.log.Info("calendar added", "calendar", c.Label())
 	}
 	return out, nil
 }

@@ -33,18 +33,33 @@ func (a *App) Sync(ctx context.Context) ([]SyncOutcome, error) {
 	}
 	results, err := a.engine.SyncAll(ctx)
 	if err != nil {
+		a.log.Error("sync failed", "error", err.Error())
 		return nil, err
 	}
 	out := make([]SyncOutcome, 0, len(results))
 	for _, r := range results {
-		out = append(out, SyncOutcome{
+		out = append(out, a.outcome(SyncOutcome{
 			CalendarInfo: CalendarInfo{Account: r.Account, Calendar: r.Calendar},
 			Changed:      r.Changed,
 			Events:       r.Events,
 			Err:          r.Err,
-		})
+		}))
 	}
 	return out, nil
+}
+
+// outcome logs o and returns it.
+func (a *App) outcome(o SyncOutcome) SyncOutcome {
+	a.failMu.Lock()
+	recovered := o.Err == nil && a.failing[o.Calendar.ID]
+	if o.Err != nil {
+		a.failing[o.Calendar.ID] = true
+	} else {
+		delete(a.failing, o.Calendar.ID)
+	}
+	a.failMu.Unlock()
+	a.logOutcome(o, recovered)
+	return o
 }
 
 // NeedsSignIn reports whether the calendar's account must sign in again
@@ -61,5 +76,5 @@ func (a *App) SyncCalendar(ctx context.Context, cal CalendarInfo) SyncOutcome {
 		return SyncOutcome{CalendarInfo: cal, Err: ErrLocked}
 	}
 	r := a.engine.SyncOne(ctx, cal.Account, cal.Calendar)
-	return SyncOutcome{CalendarInfo: cal, Changed: r.Changed, Events: r.Events, Err: r.Err}
+	return a.outcome(SyncOutcome{CalendarInfo: cal, Changed: r.Changed, Events: r.Events, Err: r.Err})
 }

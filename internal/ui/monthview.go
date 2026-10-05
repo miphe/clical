@@ -24,7 +24,7 @@ const (
 // events as fit, then "+N more".
 func (m Model) renderMonth(width, height int) []string {
 	numW := 0
-	if weekFirstDay == time.Monday {
+	if m.weekStart == time.Monday {
 		numW = weekNumWidth + 1 // plus its separator
 	}
 	cols := columnWidths(width-numW, 7)
@@ -183,7 +183,7 @@ func moreLabel(n int, none bool, width int) string {
 
 // monthWeekSpan is the grid's ISO week range, e.g. "Weeks 36–40".
 func (m Model) monthWeekSpan() string {
-	if weekFirstDay != time.Monday {
+	if m.weekStart != time.Monday {
 		return ""
 	}
 	_, first := m.month.start.In(m.loc).ISOWeek()
@@ -197,7 +197,7 @@ func (m Model) monthEventLine(date domain.CivilDate, it agenda.Item, width int, 
 	slot := m.calendarSlot(it.Event.CalendarID)
 	text := it.Event.Title
 	if !it.Event.AllDay && width >= 14 && !it.Start.Before(date.In(m.loc)) {
-		text = it.Start.Format("15:04") + " " + text
+		text = m.clock.Time(it.Start) + " " + text
 	}
 	ended := !it.Event.AllDay && !it.End.After(m.now)
 	if ended || !inMonth {

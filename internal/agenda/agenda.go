@@ -6,6 +6,7 @@ package agenda
 import (
 	"sort"
 	"time"
+	"unicode/utf8"
 
 	"github.com/miphe/clical/internal/domain"
 )
@@ -73,24 +74,52 @@ func Build(events []domain.Event, from domain.CivilDate, days int, loc *time.Loc
 	return out
 }
 
+// Clock formats times of day, 24-hour (15:04) or 12-hour (3:04pm).
+type Clock struct{ Twelve bool }
+
+// Time is t's time of day.
+func (c Clock) Time(t time.Time) string {
+	if c.Twelve {
+		return t.Format("3:04pm")
+	}
+	return t.Format("15:04")
+}
+
+// midnight is an end at the very end of a day.
+func (c Clock) midnight() string {
+	if c.Twelve {
+		return "12:00am"
+	}
+	return "24:00"
+}
+
+// Width is the display width of the widest TimeLabel of a timed event, for
+// aligning columns. Every character in a label is one cell wide.
+func (c Clock) Width() int {
+	if c.Twelve {
+		return utf8.RuneCountInString("12:00pm–12:00pm")
+	}
+	return utf8.RuneCountInString("00:00–00:00")
+}
+
 // TimeLabel renders the item's time as seen on date: "all day", or
 // "HH:MM–HH:MM" with "…" where the event continues from or into another day,
 // "24:00" for an end at midnight, and a single time for zero-length events.
-func (it Item) TimeLabel(date domain.CivilDate, loc *time.Location) string {
+func (it Item) TimeLabel(date domain.CivilDate, loc *time.Location, c Clock) string {
 	if it.Event.AllDay {
 		return "all day"
 	}
 	dayStart, dayEnd := date.In(loc), date.AddDays(1).In(loc)
 	from := "…"
 	if !it.Start.Before(dayStart) {
-		from = it.Start.Format("15:04")
+		from = c.Time(it.Start)
 	}
 	to := "…"
 	switch {
 	case it.End.Equal(dayEnd):
-		to = "24:00"
+		to = c.midnight()
 	case !it.End.After(dayEnd):
-		to = it.End.Format("15:04")
+		to = c.Time(it.End)
 	}
 	if it.Start.Equal(it.End) {
 		return from

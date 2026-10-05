@@ -73,7 +73,9 @@ func (a *App) AddCalendar(ctx context.Context, account, name string, feed Feed) 
 	if err := a.store.SetCalendarNickname(ctx, cal, ""); err != nil {
 		return CalendarInfo{}, err
 	}
-	return CalendarInfo{Account: acct, Calendar: cal}, nil
+	info := CalendarInfo{Account: acct, Calendar: cal}
+	a.log.Info("calendar added", "calendar", info.Label())
+	return info, nil
 }
 
 // slotFor keeps cal's slot if it already exists (re-adding a feed), else
@@ -177,6 +179,7 @@ func (a *App) RemoveCalendar(ctx context.Context, cal CalendarInfo) error {
 	if err := a.store.DeleteCalendar(ctx, cal.Calendar); err != nil {
 		return err
 	}
+	a.log.Info("calendar removed", "calendar", cal.Label())
 	if cal.Account.Provider == "google" {
 		// A Google account's sign-in is shared by its calendars; drop it with
 		// the last one.
@@ -213,5 +216,9 @@ func (a *App) SetCalendarURL(ctx context.Context, cal CalendarInfo, feed Feed) e
 	if err := a.vault.SaveSecret(ical.SecretKey(cal.Calendar.ID), []byte(feed.url)); err != nil {
 		return fmt.Errorf("save feed URL: %w", err)
 	}
-	return a.store.ResetSyncToken(ctx, cal.Calendar)
+	if err := a.store.ResetSyncToken(ctx, cal.Calendar); err != nil {
+		return err
+	}
+	a.log.Info("calendar address replaced", "calendar", cal.Label())
+	return nil
 }

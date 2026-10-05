@@ -99,6 +99,7 @@ to trust your OAuth client ID (Admin console → Security → API controls).
 | `r`                        | Sync now                                                                          |
 | `a`                        | Add a calendar (iCal link or Google account)                                      |
 | `s` (calendar list)        | Sign a Google account in again (when marked ⚠)                                    |
+| `u` (calendar list)        | Give an iCal calendar its new secret address (when marked ⚠)                      |
 | `n` (calendar list)        | Rename the selected calendar or account (only in CLIcal)                          |
 | `d` (calendar list)        | Remove the selected calendar (asks first)                                         |
 | `space` (calendar list)    | Show or hide a calendar, or all of an account's calendars                         |
@@ -132,7 +133,28 @@ Calendars are referenced by name, nickname or the ID shown in `list`; add
 only changes what CLIcal shows: the calendar in Google Calendar, and the
 email address a Google account signs in with, stay as they are. If a secret
 address leaks, use "Reset" next to it in Google Calendar, then
-`clical calendars set-url` with the new one.
+`clical calendars set-url` with the new one, or press `u` on the calendar in
+the TUI. A calendar whose address stopped working is marked ⚠.
+
+## Settings
+
+Optional, in `~/.config/clical/config.yaml`:
+
+    time_format: 24h      # or 12h
+    week_start: monday    # or sunday
+    sync_interval: 5m     # time between background syncs, e.g. 1h, or off
+
+`clical config` shows the file's path and the settings in use, and
+`clical config init` writes the file with every setting at its default.
+Changes apply the next time CLIcal starts; a misspelt setting or value
+stops it with an error naming it.
+
+## Log
+
+Sync failures and recoveries, and calendar and account changes, are logged
+to `~/.local/state/clical/clical.log` (names only, never addresses or
+sign-ins). `clical logs` prints the end of it; `clical logs -f` keeps
+following it.
 
 ## Layout
 
@@ -145,6 +167,7 @@ address leaks, use "Reset" next to it in Google Calendar, then
     internal/eventtext/          readable notes and links from event content       │
     internal/store/              SQLite cache + sync tokens                        │
     internal/secrets/            age-encrypted secret vault                        │
+    internal/config/             the settings file                                 │
     internal/agenda/             pure day-grouping of events                       │
     internal/domain/             provider-agnostic types                           ┘
     internal/archtest/           test that enforces the layering
@@ -154,9 +177,8 @@ Notes for coding agents: [`AGENTS.md`](AGENTS.md).
 
 ## Status
 
-M0–M5 done: iCal provider with retries and dead-feed detection, calendar
-management, `sync`, plain-text `agenda`, and the full-screen TUI with Agenda, Week and
-Month views, event details, calendar management in the TUI, and theming
-from the terminal palette. Next: search and help (M8) or background syncing
-(M10). Milestone table in
+All planned milestones (M0–M11) are done: iCal and Google calendars,
+background syncing, the full-screen TUI with Agenda, Week and Month views,
+event details with links, filtering, help, renaming, settings and a log.
+Milestone table in
 [`docs/PLAN.md`](docs/PLAN.md).

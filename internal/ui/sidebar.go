@@ -137,6 +137,8 @@ func (m Model) handleSidebarKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case key.Matches(msg, m.keys.Rename):
 		return m.startRename()
+	case key.Matches(msg, m.keys.NewURL):
+		return m.startURLForm()
 	case key.Matches(msg, m.keys.Remove):
 		if r, ok := m.selectedSidebarRow(); ok && r.kind == sideCalendar {
 			cal := r.cal
@@ -254,7 +256,11 @@ func (m Model) renderSidebarRow(r sideRow, width int, selected bool) string {
 	hidden := m.hidden[r.cal.Calendar.ID]
 	slot := r.cal.Calendar.ColorSlot
 	swatch := calendarGlyph(slot, hidden)
-	text := "   " + swatch + " " + r.cal.Calendar.DisplayName()
+	warn := ""
+	if m.brokenFeed[r.cal.Calendar.ID] {
+		warn = "⚠ "
+	}
+	text := "   " + swatch + " " + warn + r.cal.Calendar.DisplayName()
 	if m.sidebarCollapsed {
 		text = " " + swatch + " "
 	}
@@ -265,7 +271,11 @@ func (m Model) renderSidebarRow(r sideRow, width int, selected bool) string {
 		return mutedStyle.Render(fit(text, width))
 	}
 	colored := calendarBullet(slot)
-	return fit(strings.Replace(text, swatch, colored, 1), width)
+	text = strings.Replace(text, swatch, colored, 1)
+	if warn != "" {
+		text = strings.Replace(text, warn, errorStyle.Render(warn), 1)
+	}
+	return fit(text, width)
 }
 
 // selectedGoogleAccount is the Google account of the row under the cursor

@@ -29,7 +29,9 @@ func (a *App) RenameCalendar(ctx context.Context, cal CalendarInfo, name string)
 		}
 		return CalendarInfo{}, err
 	}
+	before := cal.Label()
 	cal.Calendar.Nickname = nick
+	a.log.Info("calendar renamed", "from", before, "to", cal.Label())
 	return cal, nil
 }
 
@@ -45,7 +47,9 @@ func (a *App) RenameAccount(ctx context.Context, acct domain.Account, name strin
 		}
 		return domain.Account{}, err
 	}
+	before := acct.DisplayName()
 	acct.Nickname = nick
+	a.log.Info("account renamed", "from", before, "to", acct.DisplayName())
 	return acct, nil
 }
 

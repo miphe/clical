@@ -31,6 +31,7 @@ type Source interface {
 	CheckFeed(ctx context.Context, rawURL string) (app.Feed, error)
 	AddCalendar(ctx context.Context, account, name string, feed app.Feed) (app.CalendarInfo, error)
 	RemoveCalendar(ctx context.Context, cal app.CalendarInfo) error
+	SetCalendarURL(ctx context.Context, cal app.CalendarInfo, feed app.Feed) error
 	RenameCalendar(ctx context.Context, cal app.CalendarInfo, name string) (app.CalendarInfo, error)
 	RenameAccount(ctx context.Context, acct domain.Account, name string) (domain.Account, error)
 
@@ -47,7 +48,7 @@ const (
 	narrowWidth  = 70
 	syncTimeout  = 3 * time.Minute
 	// pollInterval is how long after one sync of every calendar finishes
-	// the next one starts. An iCal sync downloads the whole feed, so this
+	// the next one starts, unless Settings say otherwise. An iCal sync downloads the whole feed, so this
 	// stays well clear of a feed provider's patience.
 	pollInterval = 5 * time.Minute
 )
@@ -110,7 +111,10 @@ type Model struct {
 	loc  *time.Location
 	now  time.Time
 	tick time.Duration // 0 disables the clock tick (tests)
-	poll time.Duration // 0 disables background syncing (tests)
+	poll time.Duration // 0 disables background syncing (tests, or turned off)
+
+	clock     agenda.Clock
+	weekStart time.Weekday // first column of the week view and month grid
 
 	width, height int
 
@@ -151,6 +155,10 @@ type Model struct {
 	confirmRemove *app.CalendarInfo
 	rename        *renameForm // rename.go
 	help          *helpView   // help.go
+	urlForm       *urlForm    // feedurl.go
+	// brokenFeed marks iCal calendars whose address stopped working
+	// (calendar ID → true), until they sync again.
+	brokenFeed map[string]bool
 
 	// The event filter (filter.go): filter is applied to every view;
 	// filterInput is non-nil while it's being typed.
@@ -185,9 +193,11 @@ func New(src Source, loc *time.Location, now time.Time) Model {
 		now:          now,
 		tick:         30 * time.Second,
 		poll:         pollInterval,
+		weekStart:    time.Monday,
 		calIndex:     map[string]int{},
 		needsSignIn:  map[string]bool{},
 		syncFailures: map[string]string{},
+		brokenFeed:   map[string]bool{},
 		openURL:      openInBrowser,
 		hidden:       map[string]bool{},
 		days:         initialDays,
@@ -199,6 +209,23 @@ func New(src Source, loc *time.Location, now time.Time) Model {
 		spinning: true,
 	}
 	m.from = m.today()
+	return m
+}
+
+// Settings are the user's choices that change how the UI looks and behaves.
+type Settings struct {
+	Clock12   bool         // 3:04pm instead of 15:04
+	WeekStart time.Weekday // time.Monday or time.Sunday
+	// SyncInterval is the time from one sync's end to the next start; 0
+	// turns background syncing off.
+	SyncInterval time.Duration
+}
+
+// WithSettings applies s. Call it before the program starts.
+func (m Model) WithSettings(s Settings) Model {
+	m.clock = agenda.Clock{Twelve: s.Clock12}
+	m.weekStart = s.WeekStart
+	m.poll = s.SyncInterval
 	return m
 }
 
@@ -313,6 +340,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for id := range m.syncFailures {
 			if _, ok := m.calIndex[id]; !ok {
 				delete(m.syncFailures, id) // the calendar was removed
+				delete(m.brokenFeed, id)
 			}
 		}
 		m.ensureSidebarSelection()
@@ -333,6 +361,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case removeDoneMsg:
 		return m.removeDone(msg)
 
+	case urlDoneMsg:
+		return m.urlDone(msg)
+
 	case renameDoneMsg:
 		return m.renameDone(msg)
 
@@ -350,6 +381,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.renamePaste(msg)
 		case m.filterInput != nil:
 			return m.filterPaste(msg)
+		case m.urlForm != nil:
+			return m.urlPaste(msg)
 		case m.gflow != nil:
 			return m.googlePaste(msg)
 		}
@@ -408,11 +441,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if r.Err == nil {
 				delete(m.needsSignIn, r.Account.ID)
 				delete(m.syncFailures, r.Calendar.ID)
+				delete(m.brokenFeed, r.Calendar.ID)
 				changed = changed || r.Changed
 				continue
 			}
 			failed = true
 			m.syncFailures[r.Calendar.ID] = describeSyncFailure(r)
+			if _, ok := r.Unavailable(); ok && r.Account.Provider == "ical" {
+				m.brokenFeed[r.Calendar.ID] = true
+			}
 			if r.NeedsSignIn() {
 				m.needsSignIn[r.Account.ID] = true
 			}
@@ -454,6 +491,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleConfirmKey(msg)
 	case m.rename != nil:
 		return m.handleRenameKey(msg)
+	case m.urlForm != nil:
+		return m.handleURLKey(msg)
 	case m.help != nil:
 		return m.handleHelpKey(msg)
 	case m.filterInput != nil:
@@ -811,7 +850,7 @@ func describeSyncFailure(r app.SyncOutcome) string {
 	}
 	if _, ok := r.Unavailable(); ok {
 		if r.Account.Provider == "ical" {
-			return r.Label() + ": feed URL no longer works"
+			return r.Label() + ": feed URL no longer works (u on the calendar)"
 		}
 		return r.Label() + ": calendar no longer available"
 	}

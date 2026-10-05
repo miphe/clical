@@ -12,6 +12,10 @@ import (
 type TUICmd struct{}
 
 func (c *TUICmd) Run() error {
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
 	a, err := openApp()
 	if err != nil {
 		return err
@@ -24,6 +28,11 @@ func (c *TUICmd) Run() error {
 	if err := unlock(a); err != nil {
 		return err
 	}
-	_, err = tea.NewProgram(ui.New(a, time.Local, time.Now())).Run()
+	m := ui.New(a, time.Local, time.Now()).WithSettings(ui.Settings{
+		Clock12:      cfg.Clock12,
+		WeekStart:    cfg.WeekStart,
+		SyncInterval: cfg.SyncInterval,
+	})
+	_, err = tea.NewProgram(m).Run()
 	return err
 }

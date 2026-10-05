@@ -39,7 +39,8 @@ multi-account merge → config/themes → in-process background polling.
 | — | Google accounts via OAuth (sign-in, calendar picker, sync, re-sign-in) | Done — live-checked with real accounts |
 | M10 | Background polling every 5 minutes; failures shown and retried | Done |
 | M8 | `?` help screen, footer keeps the most important keys when narrow, `/` filter | Done |
-| M9, M11 | Config (non-color), polish | Not started |
+| M9 | Settings file: 12/24-hour clock, week start, sync interval | Done |
+| M11 | Dead iCal feeds fixed from the TUI, log file and `clical logs` | Done |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -358,6 +359,41 @@ title. Used by `clical agenda` now and by the TUI Agenda view in M5.
   Columns padded by display width (`uniseg`) so emoji/CJK titles align.
 - Google accounts are added in the TUI (`a` → Google account); there's no
   CLI command for it.
+
+## Settings — M9 done
+
+`~/.config/clical/config.yaml` (`internal/config`), read once at startup by
+`cmd/clical` and handed to the TUI as `ui.Settings`; the TUI never reads
+files. Settings: `time_format` (24h/12h), `week_start` (monday/sunday),
+`sync_interval` (a duration of at least 1m, or off). Missing file = defaults;
+unknown keys and bad values are errors naming the file and setting, shown
+before the passphrase prompt. `clical config` shows the path and values,
+`clical config init` writes a commented file with the defaults.
+
+Simpler than first planned: no hot-reload (fsnotify) and no mergo. With
+three settings, defaults are a struct literal, and a restart is a fine way
+to apply a change.
+
+The clock lives in `agenda.Clock`, used by `Item.TimeLabel`, so the TUI and
+`clical agenda` format times the same way; `Clock.Width()` sizes the time
+column (11 cells for 24h, 15 for 12h). This fixed the CLI agenda's time
+column, which measured "00:00–00:00" in bytes (13) instead of cells (11).
+
+## Dead feeds and the log — M11 done
+
+- An iCal calendar whose sync fails with `CalendarUnavailableError` is
+  marked ⚠ in the list until it syncs again. `u` on any iCal calendar opens
+  a hidden URL field; the address is checked (`CheckFeed`), saved
+  (`SetCalendarURL`) and the calendar synced. The status line's failure
+  says `(u on the calendar)`.
+- `internal/app/log.go`: a `slog` text log at
+  `$XDG_STATE_HOME/clical/clical.log` (0600), rotated to `.1` past 1 MiB on
+  opening. The app layer logs sync failures, recoveries and changes (quiet
+  syncs aren't logged), calendars added, removed, renamed or given a new
+  address, accounts renamed, and Google sign-ins. Names only: addresses and
+  tokens never reach it (`TestLogRecordsChangesNotSecrets`).
+- `clical logs [-n 50] [-f]` prints the end of the log and can follow it,
+  starting over when it's rotated.
 
 ## Background polling — M10 done
 
@@ -814,9 +850,9 @@ do both).
 | M6 | Week view (day-list columns), view switching that keeps the current day | `internal/ui/week.go`, `internal/ui/weekview.go`, `internal/agenda` (`WeekStart`) | Done |
 | M7 | Month view (week-number column, "+N more", Enter → Agenda) | `internal/ui/month.go`, `internal/ui/monthview.go`, `internal/agenda` (`MonthGrid`) | Done |
 | M8 | "/" filter, "?" help (multi-account merge, toggles, permanent colors and theming already done) | `internal/ui/filter.go`, `internal/ui/help.go` | Done |
-| M9 | YAML config for non-color settings (time format, first day of week, poll interval), mergo defaults, fsnotify hot-reload. No colors or themes: theming is delegated to the terminal | `internal/config/` | |
+| M9 | YAML config for non-color settings (time format, first day of week, poll interval). No colors or themes: theming is delegated to the terminal | `internal/config/` | Done |
 | M10 | In-process polling every 5 min, one schedule for all calendars | `internal/ui/model.go` | Done |
-| M11 | Revoked-feed flow in the TUI, `--logs` tail, cross-compile check | `internal/ui/revoked.go`, `cmd/clical/logs.go` | |
+| M11 | Revoked-feed flow in the TUI, `clical logs`, cross-compile check | `internal/ui/feedurl.go`, `internal/app/log.go`, `cmd/clical/logs.go` | Done |
 
 ## Verification
 

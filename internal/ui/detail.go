@@ -335,13 +335,13 @@ func (m Model) detailWhen() string {
 	start, end := m.detail.Start, m.detail.End
 	dur := formatDuration(end.Sub(start))
 	if domain.CivilDateFromTime(start) == domain.CivilDateFromTime(end) || end.Equal(start) {
-		s := start.Format("Mon 2 Jan 2006") + " · " + start.Format("15:04")
+		s := start.Format("Mon 2 Jan 2006") + " · " + m.clock.Time(start)
 		if !end.Equal(start) {
-			s += "–" + end.Format("15:04") + " (" + dur + ")"
+			s += "–" + m.clock.Time(end) + " (" + dur + ")"
 		}
 		return s
 	}
-	return start.Format("Mon 2 Jan 15:04") + " – " + end.Format("Mon 2 Jan 2006 15:04") + " (" + dur + ")"
+	return start.Format("Mon 2 Jan ") + m.clock.Time(start) + " – " + end.Format("Mon 2 Jan 2006 ") + m.clock.Time(end) + " (" + dur + ")"
 }
 
 func formatDuration(d time.Duration) string {

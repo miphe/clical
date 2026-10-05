@@ -44,7 +44,7 @@ func (m Model) showMonth(day domain.CivilDate) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.month.month = first
-	m.month.start, m.month.weeks = agenda.MonthGrid(first, weekFirstDay)
+	m.month.start, m.month.weeks = agenda.MonthGrid(first, m.weekStart)
 	m.month.loaded = false
 	m.month.loading = true
 	return m, m.loadMonth()

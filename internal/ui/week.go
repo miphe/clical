@@ -11,9 +11,6 @@ import (
 	"github.com/miphe/clical/internal/domain"
 )
 
-// weekFirstDay is the first column of the week view. Configurable in M9.
-const weekFirstDay = time.Monday
-
 // weekState is the week view's part of the model: one week of events, laid
 // out as seven days, and a selection of (column, event in that column).
 type weekState struct {
@@ -45,7 +42,7 @@ func (m Model) loadWeek() tea.Cmd {
 func (m Model) showWeek(day domain.CivilDate, eventID string) (tea.Model, tea.Cmd) {
 	m.view = viewWeek
 	m.focus = focusMain
-	start := agenda.WeekStart(day, weekFirstDay)
+	start := agenda.WeekStart(day, m.weekStart)
 	m.week.day = daysBetween(start, day)
 	m.week.pendingSelect, m.week.pendingID = true, eventID
 

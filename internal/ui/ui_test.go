@@ -42,6 +42,9 @@ func (nopSource) AddCalendar(context.Context, string, string, app.Feed) (app.Cal
 	return app.CalendarInfo{}, nil
 }
 func (nopSource) RemoveCalendar(context.Context, app.CalendarInfo) error { return nil }
+func (nopSource) SetCalendarURL(context.Context, app.CalendarInfo, app.Feed) error {
+	return nil
+}
 func (nopSource) RenameCalendar(_ context.Context, c app.CalendarInfo, _ string) (app.CalendarInfo, error) {
 	return c, nil
 }
@@ -2191,5 +2194,140 @@ func TestFilterTakesPaste(t *testing.T) {
 	m, _ = send(t, m, press("/"), tea.PasteMsg{Content: "standup"})
 	if got := agendaTitles(m); len(got) != 1 || got[0] != "Standup" {
 		t.Errorf("pasted filter = %q, agenda %q", m.filter, got)
+	}
+}
+
+// withSettings is loaded with s applied first, as cmd/clical does.
+func withSettings(t *testing.T, width, height int, s Settings) Model {
+	t.Helper()
+	m := New(nopSource{}, loc, testNow).WithSettings(s)
+	m.tick = 0
+	m, _ = send(t, m,
+		tea.WindowSizeMsg{Width: width, Height: height},
+		calendarsLoadedMsg{rows: testCalendars},
+		eventsLoadedMsg{from: m.from, days: m.days, events: testEvents()},
+		syncDoneMsg{at: at(29, 14, 29)},
+		flashEndMsg{until: at(29, 14, 29).Add(flashDuration)},
+	)
+	return m
+}
+
+func TestTwelveHourClock(t *testing.T) {
+	m := withSettings(t, 110, 24, Settings{Clock12: true, WeekStart: time.Monday, SyncInterval: pollInterval})
+	s := screen(m)
+	for _, want := range []string{"9:00am–9:30am", "11:00pm–…", "── now 2:30pm", "Tue 29 Sep 2:30pm", "Synced 2:29pm"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("screen lacks %q:\n%s", want, s)
+		}
+	}
+	m, _ = send(t, m, press("enter"))
+	if s := screen(m); !strings.Contains(s, "3:00pm–4:00pm") {
+		t.Errorf("event view not in 12-hour time:\n%s", s)
+	}
+}
+
+func TestSundayFirstWeek(t *testing.T) {
+	m := withSettings(t, 120, 30, Settings{WeekStart: time.Sunday, SyncInterval: pollInterval})
+	m = toWeek(t, m, testEvents())
+	if m.week.start != domain.NewCivilDate(2026, 9, 27) {
+		t.Errorf("week starts %v, want Sunday 27 Sep", m.week.start)
+	}
+	if s := screen(m); strings.Contains(s, "Week 40") {
+		t.Errorf("ISO week number shown for a Sunday-first week:\n%s", s)
+	}
+	m, _ = send(t, m, press("3"))
+	if m.month.start.In(loc).Weekday() != time.Sunday {
+		t.Errorf("month grid starts on %v", m.month.start.In(loc).Weekday())
+	}
+}
+
+func TestBackgroundSyncCanBeTurnedOff(t *testing.T) {
+	m := withSettings(t, 100, 24, Settings{WeekStart: time.Monday})
+	if !m.nextPoll.IsZero() {
+		t.Errorf("a background sync was scheduled for %v with syncing off", m.nextPoll)
+	}
+	m, _ = send(t, m, syncDoneMsg{at: at(29, 14, 31), results: []app.SyncOutcome{{CalendarInfo: testCalendars[0], Err: errors.New("offline")}}})
+	if s := screen(m); strings.Contains(s, "retry") {
+		t.Errorf("a retry was promised with syncing off:\n%s", s)
+	}
+}
+
+type urlSource struct {
+	nopSource
+	checked string
+	set     app.CalendarInfo
+	err     error
+}
+
+func (u *urlSource) CheckFeed(_ context.Context, raw string) (app.Feed, error) {
+	u.checked = raw
+	return app.Feed{}, u.err
+}
+
+func (u *urlSource) SetCalendarURL(_ context.Context, c app.CalendarInfo, _ app.Feed) error {
+	u.set = c
+	return nil
+}
+
+func TestDeadFeedGetsANewURL(t *testing.T) {
+	src := &urlSource{}
+	m := loaded(t, 100, 24)
+	m.src = src
+	dead := app.SyncOutcome{CalendarInfo: testCalendars[1], Err: &domain.CalendarUnavailableError{CalendarID: mainCal.ID, Reason: "HTTP 404 Not Found"}}
+	m, _ = send(t, m, syncDoneMsg{at: at(29, 14, 31), results: []app.SyncOutcome{dead}})
+	m.focus = focusSidebar
+	m.side.sel = sideRow{kind: sideCalendar, cal: testCalendars[1]}.key()
+	s := screen(m)
+	if !strings.Contains(s, "● ⚠ Main") || !strings.Contains(s, "u new URL") || !strings.Contains(s, "(u on the calendar)") {
+		t.Errorf("dead feed not marked or the fix not offered:\n%s", s)
+	}
+
+	m, _ = send(t, m, press("u"))
+	if m.urlForm == nil || m.urlForm.cal.Calendar.ID != mainCal.ID {
+		t.Fatal("u didn't open the new-URL popup for the calendar")
+	}
+	if m, _ = send(t, m, press("enter")); m.urlForm.err == "" {
+		t.Error("an empty address was accepted")
+	}
+	m, _ = send(t, m, tea.PasteMsg{Content: "https://x.test/secret-new.ics"})
+	if strings.Contains(screen(m), "secret-new") {
+		t.Errorf("the secret address shows on screen:\n%s", screen(m))
+	}
+	m, cmd := send(t, m, press("enter"))
+	m, cmd = send(t, m, cmd())
+	if src.checked != "https://x.test/secret-new.ics" || src.set.Calendar.ID != mainCal.ID {
+		t.Errorf("checked %q, set %q", src.checked, src.set.Calendar.ID)
+	}
+	if m.urlForm != nil || !m.syncing || cmd == nil {
+		t.Fatal("after saving: want the popup closed and the calendar syncing")
+	}
+	m, _ = send(t, m, syncDoneMsg{at: at(29, 14, 32), partial: true, results: []app.SyncOutcome{{CalendarInfo: testCalendars[1]}}})
+	if s := screen(m); strings.Contains(s, "⚠") || strings.Contains(s, "no longer works") {
+		t.Errorf("still marked after a good sync:\n%s", s)
+	}
+}
+
+func TestNewURLRejectedKeepsPopupOpen(t *testing.T) {
+	src := &urlSource{err: &domain.CalendarUnavailableError{CalendarID: "x", Reason: "HTTP 404 Not Found"}}
+	m := loaded(t, 100, 24)
+	m.src = src
+	m.focus = focusSidebar
+	m.side.sel = sideRow{kind: sideCalendar, cal: testCalendars[1]}.key()
+	m, _ = send(t, m, press("u"), tea.PasteMsg{Content: "https://x.test/wrong.ics"})
+	m, cmd := send(t, m, press("enter"))
+	m, _ = send(t, m, cmd())
+	if m.urlForm == nil || !strings.Contains(m.urlForm.err, "HTTP 404") || src.set.Calendar.ID != "" {
+		t.Errorf("rejected address: form %+v, saved %q", m.urlForm, src.set.Calendar.ID)
+	}
+}
+
+func TestNewURLOnlyForICalCalendars(t *testing.T) {
+	m := loaded(t, 100, 24)
+	g := app.CalendarInfo{Account: domain.Account{ID: "g", Provider: "google", Label: "me@x.test"}, Calendar: domain.Calendar{ID: "g/me", AccountID: "g", Name: "Me"}}
+	m = withCalendars(t, m, append(append([]app.CalendarInfo(nil), testCalendars...), g))
+	m.focus = focusSidebar
+	m.side.sel = sideRow{kind: sideCalendar, cal: g}.key()
+	if m, _ = send(t, m, press("u")); m.urlForm != nil {
+		t.Error("u opened a URL popup for a Google calendar")
 	}
 }

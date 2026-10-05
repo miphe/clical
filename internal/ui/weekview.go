@@ -81,7 +81,7 @@ func columnWidths(total, n int) []int {
 // commonly referred to in Sweden and much of Europe), or 0 when weeks don't
 // start on Monday and ISO numbering doesn't apply.
 func (m Model) weekNumber() int {
-	if weekFirstDay != time.Monday {
+	if m.weekStart != time.Monday {
 		return 0
 	}
 	_, week := m.week.start.In(m.loc).ISOWeek()
@@ -161,7 +161,7 @@ func (m Model) weekColumn(d, width, height int) []string {
 const bulletMinWidth = 9
 
 func (m Model) weekItemLines(date domain.CivilDate, it agenda.Item, width int, active, inactiveSel bool) []string {
-	when := shortTimeLabel(date, it, m.loc)
+	when := shortTimeLabel(date, it, m.loc, m.clock)
 	slot := m.calendarSlot(it.Event.CalendarID)
 	gap := " "
 	if width < bulletMinWidth {
@@ -183,7 +183,7 @@ func (m Model) weekItemLines(date domain.CivilDate, it agenda.Item, width int, a
 
 // shortTimeLabel fits a narrow week column: "all day", the start time, or
 // "…HH:MM" for an event continuing from the day before.
-func shortTimeLabel(date domain.CivilDate, it agenda.Item, loc *time.Location) string {
+func shortTimeLabel(date domain.CivilDate, it agenda.Item, loc *time.Location, c agenda.Clock) string {
 	if it.Event.AllDay {
 		return "all day"
 	}
@@ -191,7 +191,7 @@ func shortTimeLabel(date domain.CivilDate, it agenda.Item, loc *time.Location) s
 		if it.End.Equal(date.AddDays(1).In(loc)) || it.End.After(date.AddDays(1).In(loc)) {
 			return "all day…"
 		}
-		return "…" + it.End.Format("15:04")
+		return "…" + c.Time(it.End)
 	}
-	return it.Start.Format("15:04")
+	return c.Time(it.Start)
 }

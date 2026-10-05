@@ -41,7 +41,7 @@ func newSpinner() spinner.Model {
 // busyLabel names what clical is doing right now, or "" when idle.
 func (m Model) busyLabel() string {
 	switch {
-	case m.form != nil && m.form.checking:
+	case m.form != nil && m.form.checking, m.urlForm != nil && m.urlForm.checking:
 		return "Checking"
 	case m.gflow != nil && m.gflow.step == gWaiting && m.gflow.signIn != nil:
 		return "Signing in"

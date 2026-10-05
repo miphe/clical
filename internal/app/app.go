@@ -12,7 +12,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/adrg/xdg"
@@ -33,12 +36,18 @@ var ErrLocked = errors.New("app: vault is locked")
 type Paths struct {
 	Vault string // directory of age-encrypted secrets
 	DB    string // SQLite cache
+	Log   string // log file; "" for none
 }
 
-// DefaultPaths is $XDG_DATA_HOME/clical (~/.local/share/clical).
+// DefaultPaths is $XDG_DATA_HOME/clical (~/.local/share/clical), with the log
+// in $XDG_STATE_HOME/clical (~/.local/state/clical).
 func DefaultPaths() Paths {
 	dir := filepath.Join(xdg.DataHome, "clical")
-	return Paths{Vault: filepath.Join(dir, "vault"), DB: filepath.Join(dir, "clical.db")}
+	return Paths{
+		Vault: filepath.Join(dir, "vault"),
+		DB:    filepath.Join(dir, "clical.db"),
+		Log:   filepath.Join(xdg.StateHome, "clical", "clical.log"),
+	}
 }
 
 // CalendarInfo is a calendar together with the account it belongs to.
@@ -61,6 +70,13 @@ type App struct {
 	vault  *secrets.Vault
 	engine *engine.Engine
 	google *google.Provider
+
+	log     *slog.Logger // see log.go
+	logFile io.Closer
+	// failing is the calendars whose last sync failed (ID → true), so a
+	// recovery can be logged.
+	failMu  sync.Mutex
+	failing map[string]bool
 }
 
 // Open opens the data directory, creating it if needed. Calendars added
@@ -70,16 +86,22 @@ func Open(p Paths) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open store: %w", err)
 	}
-	a := &App{paths: p, store: s}
-	if err := a.assignMissingSlots(context.Background()); err != nil {
+	log, logFile, err := openLog(p.Log)
+	if err != nil {
 		s.Close()
+		return nil, fmt.Errorf("open log: %w", err)
+	}
+	a := &App{paths: p, store: s, log: log, logFile: logFile, failing: map[string]bool{}}
+	if err := a.assignMissingSlots(context.Background()); err != nil {
+		a.Close()
 		return nil, err
 	}
 	return a, nil
 }
 
-// Close releases the store.
+// Close releases the store and the log.
 func (a *App) Close() error {
+	a.logFile.Close()
 	return a.store.Close()
 }
 

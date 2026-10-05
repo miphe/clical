@@ -3,6 +3,7 @@ package agenda
 import (
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/miphe/clical/internal/domain"
 )
@@ -78,21 +79,29 @@ func TestTimeLabel(t *testing.T) {
 	}
 
 	cases := []struct {
-		name string
-		date domain.CivilDate
-		it   Item
-		want string
+		name   string
+		date   domain.CivilDate
+		it     Item
+		want   string
+		want12 string
 	}{
-		{"same day", oct1, item(at(1, 9, 0), at(1, 9, 15)), "09:00–09:15"},
-		{"into next day, first day", oct1, item(at(1, 23, 0), at(2, 1, 0)), "23:00–…"},
-		{"into next day, second day", oct2, item(at(1, 23, 0), at(2, 1, 0)), "…–01:00"},
-		{"ends at midnight", oct1, item(at(1, 23, 0), at(2, 0, 0)), "23:00–24:00"},
-		{"zero length", oct1, item(at(1, 8, 0), at(1, 8, 0)), "08:00"},
-		{"all day", oct1, Item{Event: domain.NewAllDayEvent("x", "c", "x", oct1, oct2, "", "")}, "all day"},
+		{"same day", oct1, item(at(1, 9, 0), at(1, 9, 15)), "09:00–09:15", "9:00am–9:15am"},
+		{"into next day, first day", oct1, item(at(1, 23, 0), at(2, 1, 0)), "23:00–…", "11:00pm–…"},
+		{"into next day, second day", oct2, item(at(1, 23, 0), at(2, 1, 0)), "…–01:00", "…–1:00am"},
+		{"ends at midnight", oct1, item(at(1, 23, 0), at(2, 0, 0)), "23:00–24:00", "11:00pm–12:00am"},
+		{"zero length", oct1, item(at(1, 12, 0), at(1, 12, 0)), "12:00", "12:00pm"},
+		{"all day", oct1, Item{Event: domain.NewAllDayEvent("x", "c", "x", oct1, oct2, "", "")}, "all day", "all day"},
 	}
 	for _, c := range cases {
-		if got := c.it.TimeLabel(c.date, loc); got != c.want {
-			t.Errorf("%s: timeLabel() = %q, want %q", c.name, got, c.want)
+		if got := c.it.TimeLabel(c.date, loc, Clock{}); got != c.want {
+			t.Errorf("%s: TimeLabel() = %q, want %q", c.name, got, c.want)
+		}
+		got := c.it.TimeLabel(c.date, loc, Clock{Twelve: true})
+		if got != c.want12 {
+			t.Errorf("%s: 12-hour TimeLabel() = %q, want %q", c.name, got, c.want12)
+		}
+		if utf8.RuneCountInString(got) > (Clock{Twelve: true}).Width() {
+			t.Errorf("%s: %q is wider than Width()", c.name, got)
 		}
 	}
 }

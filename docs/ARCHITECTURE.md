@@ -44,6 +44,7 @@ test ./...` if a package imports something its layer doesn't allow.
 | `internal/domain`           | Provider-agnostic types: `Event`, `Calendar`, `Account`, `CivilDate`, `CalendarProvider`, errors | —                                                                |
 | `internal/agenda`           | Pure layout shared by every front-end: group events into local days, `Item.TimeLabel`            | domain                                                           |
 | `internal/secrets`          | age-encrypted vault for feed URLs                                                                | —                                                                |
+| `internal/config`           | The settings file: clock, week start, sync interval                                              | —                                                                |
 | `internal/store`            | SQLite cache: accounts, calendars, events, sync tokens                                           | domain                                                           |
 | `internal/providers/ical`   | Fetch, retry and parse iCal feeds                                                                | domain, eventtext                                                |
 | `internal/eventtext`        | Readable notes and a clean link list from an event's raw content (provider-neutral)              | domain                                                           |
@@ -51,7 +52,7 @@ test ./...` if a package imports something its layer doesn't allow.
 | `internal/engine`           | Run a provider sync, apply it to the store                                                       | domain, store                                                    |
 | `internal/app`              | **The seam.** Composes the above into operations                                                 | domain, store, secrets, engine, providers/ical, providers/google |
 | `internal/ui`               | TUI: model, keys, rendering                                                                      | app, agenda, domain                                              |
-| `cmd/clical`                | CLI commands, terminal prompts, starts the TUI                                                   | app, ui, agenda, domain                                          |
+| `cmd/clical`                | CLI commands, terminal prompts, starts the TUI                                                   | app, ui, agenda, domain, config                                  |
 
 Front-ends may also use `domain` and `agenda` directly. Those are plain
 data and pure functions, so sharing them doesn't couple a front-end to how

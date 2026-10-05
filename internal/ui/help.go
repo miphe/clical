@@ -29,7 +29,7 @@ func helpSections() []helpSection {
 			{"1 2 3", "Agenda, week, month"},
 			{"tab", "Switch between the list and the view"},
 			{"t", "Today"},
-			{"r", "Sync now (also every 5 minutes)"},
+			{"r", "Sync now (also in the background)"},
 			{"a", "Add a calendar: iCal link or Google"},
 			{"/", "Filter events by title or location"},
 			{"?", "This help"},
@@ -71,6 +71,7 @@ func helpSections() []helpSection {
 			{"n", "Rename a calendar or account"},
 			{"d", "Remove a calendar (asks first)"},
 			{"s", "Sign a Google account in again (⚠)"},
+			{"u", "New address for an iCal calendar (⚠)"},
 			{"c", "Collapse or expand the list"},
 			{"l  →", "Back to the view"},
 		}},
@@ -95,7 +96,7 @@ func helpSections() []helpSection {
 		{"Status line", []helpEntry{
 			{"left", "Activity: working, synced, failed"},
 			{"right", "Last sync, or a failure and its retry"},
-			{"⚠", "Account needs signing in again"},
+			{"⚠", "Sign in again (s) or new address (u)"},
 		}},
 	}
 }

@@ -23,6 +23,11 @@ func (c *AgendaCmd) Run() error {
 		return fmt.Errorf("--days must be at least 1")
 	}
 
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+	clock := clockFor(cfg)
 	a, err := openApp()
 	if err != nil {
 		return err
@@ -68,7 +73,7 @@ func (c *AgendaCmd) Run() error {
 			sec.header += " (today)"
 		}
 		for _, it := range day.Items {
-			r := row{it.TimeLabel(day.Date, loc), it.Event.Title, labels[it.Event.CalendarID]}
+			r := row{it.TimeLabel(day.Date, loc, clock), it.Event.Title, labels[it.Event.CalendarID]}
 			titleWidth = max(titleWidth, uniseg.StringWidth(r.title))
 			sec.rows = append(sec.rows, r)
 		}
@@ -84,7 +89,7 @@ func (c *AgendaCmd) Run() error {
 			fmt.Println("  nothing scheduled")
 		}
 		for _, r := range sec.rows {
-			fmt.Printf("  %s   %s   %s\n", padRight(r.when, len("00:00–00:00")), padRight(r.title, titleWidth), r.calendar)
+			fmt.Printf("  %s   %s   %s\n", padRight(r.when, clock.Width()), padRight(r.title, titleWidth), r.calendar)
 		}
 	}
 	return nil

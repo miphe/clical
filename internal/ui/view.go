@@ -12,7 +12,6 @@ import (
 const (
 	sidebarInner          = 24 // sidebar width inside its border
 	collapsedSidebarInner = 3
-	timeColumn            = 11 // display width of "00:00–00:00"
 	// itemIndent puts event bullets one column in from day-header text, which
 	// sits after a two-column gutter holding the current-day marker.
 	itemIndent          = "   "
@@ -60,6 +59,8 @@ func (m Model) render() string {
 		body = overlay(body, m.renderConfirm(), m.width)
 	case m.rename != nil:
 		body = overlay(body, m.renderRename(), m.width)
+	case m.urlForm != nil:
+		body = overlay(body, m.renderURLForm(), m.width)
 	}
 
 	return strings.Join(append(body, m.renderFooter()...), "\n")
@@ -178,7 +179,7 @@ func (m Model) renderRow(r row, selected bool, width int) string {
 		}
 		return mutedStyle.Render(text)
 	case rowNow:
-		label := itemIndent + "── now " + m.now.In(m.loc).Format("15:04") + " "
+		label := itemIndent + "── now " + m.clock.Time(m.now.In(m.loc)) + " "
 		return nowStyle.Render(label + strings.Repeat("─", max(0, width-ansi.StringWidth(label))))
 	case rowItem:
 		return m.renderItem(r, selected, width)
@@ -188,14 +189,14 @@ func (m Model) renderRow(r row, selected bool, width int) string {
 
 func (m Model) renderItem(r row, selected bool, width int) string {
 	it := r.item
-	when := it.TimeLabel(r.date, m.loc)
+	when := it.TimeLabel(r.date, m.loc, m.clock)
 
 	label := m.calendarLabel(it.Event.CalendarID)
 	labelW := 0
 	if width >= 60 {
 		labelW = m.labelWidth()
 	}
-	titleW := width - ansi.StringWidth(itemIndent) - 2 - timeColumn - 2
+	titleW := width - ansi.StringWidth(itemIndent) - 2 - m.clock.Width() - 2
 	if labelW > 0 {
 		titleW -= labelW + 2
 	}
@@ -203,7 +204,7 @@ func (m Model) renderItem(r row, selected bool, width int) string {
 	slot := m.calendarSlot(it.Event.CalendarID)
 	glyph := calendarGlyph(slot, false)
 	plain := func(swatch string) string {
-		s := itemIndent + swatch + " " + fit(when, timeColumn) + "  " + fit(it.Event.Title, titleW)
+		s := itemIndent + swatch + " " + fit(when, m.clock.Width()) + "  " + fit(it.Event.Title, titleW)
 		if labelW > 0 {
 			s += "  " + fit(label, labelW)
 		}
@@ -219,7 +220,7 @@ func (m Model) renderItem(r row, selected bool, width int) string {
 
 	ended := !it.Event.AllDay && !it.End.After(m.now)
 	swatch := calendarBullet(slot)
-	s := itemIndent + swatch + " " + fit(when, timeColumn) + "  " + fit(it.Event.Title, titleW)
+	s := itemIndent + swatch + " " + fit(when, m.clock.Width()) + "  " + fit(it.Event.Title, titleW)
 	if labelW > 0 {
 		s += "  " + mutedStyle.Render(fit(label, labelW))
 	}
@@ -264,7 +265,7 @@ func (m Model) renderFooter() []string {
 	}
 	hintLine := fit(" "+line, m.width)
 
-	left := " " + m.activity() + m.now.In(m.loc).Format("Mon 2 Jan 15:04")
+	left := " " + m.activity() + m.now.In(m.loc).Format("Mon 2 Jan ") + m.clock.Time(m.now.In(m.loc))
 	right := m.status()
 	gap := m.width - ansi.StringWidth(left) - ansi.StringWidth(right) - 1
 	var statusLine string
@@ -281,7 +282,7 @@ func (m Model) retryNote() string {
 	if m.nextPoll.IsZero() || m.syncing {
 		return ""
 	}
-	return mutedStyle.Render(" · retry " + m.nextPoll.In(m.loc).Format("15:04"))
+	return mutedStyle.Render(" · retry " + m.clock.Time(m.nextPoll.In(m.loc)))
 }
 
 func (m Model) status() string {
@@ -300,7 +301,7 @@ func (m Model) status() string {
 		}
 		return errorStyle.Render(msg) + m.retryNote()
 	case !m.lastSync.IsZero():
-		return mutedStyle.Render("Synced " + m.lastSync.In(m.loc).Format("15:04"))
+		return mutedStyle.Render("Synced " + m.clock.Time(m.lastSync.In(m.loc)))
 	}
 	return ""
 }
@@ -332,6 +333,8 @@ func (m Model) footerHints() []footHint {
 		return []footHint{h("y", "remove", prioMust), h("n", "cancel", prioMust)}
 	case m.rename != nil:
 		return []footHint{h("enter", "save", prioMust), h("esc", "cancel", prioMust)}
+	case m.urlForm != nil:
+		return []footHint{h("enter", "check and save", prioMust), h("esc", "cancel", prioMust)}
 	case m.help != nil:
 		return []footHint{h("j/k", "scroll", prioMid), h("pgup/pgdn", "page", prioLow), h("esc", "close", prioMust)}
 	case m.detail != nil && len(m.detail.Event.Links) > 0:
@@ -353,6 +356,9 @@ func (m Model) footerHints() []footHint {
 	case m.focus == focusSidebar:
 		if acct, ok := m.selectedGoogleAccount(); ok && m.needsSignIn[acct.ID] {
 			view = append(view, h("s", "sign in again", prioHigh))
+		}
+		if r, ok := m.selectedSidebarRow(); ok && r.kind == sideCalendar && m.brokenFeed[r.cal.Calendar.ID] {
+			view = append(view, h("u", "new URL", prioHigh))
 		}
 		view = append(view, h("j/k", "move", prioLow), h("space", "show/hide", prioHigh), h("enter", "fold", prioLow),
 			h("a", "add", prioHigh), h("n", "rename", prioMid), h("d", "remove", prioMid), h("c", "collapse", prioLow))

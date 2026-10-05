@@ -16,6 +16,8 @@ type CLI struct {
 	Sync      SyncCmd          `cmd:"" help:"Fetch the latest events for every calendar."`
 	Calendars CalendarsCmd     `cmd:"" help:"Manage calendars."`
 	Accounts  AccountsCmd      `cmd:"" help:"Manage accounts, the groups calendars are listed under."`
+	Config    ConfigCmd        `cmd:"" help:"Show or create the settings file."`
+	Logs      LogsCmd          `cmd:"" help:"Print the end of the log: sync failures and calendar changes."`
 }
 
 func main() {

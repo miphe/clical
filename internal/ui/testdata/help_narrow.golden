@@ -4,7 +4,7 @@
 │ 1 2 3             Agenda, week, month                    │
 │ tab               Switch between the list and the view   │
 │ t                 Today                                  │
-│ r                 Sync now (also every 5 minutes)        │
+│ r                 Sync now (also in the background)      │
 │ a                 Add a calendar: iCal link or Google    │
 │ /                 Filter events by title or location     │
 │ ?                 This help                              │
@@ -15,6 +15,6 @@
 │ enter             Keep the filter, move around again     │
 │ esc               Clear the filter                       │
 │ /                 Change the filter                      │
-╰─────────────────────────────────────── lines 1–16 of 72 ─╯
+╰─────────────────────────────────────── lines 1–16 of 73 ─╯
  j/k scroll · pgup/pgdn page · esc close                    
  ◦ Idle        Tue 29 Sep 14:30                Synced 14:29 
