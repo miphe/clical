@@ -41,6 +41,7 @@ multi-account merge → config/themes → in-process background polling.
 | M8 | `?` help screen, footer keeps the most important keys when narrow, `/` filter | Done |
 | M9 | Settings file: 12/24-hour clock, week start, sync interval | Done |
 | M11 | Dead iCal feeds fixed from the TUI, log file and `clical logs` | Done |
+| M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Planned |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -747,6 +748,82 @@ The right side keeps the last-sync time and failure details. The spinner
 `Update` wraps the real update and restarts the tick loop when work begins.
 A tick arriving with nothing busy ends the loop.
 
+## Settings dialog and event pulse — M12 (planned)
+
+Two narrow pieces, built in this order. Nothing else rides along.
+
+### 1. Settings dialog (`internal/ui/settings.go`)
+
+`S` opens a modal that looks like the help screen (same panel, same
+open/close rules: from the main screen and the event view, `esc` or `S`
+closes). `S` is free; `,` is the other common convention (preferences) and is
+bound as a second key. `s` is already taken by re-sign-in.
+
+- A short list of rows: `[x] Pulse before events`, `Lead time: 5m`.
+  `j k` move, `space`/`enter` toggles or edits. Hints on the bottom line.
+- Lead time row: `enter` cycles 10m, 5m, 1m, or picks "custom", which opens a
+  one-line input in seconds (digits only, 1–3600).
+- Clock row: `12-hour clock` toggle. It applies at once (the model's clock
+  is swapped in `Update`) and is saved with the rest. Week start and sync
+  interval stay file-only: they are set once and rarely changed.
+- Persistence: `config.yaml` is hand-written with comments, so the dialog
+  never rewrites it. Changes go to `settings.yaml` beside it (same dir,
+  mode 0600, written atomically like the vault), a flat file of the keys the
+  dialog owns. Load order: defaults, then `config.yaml`, then `settings.yaml`.
+  A missing or bad `settings.yaml` falls back to defaults with a log line, so
+  it can't stop startup.
+- Seam: `ui.Source` gains `SaveSettings(ui.Prefs) error`; the file I/O lives
+  in `internal/config` (`LoadPrefs`, `SavePrefs`). `Update` stays pure.
+- Keys listed in the help screen and the footer hint (`S settings`, low
+  priority).
+
+### 2. Event pulse (`internal/ui/pulse.go`, one file)
+
+**Decision: ANSI only, no true color.** A smooth fade needs RGB values, and
+clical deliberately has none: it names palette indices 0–15 and lets the
+terminal's theme define them. Blending would need the theme's actual RGB,
+which means querying the terminal (OSC 4/10/11) and re-querying when the user
+changes theme, with no reliable signal when it happens. That is the opposite of
+"simple and isolated", and a stale blend would break theme-following. So the
+pulse steps through attributes instead, which any theme and any terminal
+renders correctly.
+
+- **Trigger:** an event that starts within the lead time (default off). The
+  lead time is 10m, 5m, 1m or custom seconds. Applies to timed events of
+  shown calendars; all-day events never pulse.
+- **Look:** the event's line in agenda/week/month cycles through
+  normal → bold → bold+reverse → bold → normal over ~1.6 s (4 frames at
+  400 ms), in the calendar's own color. After the start time the pulse stops.
+- **Seen from anywhere:** the pulse isn't tied to the event being on screen.
+  While it's active, the event's detail view pulses its title, and the footer's
+  bottom line shows a pulsing `● Title in 0:30` in every state: other views,
+  another event's detail, help, the settings dialog, a filter in progress.
+  If the event is filtered out or in a hidden calendar, the footer still
+  shows it.
+- **Stopping:** any interaction with that event stops the animation for it,
+  and only it: selecting it, opening its detail, or any key pressed while its
+  detail is open. (Moving the selection onto it counts; moving past it
+  doesn't.) Pressing keys elsewhere doesn't stop it. A stopped event doesn't
+  start again, even if the selection later leaves and returns.
+- **Timing:** one `pulseMsg` tick, armed only while an event is inside its
+  window; no pulse running means no extra ticks. The window check runs on the
+  existing clock tick, shortened to 5 s while the feature is on and an event
+  is within the next lead time + 5 s.
+- **Isolation:** `pulse.go` holds the state (`pulseState`, `pulseMsg`,
+  `pulseStyle(frame)`), one `Update` hook, and a single call in the event-line
+  renderer: `style = pulseFor(e, style)`. With the setting off, `pulseFor`
+  returns its input, so reverting is deleting that call and the file.
+- **Tests:** frame selection and window edges as pure functions with a fake
+  clock; the pulse shows in the footer while help/settings/another detail is
+  open; each way of interacting stops it, an unrelated key doesn't; a golden for one frame; off-by-default test; custom seconds
+  validation.
+
+### Done when
+
+`gofmt`, `go vet`, `go test -race ./...` and the four-target cross-compile
+are clean; the dialog toggles and persists across restarts in the real binary
+(checked with `scripts/tui_screens.py`); README, help and this section updated.
+
 ## TUI / UX design (M7–M11)
 
 **Layout**: persistent left sidebar + main pane + two-line footer
@@ -853,6 +930,7 @@ do both).
 | M9 | YAML config for non-color settings (time format, first day of week, poll interval). No colors or themes: theming is delegated to the terminal | `internal/config/` | Done |
 | M10 | In-process polling every 5 min, one schedule for all calendars | `internal/ui/model.go` | Done |
 | M11 | Revoked-feed flow in the TUI, `clical logs`, cross-compile check | `internal/ui/feedurl.go`, `internal/app/log.go`, `cmd/clical/logs.go` | Done |
+| M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Planned |
 
 ## Verification
 
