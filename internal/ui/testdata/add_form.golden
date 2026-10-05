@@ -1,24 +1,24 @@
-╭─ [0] Calendars ────────╮╭─ [1] Agenda ─ [2] Week ─ [3] Month ───────────── 29 Sep – 28 Oct 2026 ─╮
-│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                   │
-│   ● Holidays           ││    ● all day      Name day                          Personal · Main    │
-│   ● Main        ╭─ Add calendar ───────────────────────────────────────────────╮rsonal · Main    │
-│                 │ Account                                                      │─────────────────│
-│                 │ Personal                                                     │rsonal · Main    │
-│                 │                                                              │rsonal · Main    │
-│                 │ Calendar name                                                │                 │
-│                 │ e.g. Main                                                    │                 │
-│                 │                                                              │rsonal · Main    │
-│                 │ Secret iCal URL                                              │rsonal · Main    │
-│                 │ https://calendar.google.com/…/basic.ics                      │rsonal · Main    │
-│                 │                                                              │                 │
-│                 │ enter next/add · tab move · esc cancel                       │                 │
-│                 ╰──────────────────────────────────────────────────────────────╯rsonal · Main    │
-│                        ││    ● all day      Holiday                           Personal · Holidays│
-│                        ││                                                                        │
-│                        ││   Fri 2 Oct                                                            │
-│                        ││    ● 10:00–11:00  日本語 meeting 🎉                 Personal · Main    │
-│                        ││                                                                        │
-│                        ││   Sat 3 Oct                                                            │
-╰────────────────────────╯╰────────────────────────────────────────────────────────────────────────╯
+╭─ [0] Calendars ────────╮╭─ [1] Agenda ─ [2] Week ─ [3] Month ────────── 29 Sep – 28 Oct 2026 ─╮╭─╮
+│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                ││W│
+│   ● Holidays           ││    ● all day      Name day                       Personal · Main    ││r│
+│   ● Main        ╭─ Add calendar ───────────────────────────────────────────────╮nal · Main    ││i│
+│                 │ Account                                                      │──────────────││t│
+│                 │ Personal                                                     │nal · Main    ││e│
+│                 │                                                              │nal · Main    ││ │
+│                 │ Calendar name                                                │              ││ │
+│                 │ e.g. Main                                                    │              ││ │
+│                 │                                                              │nal · Main    ││ │
+│                 │ Secret iCal URL                                              │nal · Main    ││ │
+│                 │ https://calendar.google.com/…/basic.ics                      │nal · Main    ││ │
+│                 │                                                              │              ││ │
+│                 │ enter next/add · tab move · esc cancel                       │              ││ │
+│                 ╰──────────────────────────────────────────────────────────────╯nal · Main    ││ │
+│                        ││    ● all day      Holiday                        Personal · Holidays││ │
+│                        ││                                                                     ││ │
+│                        ││   Fri 2 Oct                                                         ││ │
+│                        ││    ● 10:00–11:00  日本語 meeting 🎉              Personal · Main    ││ │
+│                        ││                                                                     ││ │
+│                        ││   Sat 3 Oct                                                         ││ │
+╰────────────────────────╯╰─────────────────────────────────────────────────────────────────────╯╰─╯
  enter next/add · tab move · esc cancel                                                             
  ◦ Idle        Tue 29 Sep 14:30                                                        Synced 14:29 

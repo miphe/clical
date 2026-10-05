@@ -29,18 +29,16 @@ func (c *TUICmd) Run() error {
 	if err := unlock(a); err != nil {
 		return err
 	}
-	m := ui.New(a, time.Local, time.Now()).WithSettings(ui.Settings{
+	m := ui.New(a, time.Local, time.Now()).WithWrite(a).WithSettings(ui.Settings{
 		Clock12:      cfg.Clock12,
 		WeekStart:    cfg.WeekStart,
 		SyncInterval: cfg.SyncInterval,
 		Pulse:        cfg.Pulse,
 		PulseLead:    cfg.PulseLead,
 		PulseGrace:   cfg.PulseGrace,
+		PanelFlash:   cfg.PanelFlash,
 		Save: func(p ui.Prefs) error {
-			return config.SavePrefs(config.PrefsPath(), config.Prefs{
-				Clock12: p.Clock12, WeekStart: p.WeekStart, SyncInterval: p.SyncInterval,
-				Pulse: p.Pulse, PulseLead: p.PulseLead, PulseGrace: p.PulseGrace, PanelFlash: true,
-			})
+			return config.SavePrefs(config.PrefsPath(), config.Prefs(p))
 		},
 	})
 	_, err = tea.NewProgram(m).Run()

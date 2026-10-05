@@ -23,6 +23,7 @@ type frame struct {
 	tabs    []tab  // top-left; a single tab is just a title
 	right   string // top-right, if there's room
 	bottom  string // bottom-right, e.g. a list position "3 of 15"
+	flash   bool   // the border is lit for a moment
 }
 
 // panel draws content inside a width×height box. content lines are fitted to
@@ -36,6 +37,9 @@ func panel(width, height int, f frame, content []string) []string {
 	border := borderStyle
 	if focused {
 		border = focusedBorderStyle
+	}
+	if f.flash {
+		border = flashBorderStyle
 	}
 
 	lines := make([]string, 0, height)

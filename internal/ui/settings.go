@@ -27,6 +27,7 @@ type Prefs struct {
 	Pulse        bool
 	PulseLead    time.Duration
 	PulseGrace   time.Duration // or graceEvent
+	PanelFlash   bool
 }
 
 type settingsView struct {
@@ -46,6 +47,7 @@ func (m Model) prefs() Prefs {
 		Pulse:        m.pulse.on,
 		PulseLead:    m.pulse.lead,
 		PulseGrace:   m.pulse.grace,
+		PanelFlash:   m.panelFlash,
 	}
 }
 
@@ -132,6 +134,10 @@ func (m Model) settingRows() []settingRow {
 		customGrace = int(m.pulse.grace / time.Minute)
 	}
 
+	flash := 0
+	if m.panelFlash {
+		flash = 1
+	}
 	return []settingRow{
 		{label: "Time format", hint: "12-hour is 3:04pm, 24-hour is 15:04",
 			choices: []string{"24h", "12h"}, current: twelve,
@@ -157,6 +163,9 @@ func (m Model) settingRows() []settingRow {
 			unit: time.Minute, min: 0, max: 1440, custom: customGrace,
 			apply:  func(m *Model, c int) tea.Cmd { m.pulse.grace = graces[c]; return nil },
 			applyN: func(m *Model, n int) tea.Cmd { m.pulse.grace = time.Duration(n) * time.Minute; return nil }},
+		{label: "Panel flash", hint: "A collapsed panel's border flashes once when its content changes",
+			choices: []string{"off", "on"}, current: flash,
+			apply: func(m *Model, c int) tea.Cmd { m.panelFlash = c == 1; return nil }},
 	}
 }
 

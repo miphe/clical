@@ -7,6 +7,7 @@
 │ r                 Sync now (also in the background)                                                                  │
 │ a                 Add a calendar: iCal link or Google                                                                │
 │ /                 Filter events by title or location                                                                 │
+│ w  W              Write: focus a panel; show or hide the global one                                                  │
 │ S  ,              Settings: clock, week, sync, pulse                                                                 │
 │ ?                 This help                                                                                          │
 │ q  ctrl+c         Quit                                                                                               │
@@ -34,7 +35,6 @@
 │ enter             Event details                                                                                      │
 │                                                                                                                      │
 │ Month                                                                                                                │
-│ h l  ← →          Previous, next day                                                                                 │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 89 ─╯
+╰────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 103 ─╯
  j/k scroll · pgup/pgdn page · esc close                                                                                
  ◦ Idle        Tue 29 Sep 14:30                                                                            Synced 14:29 

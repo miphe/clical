@@ -1,30 +1,30 @@
-╭─ [0] Calendars ────────╮╭─ [1] Agenda ─ [2] Week ─ [3] Month ───────────── 29 Sep – 28 Oct 2026 ─╮
-│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                   │
-│   ● Holidays           ││    ● all day      Name day                          Personal · Main    │
-│   ● Main               ││    ● 09:00–09:30  Standup                           Personal · Main    │
-│                        ││    ── now 14:30 ───────────────────────────────────────────────────────│
-│                        ││    ● 15:00–16:00  Dentist                           Personal · Main    │
-│                        ││    ● 23:00–…      Night train                       Personal · Main    │
-│                ╭─ Add a calendar ───────────────────────────────────────────────╮                │
-│                │▸ 1  iCal link       paste a calendar's secret iCal address     │                │
-│                │  2  Google account  sign in with Google (also work accounts)   │sonal · Main    │
-│                │                                                                │sonal · Main    │
-│                │ enter choose · esc cancel                                      │sonal · Main    │
-│                ╰────────────────────────────────────────────────────────────────╯                │
-│                        ││   Thu 1 Oct                                                            │
-│                        ││    ● all day      Conference                        Personal · Main    │
-│                        ││    ● all day      Holiday                           Personal · Holidays│
-│                        ││                                                                        │
-│                        ││   Fri 2 Oct                                                            │
-│                        ││    ● 10:00–11:00  日本語 meeting 🎉                 Personal · Main    │
-│                        ││                                                                        │
-│                        ││   Sat 3 Oct                                                            │
-│                        ││    nothing scheduled                                                   │
-│                        ││                                                                        │
-│                        ││   Sun 4 Oct                                                            │
-│                        ││    nothing scheduled                                                   │
-│                        ││                                                                        │
-│                        ││   Mon 5 Oct                                                            │
-╰────────────────────────╯╰────────────────────────────────────────────────────────────────────────╯
+╭─ [0] Calendars ────────╮╭─ [1] Agenda ─ [2] Week ─ [3] Month ────────── 29 Sep – 28 Oct 2026 ─╮╭─╮
+│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                ││W│
+│   ● Holidays           ││    ● all day      Name day                       Personal · Main    ││r│
+│   ● Main               ││    ● 09:00–09:30  Standup                        Personal · Main    ││i│
+│                        ││    ── now 14:30 ────────────────────────────────────────────────────││t│
+│                        ││    ● 15:00–16:00  Dentist                        Personal · Main    ││e│
+│                        ││    ● 23:00–…      Night train                    Personal · Main    ││ │
+│                ╭─ Add a calendar ───────────────────────────────────────────────╮             ││ │
+│                │▸ 1  iCal link       paste a calendar's secret iCal address     │             ││ │
+│                │  2  Google account  sign in with Google (also work accounts)   │al · Main    ││ │
+│                │                                                                │al · Main    ││ │
+│                │ enter choose · esc cancel                                      │al · Main    ││ │
+│                ╰────────────────────────────────────────────────────────────────╯             ││ │
+│                        ││   Thu 1 Oct                                                         ││ │
+│                        ││    ● all day      Conference                     Personal · Main    ││ │
+│                        ││    ● all day      Holiday                        Personal · Holidays││ │
+│                        ││                                                                     ││ │
+│                        ││   Fri 2 Oct                                                         ││ │
+│                        ││    ● 10:00–11:00  日本語 meeting 🎉              Personal · Main    ││ │
+│                        ││                                                                     ││ │
+│                        ││   Sat 3 Oct                                                         ││ │
+│                        ││    nothing scheduled                                                ││ │
+│                        ││                                                                     ││ │
+│                        ││   Sun 4 Oct                                                         ││ │
+│                        ││    nothing scheduled                                                ││ │
+│                        ││                                                                     ││ │
+│                        ││   Mon 5 Oct                                                         ││ │
+╰────────────────────────╯╰─────────────────────────────────────────────────────────────────────╯╰─╯
  esc cancel                                                                                         
  ◦ Idle        Tue 29 Sep 14:30                                                        Synced 14:29 

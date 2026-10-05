@@ -65,6 +65,11 @@ var (
 	focusedBorderStyle = accentStyle
 	borderStyle        = mutedStyle
 
+	// A panel border lit for a moment, to say something changed inside it.
+	flashBorderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Reverse(true)
+	// A finished TODO: dimmed and struck through.
+	doneStyle = lipgloss.NewStyle().Faint(true).Strikethrough(true)
+
 	selectedStyle = lipgloss.NewStyle().Reverse(true)
 	// The selection stays visible, but quieter, while another panel has focus.
 	inactiveSelStyle = lipgloss.NewStyle().Underline(true)

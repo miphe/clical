@@ -172,7 +172,7 @@ func (m Model) handleWeekKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.showWeek(m.selectedWeekDate().AddDays(-7), "")
 	case key.Matches(msg, k.Open):
 		if it, ok := m.selectedWeekItem(); ok {
-			m.openDetail(it)
+			return m, m.openDetail(it)
 		}
 	}
 	return m, nil

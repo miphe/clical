@@ -35,8 +35,20 @@ type openedMsg struct {
 	err error
 }
 
-func (m *Model) openDetail(it agenda.Item) {
+// openDetail opens the event view, and loads the event's Write list.
+func (m *Model) openDetail(it agenda.Item) tea.Cmd {
 	m.detail = &detailView{Item: it}
+	m.eventWrite = m.eventPanel(it.Event)
+	return m.loadWrite(writeEvent)
+}
+
+// closeDetail leaves the event view.
+func (m *Model) closeDetail() {
+	m.detail = nil
+	m.eventWrite = writePanel{editAt: -1}
+	if m.focus == focusEventWrite {
+		m.focus = focusMain
+	}
 }
 
 func (m Model) handleDetailKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -47,7 +59,7 @@ func (m Model) handleDetailKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case s == "ctrl+c":
 		return m, tea.Quit
 	case s == "esc" || s == "q":
-		m.detail = nil
+		m.closeDetail()
 		return m, nil
 	case s == "enter" || s == "o":
 		return m.openSelectedLink()
@@ -132,7 +144,8 @@ func (m Model) opened(msg openedMsg) (tea.Model, tea.Cmd) {
 // Layout.
 
 func (m Model) detailInner() (width, height int) {
-	return m.width - 2, m.bodyHeight() - 2
+	l := m.eventLayout()
+	return l.detailW - 2, l.detailH - 2
 }
 
 func (m Model) detailTextWidth() int {
@@ -184,7 +197,8 @@ func (m Model) renderDetail(width, height int) []string {
 	if len(body) > bodyH && bodyH > 0 {
 		position = fmt.Sprintf("lines %d–%d of %d", scroll+1, end, len(body))
 	}
-	return panel(width, height, frame{focused: true, tabs: []tab{{label: "Event", active: true}}, bottom: position}, content)
+	focused := m.focus != focusEventWrite && m.focus != focusGlobalWrite
+	return panel(width, height, frame{focused: focused, tabs: []tab{{label: "Event", active: true}}, bottom: position}, content)
 }
 
 // detailBody is every line of the scrollable part, already width-limited.
@@ -220,7 +234,7 @@ func (m Model) detailBody(textW int) []string {
 		}
 	}
 	if notes := strings.TrimSpace(e.Notes); notes != "" {
-		lines = append(lines, "")
+		lines = append(lines, "", " "+boldStyle.Render("Description"))
 		add(wrap(notes, textW))
 	}
 	return lines

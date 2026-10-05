@@ -41,13 +41,15 @@ func (m Model) render() string {
 	} else if m.help != nil {
 		body = m.renderHelp(m.width, bodyH)
 	} else if m.detail != nil {
-		body = m.renderDetail(m.width, bodyH)
+		body = m.renderEventView(m.width, bodyH)
 	} else {
 		side := m.renderSidebar(bodyH)
-		main := m.renderMain(m.width-lipgloss.Width(side[0]), bodyH)
+		gw, _ := m.globalRect()
+		main := m.renderMain(m.width-lipgloss.Width(side[0])-gw, bodyH)
+		glob := m.renderGlobalPanel(gw, bodyH)
 		body = make([]string, bodyH)
 		for i := range body {
-			body[i] = side[i] + main[i]
+			body[i] = side[i] + main[i] + glob[i]
 		}
 	}
 	switch {
@@ -342,6 +344,15 @@ func (m Model) footerHints() []footHint {
 		return []footHint{h("enter", "save", prioMust), h("esc", "cancel", prioMust)}
 	case m.urlForm != nil:
 		return []footHint{h("enter", "check and save", prioMust), h("esc", "cancel", prioMust)}
+	case m.writeTyping():
+		if m.focusedPanel().mode == wConfirm {
+			return []footHint{h("y", "delete", prioMust), h("any key", "keep", prioMust)}
+		}
+		return []footHint{h("enter", "add", prioMust), h("esc", "done", prioMust)}
+	case m.focusedPanel() != nil:
+		return []footHint{h("j/k", "move", prioMid), h("a", "TODO", prioHigh), h("A", "note", prioHigh), h("space", "check", prioHigh),
+			h("e", "edit", prioMid), h("d", "delete", prioMid), h("m", "move", prioMid), h("z", "archive", prioMid),
+			h("esc", "back", prioMust), help}
 	case m.settings != nil && m.settings.input != nil:
 		return []footHint{h("enter", "save", prioMust), h("esc", "cancel", prioMust)}
 	case m.settings != nil:
@@ -349,10 +360,10 @@ func (m Model) footerHints() []footHint {
 	case m.help != nil:
 		return []footHint{h("j/k", "scroll", prioMid), h("pgup/pgdn", "page", prioLow), h("esc", "close", prioMust)}
 	case m.detail != nil && len(m.detail.Event.Links) > 0:
-		return []footHint{h("j/k", "select link", prioMid), h("enter", "open", prioHigh), h("pgup/pgdn", "scroll", prioLow),
+		return []footHint{h("j/k", "select link", prioMid), h("enter", "open", prioHigh), h("w", "write", prioHigh), h("pgup/pgdn", "scroll", prioLow),
 			h("esc", "close", prioMust), help}
 	case m.detail != nil:
-		return []footHint{h("j/k", "scroll", prioMid), h("esc", "close", prioMust), help}
+		return []footHint{h("j/k", "scroll", prioMid), h("w", "write", prioHigh), h("esc", "close", prioMust), help}
 	}
 
 	// Pane keys first, the same everywhere.
@@ -383,7 +394,7 @@ func (m Model) footerHints() []footHint {
 		view = []footHint{h("j/k", "move", prioLow), h("enter", "details", prioHigh), h("[/]", "day", prioMid), h("t", "today", prioMid),
 			h("/", "filter", prioMid)}
 	}
-	view = append(view, h("r", "sync", prioLow), h("S", "settings", prioLow), h("q", "quit", prioMid), help)
+	view = append(view, h("w", "write", prioMid), h("r", "sync", prioLow), h("S", "settings", prioLow), h("q", "quit", prioMid), help)
 	view[0].newGroup = true
 	return append(hints, view...)
 }

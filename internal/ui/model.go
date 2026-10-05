@@ -58,6 +58,8 @@ type focus int
 const (
 	focusMain focus = iota
 	focusSidebar
+	focusEventWrite  // the event's Write panel, in the event view
+	focusGlobalWrite // the global Write panel
 )
 
 type viewKind int
@@ -157,8 +159,17 @@ type Model struct {
 	help          *helpView     // help.go
 	urlForm       *urlForm      // feedurl.go
 	settings      *settingsView // settings.go
-	save          func(Prefs) error
-	pulse         pulseState // pulse.go
+	// Write (write.go): the event's panel while the event view is open, the
+	// global one always, and whether that one is expanded.
+	writes      WriteSource
+	eventWrite  writePanel
+	globalWrite writePanel
+	globalOpen  bool
+	globalFlash bool // its collapsed strip's border is lit
+	flashSeq    int
+	panelFlash  bool // whether it flashes at all
+	save        func(Prefs) error
+	pulse       pulseState // pulse.go
 	// brokenFeed marks iCal calendars whose address stopped working
 	// (calendar ID → true), until they sync again.
 	brokenFeed map[string]bool
@@ -201,6 +212,9 @@ func New(src Source, loc *time.Location, now time.Time) Model {
 		needsSignIn:  map[string]bool{},
 		syncFailures: map[string]string{},
 		brokenFeed:   map[string]bool{},
+		globalWrite:  writePanel{editAt: -1},
+		eventWrite:   writePanel{editAt: -1},
+		panelFlash:   true,
 		pulse:        pulseState{lead: 5 * time.Minute, grace: time.Minute, stopped: map[string]bool{}},
 		openURL:      openInBrowser,
 		hidden:       map[string]bool{},
@@ -228,6 +242,7 @@ type Settings struct {
 	Pulse      bool
 	PulseLead  time.Duration
 	PulseGrace time.Duration // after the start; -1 for the whole event
+	PanelFlash bool          // a collapsed panel flashes when its content changes
 	Save       func(Prefs) error
 }
 
@@ -241,6 +256,7 @@ func (m Model) WithSettings(s Settings) Model {
 		m.pulse.lead = s.PulseLead
 	}
 	m.pulse.grace = s.PulseGrace
+	m.panelFlash = s.PanelFlash
 	return m
 }
 
@@ -250,7 +266,7 @@ func (m Model) today() domain.CivilDate {
 
 // Init loads calendars and events from the cache and starts a sync.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.loadCalendars(), m.loadEvents(), m.syncCmd(), m.tickCmd(), m.spin.Tick, m.pulseRefresh())
+	return tea.Batch(m.loadCalendars(), m.loadEvents(), m.syncCmd(), m.tickCmd(), m.spin.Tick, m.pulseRefresh(), m.loadWrite(writeGlobal))
 }
 
 // Commands. Each captures what it needs by value, so Update stays pure.
@@ -333,7 +349,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuild()
 		m.rebuildWeek()
 		m.rebuildMonth()
-		refresh := m.pulseRefresh()
+		refresh := tea.Batch(m.pulseRefresh(), m.reloadWrite())
 		if m.poll != 0 && !m.syncing && !m.nextPoll.IsZero() && !m.now.Before(m.nextPoll) {
 			// Overdue: timers stop while the computer sleeps, but the clock
 			// doesn't, so a sync due during sleep starts on waking.
@@ -401,6 +417,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.urlPaste(msg)
 		case m.gflow != nil:
 			return m.googlePaste(msg)
+		case m.writeTyping() && m.focusedPanel().mode == wInsert:
+			return m.writePaste(msg)
 		}
 		return m, nil
 
@@ -489,6 +507,21 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 
+	case writeLoadedMsg:
+		return m.writeLoaded(msg)
+
+	case writeDoneMsg:
+		if msg.err != nil {
+			m.actionErr = fmt.Errorf("Can't save notes: %w", msg.err)
+		}
+		return m, m.reloadWrite()
+
+	case writeFlashEndMsg:
+		if msg.seq == m.flashSeq {
+			m.globalFlash = false
+		}
+		return m, nil
+
 	case prefsSavedMsg:
 		if msg.err != nil {
 			m.actionErr = fmt.Errorf("Can't save settings: %w", msg.err)
@@ -519,6 +552,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleRenameKey(msg)
 	case m.urlForm != nil:
 		return m.handleURLKey(msg)
+	case m.writeTyping():
+		return m.handleWriteKey(msg)
 	case m.settings != nil:
 		return m.handleSettingsKey(msg)
 	case m.help != nil:
@@ -531,6 +566,15 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case msg.String() == "S" || msg.String() == ",":
 		m.settings = &settingsView{}
 		return m, nil
+	}
+	if m.focusedPanel() != nil {
+		return m.handleWriteKey(msg)
+	}
+	switch msg.String() {
+	case "w":
+		return m.focusEventPanel()
+	case "W":
+		return m.toggleGlobal(false)
 	}
 	if m.detail != nil {
 		return m.handleDetailKey(msg)
@@ -664,7 +708,7 @@ func (m Model) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.stepDay(-1)
 	case key.Matches(msg, m.keys.Open):
 		if i := m.selIndex(); i >= 0 && m.rows[i].kind == rowItem {
-			m.openDetail(m.rows[i].item)
+			return m, m.openDetail(m.rows[i].item)
 		}
 	}
 	return m, nil

@@ -1,30 +1,30 @@
-╭─ [0] Calendars ────────╮╭─ [1] Agenda ─ [2] Week ─ [3] Month ───────────── 29 Sep – 28 Oct 2026 ─╮
-│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                   │
-│   ● Holidays           ││    ● all day      Name day                          Personal · Main    │
-│   ● Main               ││    ● 09:00–09:30  Standup                           Personal · Main    │
-│                        ││    ── now 14:30 ───────────────────────────────────────────────────────│
-│                        ││    ● 15:00–16:00  Dentist                           Personal · Main    │
-│             ╭─ Add a Google account ───────────────────────────────────────────────╮al · Main    │
-│             │ Choose calendars for me@company.com:                                 │             │
-│             │                                                                      │             │
-│             │ ▸ [x] Me  (primary)                                                  │al · Main    │
-│             │   [ ] Team                                                           │al · Main    │
-│             │   [ ] Room 4B  (free/busy only)                                      │al · Main    │
-│             │                                                                      │             │
-│             │ space tick · enter add · esc cancel                                  │             │
-│             ╰──────────────────────────────────────────────────────────────────────╯al · Main    │
-│                        ││    ● all day      Holiday                           Personal · Holidays│
-│                        ││                                                                        │
-│                        ││   Fri 2 Oct                                                            │
-│                        ││    ● 10:00–11:00  日本語 meeting 🎉                 Personal · Main    │
-│                        ││                                                                        │
-│                        ││   Sat 3 Oct                                                            │
-│                        ││    nothing scheduled                                                   │
-│                        ││                                                                        │
-│                        ││   Sun 4 Oct                                                            │
-│                        ││    nothing scheduled                                                   │
-│                        ││                                                                        │
-│                        ││   Mon 5 Oct                                                            │
-╰────────────────────────╯╰────────────────────────────────────────────────────────────────────────╯
+╭─ [0] Calendars ────────╮╭─ [1] Agenda ─ [2] Week ─ [3] Month ────────── 29 Sep – 28 Oct 2026 ─╮╭─╮
+│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                ││W│
+│   ● Holidays           ││    ● all day      Name day                       Personal · Main    ││r│
+│   ● Main               ││    ● 09:00–09:30  Standup                        Personal · Main    ││i│
+│                        ││    ── now 14:30 ────────────────────────────────────────────────────││t│
+│                        ││    ● 15:00–16:00  Dentist                        Personal · Main    ││e│
+│             ╭─ Add a Google account ───────────────────────────────────────────────╮· Main    ││ │
+│             │ Choose calendars for me@company.com:                                 │          ││ │
+│             │                                                                      │          ││ │
+│             │ ▸ [x] Me  (primary)                                                  │· Main    ││ │
+│             │   [ ] Team                                                           │· Main    ││ │
+│             │   [ ] Room 4B  (free/busy only)                                      │· Main    ││ │
+│             │                                                                      │          ││ │
+│             │ space tick · enter add · esc cancel                                  │          ││ │
+│             ╰──────────────────────────────────────────────────────────────────────╯· Main    ││ │
+│                        ││    ● all day      Holiday                        Personal · Holidays││ │
+│                        ││                                                                     ││ │
+│                        ││   Fri 2 Oct                                                         ││ │
+│                        ││    ● 10:00–11:00  日本語 meeting 🎉              Personal · Main    ││ │
+│                        ││                                                                     ││ │
+│                        ││   Sat 3 Oct                                                         ││ │
+│                        ││    nothing scheduled                                                ││ │
+│                        ││                                                                     ││ │
+│                        ││   Sun 4 Oct                                                         ││ │
+│                        ││    nothing scheduled                                                ││ │
+│                        ││                                                                     ││ │
+│                        ││   Mon 5 Oct                                                         ││ │
+╰────────────────────────╯╰─────────────────────────────────────────────────────────────────────╯╰─╯
  esc cancel                                                                                         
  ◦ Idle        Tue 29 Sep 14:30                                                        Synced 14:29 

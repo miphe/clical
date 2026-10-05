@@ -1509,6 +1509,10 @@ func run(t *testing.T, m Model, cmd tea.Cmd) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// quickTimeout is how long a command may take before it counts as a timer
+// that is left to expire.
+var quickTimeout = 150 * time.Millisecond
+
 func quickMsgs(cmd tea.Cmd) []tea.Msg {
 	if cmd == nil {
 		return nil
@@ -1531,7 +1535,7 @@ func quickMsgs(cmd tea.Cmd) []tea.Msg {
 			return nil
 		}
 		return []tea.Msg{msg}
-	case <-time.After(150 * time.Millisecond):
+	case <-time.After(quickTimeout):
 		return nil
 	}
 }

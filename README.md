@@ -107,6 +107,8 @@ to trust your OAuth client ID (Admin console → Security → API controls).
 | `l` (calendar list)        | Back to the main view (same as `tab`)                                             |
 | `c` (calendar list)        | Collapse or expand the calendar list                                              |
 | `/`                        | Filter events by title or location; `esc` clears                                  |
+| `w`                        | Write: the open event's notes and TODOs, else the global ones                     |
+| `W`                        | Show or collapse the global Write panel                                           |
 | `S` or `,`                 | Settings: time format, week start, sync interval, the event pulse                 |
 | `?`                        | All keys and what the status line shows                                           |
 | `q`                        | Quit                                                                              |
@@ -136,6 +138,53 @@ email address a Google account signs in with, stay as they are. If a secret
 address leaks, use "Reset" next to it in Google Calendar, then
 `clical calendars set-url` with the new one, or press `u` on the calendar in
 the TUI. A calendar whose address stopped working is marked ⚠.
+
+## Write: notes and TODOs
+
+Notes and TODOs, kept globally or on one event. In the TUI the event view is
+split into the event (with its **Description** and links) and its **Write**
+panel; beside the main view there is a global **Write** panel, a thin strip
+until you open it with `W`. Press `w` to move into a panel; in it:
+
+| Key             | Does                                                                      |
+| --------------- | ------------------------------------------------------------------------- |
+| `a` / `A`       | Add a TODO / a note. Stays open for the next one; `esc` ends it           |
+| `e`             | Edit                                                                      |
+| `space`         | Check or uncheck a TODO (checked ones are struck through, and stay put)    |
+| `d`             | Delete (asks)                                                             |
+| `m`             | Move a TODO between the event and the global list                         |
+| `z`             | Archive a checked TODO                                                    |
+| `esc`           | Back to the event                                                         |
+
+A moved TODO keeps where it began ("from Weekly sync"). When a collapsed
+global panel changes (you moved something into it, or `clical write` did) its
+border flashes once; the settings screen can turn that off. Anything you type
+is text, so `q`, `?` and the rest don't act while you're adding or editing.
+The panels pick up changes made to the files elsewhere within half a minute.
+There is no archive view in the TUI yet; archived TODOs are listed and
+restored with `clical write archived` and `clical write unarchive`.
+
+The same, from the command line:
+
+    clical write add "water the plants"           # a global TODO
+    clical write add -e weekly "send the deck"    # on an event, by title or key
+    clical write add -e weekly --note "agenda: roadmap"
+    clical write                                  # the global list
+    clical write list -e weekly                   # one event's
+    clical write list --all
+    clical write done 3a7f                        # check (an ID, or the start of one)
+    clical write move 3a7f                        # to the global list; -e EVENT moves it to an event
+    clical write archive 3a7f                     # file a checked TODO away
+    clical write archived                         # list the archive
+    clical write unarchive 3a7f                   # back to the global list, checked
+
+`-e` takes part of an event's title (or its key) and looks two weeks back and
+two months ahead; if it matches several, add `--on 2026-10-05`. Notes belong
+to one occurrence of a recurring event, and keep following the event if its
+time changes. They are plain markdown in `~/.local/share/clical/write/`
+(`global.md`, `events/`, and `archive.jsonl`), readable only by you and not
+encrypted, so edit them in any editor, even while CLIcal is running. The
+settings file's `write_dir` moves them, e.g. into a synced folder.
 
 ## Settings
 
