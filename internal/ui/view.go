@@ -36,7 +36,9 @@ func (m Model) render() string {
 
 	bodyH := m.bodyHeight()
 	var body []string
-	if m.help != nil {
+	if m.settings != nil {
+		body = m.renderSettings(m.width, bodyH)
+	} else if m.help != nil {
 		body = m.renderHelp(m.width, bodyH)
 	} else if m.detail != nil {
 		body = m.renderDetail(m.width, bodyH)
@@ -212,6 +214,8 @@ func (m Model) renderItem(r row, selected bool, width int) string {
 	}
 
 	switch {
+	case m.isPulsing(it.Event):
+		return itemIndent + m.pulseLine(it.Event, strings.TrimPrefix(plain(glyph), itemIndent))
 	case selected && m.focus == focusMain:
 		return itemIndent + selectedStyle.Render(fit(strings.TrimPrefix(plain(glyph), itemIndent), width-ansi.StringWidth(itemIndent)))
 	case selected:
@@ -267,6 +271,9 @@ func (m Model) renderFooter() []string {
 
 	left := " " + m.activity() + m.now.In(m.loc).Format("Mon 2 Jan ") + m.clock.Time(m.now.In(m.loc))
 	right := m.status()
+	if alert := m.pulseAlert(); alert != "" {
+		right = alert
+	}
 	gap := m.width - ansi.StringWidth(left) - ansi.StringWidth(right) - 1
 	var statusLine string
 	if gap >= 2 {
@@ -335,6 +342,10 @@ func (m Model) footerHints() []footHint {
 		return []footHint{h("enter", "save", prioMust), h("esc", "cancel", prioMust)}
 	case m.urlForm != nil:
 		return []footHint{h("enter", "check and save", prioMust), h("esc", "cancel", prioMust)}
+	case m.settings != nil && m.settings.input != nil:
+		return []footHint{h("enter", "save", prioMust), h("esc", "cancel", prioMust)}
+	case m.settings != nil:
+		return []footHint{h("j/k", "move", prioMid), h("space", "change", prioMust), h("esc", "close", prioMust)}
 	case m.help != nil:
 		return []footHint{h("j/k", "scroll", prioMid), h("pgup/pgdn", "page", prioLow), h("esc", "close", prioMust)}
 	case m.detail != nil && len(m.detail.Event.Links) > 0:
@@ -372,7 +383,7 @@ func (m Model) footerHints() []footHint {
 		view = []footHint{h("j/k", "move", prioLow), h("enter", "details", prioHigh), h("[/]", "day", prioMid), h("t", "today", prioMid),
 			h("/", "filter", prioMid)}
 	}
-	view = append(view, h("r", "sync", prioLow), h("q", "quit", prioMid), help)
+	view = append(view, h("r", "sync", prioLow), h("S", "settings", prioLow), h("q", "quit", prioMid), help)
 	view[0].newGroup = true
 	return append(hints, view...)
 }

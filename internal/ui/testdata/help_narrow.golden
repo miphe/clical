@@ -7,6 +7,7 @@
 │ r                 Sync now (also in the background)      │
 │ a                 Add a calendar: iCal link or Google    │
 │ /                 Filter events by title or location     │
+│ S  ,              Settings: clock, week, sync, pulse     │
 │ ?                 This help                              │
 │ q  ctrl+c         Quit                                   │
 │                                                          │
@@ -14,7 +15,6 @@
 │ type              Narrows as you type; all words match   │
 │ enter             Keep the filter, move around again     │
 │ esc               Clear the filter                       │
-│ /                 Change the filter                      │
-╰─────────────────────────────────────── lines 1–16 of 73 ─╯
+╰─────────────────────────────────────── lines 1–16 of 89 ─╯
  j/k scroll · pgup/pgdn page · esc close                    
  ◦ Idle        Tue 29 Sep 14:30                Synced 14:29 

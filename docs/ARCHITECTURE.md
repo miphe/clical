@@ -44,7 +44,7 @@ test ./...` if a package imports something its layer doesn't allow.
 | `internal/domain`           | Provider-agnostic types: `Event`, `Calendar`, `Account`, `CivilDate`, `CalendarProvider`, errors | —                                                                |
 | `internal/agenda`           | Pure layout shared by every front-end: group events into local days, `Item.TimeLabel`            | domain                                                           |
 | `internal/secrets`          | age-encrypted vault for feed URLs                                                                | —                                                                |
-| `internal/config`           | The settings file: clock, week start, sync interval                                              | —                                                                |
+| `internal/config`           | The settings files: clock, week start, sync, pulse                                             | —                                                                |
 | `internal/store`            | SQLite cache: accounts, calendars, events, sync tokens                                           | domain                                                           |
 | `internal/providers/ical`   | Fetch, retry and parse iCal feeds                                                                | domain, eventtext                                                |
 | `internal/eventtext`        | Readable notes and a clean link list from an event's raw content (provider-neutral)              | domain                                                           |

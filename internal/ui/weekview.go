@@ -170,6 +170,8 @@ func (m Model) weekItemLines(date domain.CivilDate, it agenda.Item, width int, a
 	plainWhen := calendarGlyph(slot, false) + gap + when
 
 	switch {
+	case m.isPulsing(it.Event):
+		return []string{m.pulseLine(it.Event, fit(plainWhen, width)), m.pulseLine(it.Event, fit(it.Event.Title, width))}
 	case active:
 		return []string{selectedStyle.Render(fit(plainWhen, width)), selectedStyle.Render(fit(it.Event.Title, width))}
 	case inactiveSel:

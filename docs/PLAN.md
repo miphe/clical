@@ -41,7 +41,7 @@ multi-account merge → config/themes → in-process background polling.
 | M8 | `?` help screen, footer keeps the most important keys when narrow, `/` filter | Done |
 | M9 | Settings file: 12/24-hour clock, week start, sync interval | Done |
 | M11 | Dead iCal feeds fixed from the TUI, log file and `clical logs` | Done |
-| M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Planned |
+| M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -748,7 +748,7 @@ The right side keeps the last-sync time and failure details. The spinner
 `Update` wraps the real update and restarts the tick loop when work begins.
 A tick arriving with nothing busy ends the loop.
 
-## Settings dialog and event pulse — M12 (planned)
+## Settings dialog and event pulse — M12 done
 
 Two narrow pieces, built in this order. Nothing else rides along.
 
@@ -763,9 +763,12 @@ bound as a second key. `s` is already taken by re-sign-in.
   `j k` move, `space`/`enter` toggles or edits. Hints on the bottom line.
 - Lead time row: `enter` cycles 10m, 5m, 1m, or picks "custom", which opens a
   one-line input in seconds (digits only, 1–3600).
-- Clock row: `12-hour clock` toggle. It applies at once (the model's clock
-  is swapped in `Update`) and is saved with the rest. Week start and sync
-  interval stay file-only: they are set once and rarely changed.
+- Every setting is a row of choices with the active one bracketed, stepped
+  with enter/`l` and `h`; "custom" asks for a number. Rows: time format, week
+  start, sync interval (5m, 10m, 30m, off, custom minutes), pulse on/off,
+  pulse lead (10m, 5m, 1m, custom seconds), pulse grace (10m, 5m, 1m, whole
+  event, custom minutes). All apply at once and are saved to `settings.yaml`,
+  which is also what `clical config` reads.
 - Persistence: `config.yaml` is hand-written with comments, so the dialog
   never rewrites it. Changes go to `settings.yaml` beside it (same dir,
   mode 0600, written atomically like the vault), a flat file of the keys the
@@ -793,16 +796,19 @@ renders correctly.
   shown calendars; all-day events never pulse.
 - **Look:** the event's line in agenda/week/month cycles through
   normal → bold → bold+reverse → bold → normal over ~1.6 s (4 frames at
-  400 ms), in the calendar's own color. After the start time the pulse stops.
+  400 ms), in the accent color. The pulse runs from the lead time before the start until a configurable
+  grace period after it (10m, 5m, 1m, the whole event, or minutes; default
+  1m), never past the event's end, for late arrivals. A start inside the lead
+  time pulses at once.
 - **Seen from anywhere:** the pulse isn't tied to the event being on screen.
   While it's active, the event's detail view pulses its title, and the footer's
   bottom line shows a pulsing `● Title in 0:30` in every state: other views,
   another event's detail, help, the settings dialog, a filter in progress.
-  If the event is filtered out or in a hidden calendar, the footer still
-  shows it.
+  Events of hidden calendars don't pulse; a filter doesn't affect it.
 - **Stopping:** any interaction with that event stops the animation for it,
-  and only it: selecting it, opening its detail, or any key pressed while its
-  detail is open. (Moving the selection onto it counts; moving past it
+  and only it: selecting it, or any key pressed while its event view is
+  open. Opening the event view doesn't stop it, and a view left open starts
+  pulsing when the lead time arrives. (Moving the selection onto it counts; moving past it
   doesn't.) Pressing keys elsewhere doesn't stop it. A stopped event doesn't
   start again, even if the selection later leaves and returns.
 - **Timing:** one `pulseMsg` tick, armed only while an event is inside its

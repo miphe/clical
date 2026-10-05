@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/miphe/clical/internal/config"
 	"github.com/miphe/clical/internal/ui"
 )
 
@@ -32,6 +33,12 @@ func (c *TUICmd) Run() error {
 		Clock12:      cfg.Clock12,
 		WeekStart:    cfg.WeekStart,
 		SyncInterval: cfg.SyncInterval,
+		Pulse:        cfg.Pulse,
+		PulseLead:    cfg.PulseLead,
+		PulseGrace:   cfg.PulseGrace,
+		Save: func(p ui.Prefs) error {
+			return config.SavePrefs(config.PrefsPath(), config.Prefs(p))
+		},
 	})
 	_, err = tea.NewProgram(m).Run()
 	return err

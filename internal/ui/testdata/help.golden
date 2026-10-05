@@ -1,40 +1,40 @@
 ╭─ Keys ───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Everywhere                                                   Calendar list                                           │
-│ 0                 Calendar list                              j k  g G          Move                                  │
-│ 1 2 3             Agenda, week, month                        space             Show or hide a calendar, or an account│
-│ tab               Switch between the list and the view       enter             Fold or unfold an account             │
-│ t                 Today                                      n                 Rename a calendar or account          │
-│ r                 Sync now (also in the background)          d                 Remove a calendar (asks first)        │
-│ a                 Add a calendar: iCal link or Google        s                 Sign a Google account in again (⚠)    │
-│ /                 Filter events by title or location         u                 New address for an iCal calendar (⚠)  │
-│ ?                 This help                                  c                 Collapse or expand the list           │
-│ q  ctrl+c         Quit                                       l  →              Back to the view                      │
+│ Everywhere                                                                                                           │
+│ 0                 Calendar list                                                                                      │
+│ 1 2 3             Agenda, week, month                                                                                │
+│ tab               Switch between the list and the view                                                               │
+│ t                 Today                                                                                              │
+│ r                 Sync now (also in the background)                                                                  │
+│ a                 Add a calendar: iCal link or Google                                                                │
+│ /                 Filter events by title or location                                                                 │
+│ S  ,              Settings: clock, week, sync, pulse                                                                 │
+│ ?                 This help                                                                                          │
+│ q  ctrl+c         Quit                                                                                               │
 │                                                                                                                      │
-│ Filter                                                       Event details                                           │
-│ type              Narrows as you type; all words match       j k  ↓ ↑          Select a link, or scroll without links│
-│ enter             Keep the filter, move around again         1–9               Select a link by number               │
-│ esc               Clear the filter                           enter  o          Open the link in the browser          │
-│ /                 Change the filter                                            The full address shows before opening │
-│                   The agenda searches a year ahead and       pgup pgdn  space  Scroll                                │
-│                   [ ] jump between days with matches         esc  q            Close                                 │
+│ Filter                                                                                                               │
+│ type              Narrows as you type; all words match                                                               │
+│ enter             Keep the filter, move around again                                                                 │
+│ esc               Clear the filter                                                                                   │
+│ /                 Change the filter                                                                                  │
+│                   The agenda searches a year ahead and                                                               │
+│                   [ ] jump between days with matches                                                                 │
 │                                                                                                                      │
-│ Agenda                                                       Popups                                                  │
-│ j k  ↓ ↑          Next, previous event                       tab  ↓ ↑          Next, previous field or choice        │
-│ g G               First, last event                          enter             Next field, or confirm                │
-│ [ ]  pgup pgdn    Previous, next day                         esc               Cancel                                │
-│ enter             Event details                              space             Tick a calendar (Google picker)       │
-│                   Moving past the end loads more days        o                 Open the Google sign-in page again    │
-│                                                              r  c              Retry sign-in, change the OAuth client│
-│ Week                                                         y n               Remove, keep (remove popup)           │
-│ h l  ← →          Previous, next day                                           Pasting works in every text field     │
+│ Agenda                                                                                                               │
+│ j k  ↓ ↑          Next, previous event                                                                               │
+│ g G               First, last event                                                                                  │
+│ [ ]  pgup pgdn    Previous, next day                                                                                 │
+│ enter             Event details                                                                                      │
+│                   Moving past the end loads more days                                                                │
+│                                                                                                                      │
+│ Week                                                                                                                 │
+│ h l  ← →          Previous, next day                                                                                 │
 │ j k  ↓ ↑          Next, previous event of the day                                                                    │
-│ g G               First, last event of the day               Status line                                             │
-│ [ ]  pgup pgdn    Previous, next week                        left              Activity: working, synced, failed     │
-│ enter             Event details                              right             Last sync, or a failure and its retry │
-│                                                              ⚠                 Sign in again (s) or new address (u)  │
+│ g G               First, last event of the day                                                                       │
+│ [ ]  pgup pgdn    Previous, next week                                                                                │
+│ enter             Event details                                                                                      │
+│                                                                                                                      │
 │ Month                                                                                                                │
 │ h l  ← →          Previous, next day                                                                                 │
-│ j k  ↓ ↑          Next, previous week                                                                                │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 39 ─╯
+╰─────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 89 ─╯
  j/k scroll · pgup/pgdn page · esc close                                                                                
  ◦ Idle        Tue 29 Sep 14:30                                                                            Synced 14:29 

@@ -199,6 +199,9 @@ func (m Model) monthEventLine(date domain.CivilDate, it agenda.Item, width int, 
 	if !it.Event.AllDay && width >= 14 && !it.Start.Before(date.In(m.loc)) {
 		text = m.clock.Time(it.Start) + " " + text
 	}
+	if m.isPulsing(it.Event) {
+		return m.pulseLine(it.Event, fit(calendarGlyph(slot, false)+text, width))
+	}
 	ended := !it.Event.AllDay && !it.End.After(m.now)
 	if ended || !inMonth {
 		return mutedStyle.Render(fit(calendarGlyph(slot, false)+text, width))

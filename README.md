@@ -107,6 +107,7 @@ to trust your OAuth client ID (Admin console → Security → API controls).
 | `l` (calendar list)        | Back to the main view (same as `tab`)                                             |
 | `c` (calendar list)        | Collapse or expand the calendar list                                              |
 | `/`                        | Filter events by title or location; `esc` clears                                  |
+| `S` or `,`                 | Settings: time format, week start, sync interval, the event pulse                 |
 | `?`                        | All keys and what the status line shows                                           |
 | `q`                        | Quit                                                                              |
 
@@ -148,6 +149,33 @@ Optional, in `~/.config/clical/config.yaml`:
 `clical config init` writes the file with every setting at its default.
 Changes apply the next time CLIcal starts; a misspelt setting or value
 stops it with an error naming it.
+
+The settings screen (`S`) changes these at once. Each setting is a row of
+choices with the active one in `[brackets]`; `enter` (or `l`) moves to the
+next, `h` to the previous, and `custom` asks for a number.
+
+- **Time format**: 24h or 12h
+- **Week starts on**: Monday or Sunday
+- **Sync interval**: 5m, 10m, 30m, off, or your own minutes
+- **Event pulse**: off or on
+- **Pulse starts**: 10m, 5m or 1m before the event, or your own seconds
+- **Pulse continues**: 10m, 5m or 1m after it has started, the whole event,
+  or your own minutes. For late arrivals.
+
+The pulse makes an event stand out: its line pulses in the agenda, week and
+month, its title pulses in the event view (also if you leave that open and
+the time arrives), and the status line counts down to it, then up from its
+start, wherever you are in CLIcal. If CLIcal starts inside the lead time it
+pulses at once. Selecting the event, or pressing a key in its event view,
+ends its pulse. It steps between plain, bold and reversed in the accent color
+rather than fading, so it follows your terminal's theme, and it only runs
+while CLIcal is open.
+
+These are saved to `~/.config/clical/settings.yaml`, which overrides
+`config.yaml`, so a hand-written `config.yaml` with comments is never
+rewritten. All of the settings above are keys in either file (`time_format`,
+`week_start`, `sync_interval`, `pulse`, `pulse_lead`, `pulse_grace`), and
+`clical config` shows what is in use, including what the dialog saved.
 
 ## Log
 

@@ -153,9 +153,12 @@ type Model struct {
 	needsSignIn   map[string]bool // account ID → must sign in again
 	form          *addForm
 	confirmRemove *app.CalendarInfo
-	rename        *renameForm // rename.go
-	help          *helpView   // help.go
-	urlForm       *urlForm    // feedurl.go
+	rename        *renameForm   // rename.go
+	help          *helpView     // help.go
+	urlForm       *urlForm      // feedurl.go
+	settings      *settingsView // settings.go
+	save          func(Prefs) error
+	pulse         pulseState // pulse.go
 	// brokenFeed marks iCal calendars whose address stopped working
 	// (calendar ID → true), until they sync again.
 	brokenFeed map[string]bool
@@ -198,6 +201,7 @@ func New(src Source, loc *time.Location, now time.Time) Model {
 		needsSignIn:  map[string]bool{},
 		syncFailures: map[string]string{},
 		brokenFeed:   map[string]bool{},
+		pulse:        pulseState{lead: 5 * time.Minute, grace: time.Minute, stopped: map[string]bool{}},
 		openURL:      openInBrowser,
 		hidden:       map[string]bool{},
 		days:         initialDays,
@@ -219,6 +223,12 @@ type Settings struct {
 	// SyncInterval is the time from one sync's end to the next start; 0
 	// turns background syncing off.
 	SyncInterval time.Duration
+	// Pulse and PulseLead: see pulse.go. Save stores the settings the
+	// dialog changes; nil when they can't be saved.
+	Pulse      bool
+	PulseLead  time.Duration
+	PulseGrace time.Duration // after the start; -1 for the whole event
+	Save       func(Prefs) error
 }
 
 // WithSettings applies s. Call it before the program starts.
@@ -226,6 +236,11 @@ func (m Model) WithSettings(s Settings) Model {
 	m.clock = agenda.Clock{Twelve: s.Clock12}
 	m.weekStart = s.WeekStart
 	m.poll = s.SyncInterval
+	m.pulse.on, m.save = s.Pulse, s.Save
+	if s.PulseLead > 0 {
+		m.pulse.lead = s.PulseLead
+	}
+	m.pulse.grace = s.PulseGrace
 	return m
 }
 
@@ -235,7 +250,7 @@ func (m Model) today() domain.CivilDate {
 
 // Init loads calendars and events from the cache and starts a sync.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.loadCalendars(), m.loadEvents(), m.syncCmd(), m.tickCmd(), m.spin.Tick)
+	return tea.Batch(m.loadCalendars(), m.loadEvents(), m.syncCmd(), m.tickCmd(), m.spin.Tick, m.pulseRefresh())
 }
 
 // Commands. Each captures what it needs by value, so Update stays pure.
@@ -318,14 +333,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuild()
 		m.rebuildWeek()
 		m.rebuildMonth()
+		refresh := m.pulseRefresh()
 		if m.poll != 0 && !m.syncing && !m.nextPoll.IsZero() && !m.now.Before(m.nextPoll) {
 			// Overdue: timers stop while the computer sleeps, but the clock
 			// doesn't, so a sync due during sleep starts on waking.
 			m.syncing = true
 			m.pollSeq++
-			return m, tea.Batch(m.tickCmd(), m.syncCmd())
+			return m, tea.Batch(m.tickCmd(), m.syncCmd(), refresh)
 		}
-		return m, m.tickCmd()
+		return m, tea.Batch(m.tickCmd(), refresh)
 
 	case calendarsLoadedMsg:
 		if msg.err != nil {
@@ -473,8 +489,18 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 
+	case prefsSavedMsg:
+		if msg.err != nil {
+			m.actionErr = fmt.Errorf("Can't save settings: %w", msg.err)
+		}
+		return m, nil
+
 	case tea.KeyPressMsg:
-		return m.handleKey(msg)
+		next, cmd := m.handleKey(msg)
+		return next.(Model).pulseAfterKey(m), cmd
+	}
+	if next, cmd, ok := m.pulseUpdate(msg); ok {
+		return next, cmd
 	}
 	return m, nil
 }
@@ -493,12 +519,17 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleRenameKey(msg)
 	case m.urlForm != nil:
 		return m.handleURLKey(msg)
+	case m.settings != nil:
+		return m.handleSettingsKey(msg)
 	case m.help != nil:
 		return m.handleHelpKey(msg)
 	case m.filterInput != nil:
 		return m.handleFilterKey(msg)
 	case msg.String() == "?":
 		m.help = &helpView{}
+		return m, nil
+	case msg.String() == "S" || msg.String() == ",":
+		m.settings = &settingsView{}
 		return m, nil
 	}
 	if m.detail != nil {

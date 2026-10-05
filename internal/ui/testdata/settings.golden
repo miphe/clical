@@ -1,0 +1,34 @@
+╭─ Settings ─────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                            │
+│ › Time format       [24h]   12h                                                                            │
+│                     12-hour is 3:04pm, 24-hour is 15:04                                                    │
+│                                                                                                            │
+│   Week starts on    [Monday]   Sunday                                                                      │
+│                                                                                                            │
+│                                                                                                            │
+│   Sync interval     [5m]   10m    30m    off    custom                                                     │
+│                                                                                                            │
+│                                                                                                            │
+│   Event pulse       [off]   on                                                                             │
+│                                                                                                            │
+│                                                                                                            │
+│   Pulse starts       10m   [5m]   1m    custom                                                             │
+│                                                                                                            │
+│                                                                                                            │
+│   Pulse continues    10m    5m   [1m]   whole event    custom                                              │
+│                                                                                                            │
+│                                                                                                            │
+│ Changes apply at once and are saved.                                                                       │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ j/k move · space change · esc close                                                                          
+ ◦ Idle        Tue 29 Sep 14:30                                                                  Synced 14:29 

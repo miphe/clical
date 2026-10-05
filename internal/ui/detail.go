@@ -200,7 +200,11 @@ func (m Model) detailBody(textW int) []string {
 		return ansi.Hardwrap(ansi.Wordwrap(s, w, ""), w, false)
 	}
 
-	add(boldStyle.Render(wrap(e.Title, textW)))
+	title := boldStyle.Render(wrap(e.Title, textW))
+	if m.isPulsing(e) {
+		title = pulseStyle(m.pulseFrame()).Render(wrap(e.Title, textW))
+	}
+	add(title)
 	add(m.detailWhen())
 	if label := m.calendarLabel(e.CalendarID); label != "" {
 		add(calendarBullet(m.calendarSlot(e.CalendarID)) + " " + label)
