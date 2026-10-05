@@ -255,3 +255,28 @@ func TestMigrationAddsNicknameColumnsToOldDatabase(t *testing.T) {
 		t.Errorf("ListCalendars() after migration = %+v, %v", cals, err)
 	}
 }
+
+func TestKeyRoundTripsAndOldDatabasesGetTheColumn(t *testing.T) {
+	s := openTestStore(t)
+	cal := seedCalendar(t, s)
+	ctx := context.Background()
+	start := time.Date(2026, 10, 1, 9, 30, 0, 0, time.UTC)
+	in := domain.NewTimedEvent("uid/2026", "c", "Dentist", start, start.Add(time.Hour), "", "").WithKey("uid")
+	plain := domain.NewTimedEvent("plain", "c", "Plain", start, start.Add(time.Hour), "", "")
+	if err := s.ApplySync(ctx, cal, domain.SyncResult{Upserted: []domain.Event{in, plain}, FullResync: true}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.EventsInRange(ctx, day, day.AddDate(0, 0, 1))
+	if err != nil || len(got) != 2 {
+		t.Fatalf("EventsInRange() = %v, %v", got, err)
+	}
+	for _, e := range got {
+		want := map[string]string{"uid/2026": "uid", "plain": "plain"}[e.ID]
+		if e.Identity() != want {
+			t.Errorf("%s: Identity() = %q; want %q", e.ID, e.Identity(), want)
+		}
+	}
+	if ok, err := s.hasColumn(ctx, "events", "key"); err != nil || !ok {
+		t.Errorf("key column: %v, %v", ok, err)
+	}
+}

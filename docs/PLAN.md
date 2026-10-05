@@ -42,6 +42,7 @@ multi-account merge → config/themes → in-process background polling.
 | M9 | Settings file: 12/24-hour clock, week start, sync interval | Done |
 | M11 | Dead iCal feeds fixed from the TUI, log file and `clical logs` | Done |
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
+| M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Planned |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -830,6 +831,184 @@ renders correctly.
 are clean; the dialog toggles and persists across restarts in the real binary
 (checked with `scripts/tui_screens.py`); README, help and this section updated.
 
+## Write: notes and TODOs — M13 (M13a–c done, M13d deferred)
+
+A note and task surface in two scopes: **event** (one occurrence of one
+event) and **global**. Every panel for it is titled "Write". Completed TODOs
+are archived to a pool that a later heatmap will read. The feature's
+definition lives with the requester; this section is how it is built here,
+and where it departs from that definition.
+
+### Decisions
+
+- **Notes belong to a single occurrence**, not to a series. A TODO carries its
+  origin when moved to global, so nothing is lost by the choice.
+- **Separate from the cache.** The SQLite cache can be rebuilt (a full resync
+  deletes events); notes can't. They live in their own files, in a new core
+  package `internal/write` (added to `archtest`; knows nothing of the TUI or
+  providers).
+- **Naming in the UI:** the event's feed text is **Description** (it is
+  "Notes" today), the new surface is **Write**.
+- **Notes aren't encrypted** (unlike feed URLs and tokens), they're plain
+  text so they can be edited and synced. Files are 0600 in a 0700 directory;
+  the README says so. `write_dir` in the settings file moves them, e.g. into a
+  synced folder.
+- **Unarchive and the archive view are deferred** (M13d), but archiving is
+  not shipped without a way to get an item back: until M13d, archived items
+  stay in `archive.jsonl` and `clical write archive` (M13a) lists them.
+
+### Event identity (`domain.Event.Key`)
+
+`Event.ID` isn't stable enough: for iCal it is `UID/start` for every event
+(`providers/ical/parse.go`), so rescheduling an event changes its ID and
+would orphan its notes.
+
+- `domain.Event` gains `Key`, set by the provider, stable across a reschedule:
+  - iCal: the UID for a one-off event; UID + the occurrence's *original*
+    start for a recurring one. A moved single occurrence (RECURRENCE-ID) keeps
+    the key of the occurrence it replaced. The provider needs to tell
+    one-off from recurring, which the current ID doesn't say.
+  - Google: the event or instance ID, which already holds the original start.
+- Scoped by calendar: the identity of a note target is `(calendar ID, Key)`.
+- Feed values are untrusted: a key is **never** used in a file name, only its
+  hash (`sha256`, first 16 hex).
+- Each event's file stores a **snapshot** (title, start, calendar name) from
+  when notes were last written. It labels origins and orphans after the event
+  has gone.
+- Orphans (an event's key no longer in the cache, past the sync window or
+  deleted) are never deleted. They are listed under "Unattached" in the global
+  Write panel, from their snapshot, and can be moved to global or deleted.
+
+### Storage (`internal/write`)
+
+Under `$XDG_DATA_HOME/clical/write/` (or `write_dir`):
+
+    global.md              the global list
+    events/<hash>.md       one file per event occurrence, snapshot in a header
+    archive.jsonl          archived TODOs, append-only
+
+- Active lists are markdown task lists. A TODO is `- [ ] text` or
+  `- [x] text`; any other line is a note. Provenance rides in a trailing
+  `<!-- id:k3f9 origin:<scope> last:<key> done:<RFC3339> -->` comment, so a
+  file reads cleanly in any editor.
+- **Lossless round trip:** a line the parser doesn't understand is kept as a
+  note, byte for byte; hand edits survive a load and a save. Tested with
+  hand-written files.
+- Every item has a short random `id`, so moves keep identity.
+- **Origin** is set once. **Last event** is set when an item is moved into an
+  event. Both store `(calendar ID, Key)` with the snapshot's title.
+- **Completion time** is the latest check, RFC 3339 *with* the UTC offset (a
+  heatmap buckets by the local day the user was in); unchecking clears it.
+- The archive is JSONL, one record per TODO: text, completed, archived,
+  origin, last event, with titles. Plain text, append-friendly, easy for a
+  heatmap to read.
+- Writes are atomic (temp file + rename, like the vault) and re-check the
+  file's mtime first, so an edit made in another editor, or by
+  `clical write`, isn't overwritten: the file is re-read and the change
+  re-applied, or the user is told.
+- Text from files goes through `domain.SafeText` before it's drawn.
+
+### Layers
+
+- `internal/write`: pure model (items, move, check, archive rules) and file
+  I/O behind a small `Store`. No I/O in the model functions; table-driven
+  tests.
+- `internal/app` exposes it; the UI gets its own `WriteSource` interface rather
+  than growing `Source`.
+- `internal/ui` keeps `Update` pure: it changes the in-memory list at once and
+  the file write runs as a command; a failure shows in the status line and
+  triggers a reload. A file changed on disk is noticed on the clock tick.
+- `cmd/clical` gets `clical write` (below).
+
+### UI
+
+- **Event view:** the event details (with Description and links) and the event
+  Write panel side by side; stacked above/below when the terminal is too
+  narrow or short. The Write panel is the smaller share, since the link strip
+  needs room: the rule that a link whose address doesn't fit can't be opened
+  still holds, and the layout must keep that space.
+- **Global Write panel:** right of the main pane, collapsible like the
+  calendar list (a thin strip when collapsed), still reachable in the event
+  view, where it starts collapsed. Narrow terminals start it collapsed.
+- **Keys** (all new; `1 2 3` stay views). Keys act within the focused panel:
+  `w` focuses Write (the event's in the event view, else the global one),
+  `W` collapses or expands the global panel. Inside Write: `j k` move,
+  `a` add a TODO, `A` add a note (inline input, no popup; `?` and other keys
+  are text while typing), `e` edit, `space` check or uncheck, `x` delete
+  (asks), `m` move to the other scope (global → the open event only while an
+  event is open), `z` archive a checked TODO. A mode label in the panel title
+  shows INSERT while typing.
+- **Checked TODOs stay in place** (struck through) until archived; no
+  reordering.
+- **Origin** shows on each TODO that was moved ("from Weekly sync"), from the
+  snapshot when the event is gone.
+- **Flash:** a collapsed panel whose content changes flashes its border once
+  (about 600 ms, reversed). Reuse the flash and frame-tick code from
+  `activity.go` and `pulse.go`; a settings-dialog switch ("Panel flash")
+  turns it off.
+- **Event pulse:** a key pressed in an event's Write panel counts as
+  interacting with that event and ends its pulse.
+- Help screen and footer hints gain a Write section.
+
+### CLI: `clical write`
+
+    clical write [list] [-e EVENT] [--on DATE] [--all]  # global by default
+    clical write add TEXT... [--note] [-e EVENT]        # a TODO, or a note
+    clical write done|undo|rm ID                        # check, uncheck, delete
+    clical write move ID [-e EVENT]                     # to an event; to global without -e
+    clical write archive ID                             # file a checked TODO away
+    clical write archived                               # list the archive
+    clical write unarchive ID                           # restore, checked, to global
+    clical write path                                   # where the files are
+
+`-e` takes part of a title or a key, searched two weeks back and two months
+ahead; `--on` narrows it to a day. IDs can be abbreviated.
+
+Works without unlocking the vault (it needs no secrets) and is safe to run
+while the TUI is open (mtime check above).
+
+### Milestones
+
+| # | Deliverable |
+|---|---|
+| M13a (done) | `Event.Key` (iCal and Google), `internal/write`: model, markdown round trip, archive JSONL, `archtest`, `clical write` (list, add, done, archive, unarchive, path). Tested against hand-edited files. |
+| M13b (done) | Event Write panel in the event view: layout with the stacked fallback, Description rename, add, edit, check, delete, mode label, help and footer. |
+| M13c (done) | Global Write panel: collapse, move in both directions, origin display, Unattached list, collapsed-panel flash and its setting. |
+| M13d | Archive view in the TUI and a key to reach it, unarchive from it. Deferred until the rest is in use. |
+
+### As built (M13b, M13c)
+
+- `internal/ui/write.go` (state, commands, keys) and `writeview.go` (layout,
+  drawing); the panels read and change the files through a small `WriteSource`
+  that `*app.App` implements. `Update` stays pure: keys start commands, and a
+  panel shows the list the command read back.
+- The event view puts the details and the Write panel side by side from 100
+  columns, else Write under the details (a third of the height, 5–12 rows).
+  The global panel is a 3-column strip showing "Write" and the number of open
+  TODOs; opened it is a quarter of the width, 28–40 columns, and when that
+  would leave the main pane under 40 columns (the event view under 60) it
+  stays a strip.
+- Keys, as planned, with these choices: `w` focuses the event's panel (global
+  when no event is open), `W` opens and focuses the global panel and collapses
+  it again; `e`/`enter` edit, `space` checks, `d` deletes (asks), `m` moves,
+  `z` archives. Adding stays open for the next item.
+- A key pressed in the event's Write panel, being a key in the event view,
+  ends that event's pulse.
+- Reloads: after every change, and on the clock tick, so edits made with
+  `clical write` or in an editor show up; a collapsed global panel whose list
+  changed flashes (`panel_flash`, on in the settings dialog).
+- Left for M13d: the archive view and unarchive in the TUI; the "Unattached"
+  list for notes whose event is gone. Both work from the CLI (`write list
+  --all`, `write unarchive`).
+
+### Open
+
+- Whether events outside the sync window (so not in the cache) can still be
+  opened for notes: they can't be reached from any view, so for now only
+  through their Unattached entries.
+- Whether `write_dir` should also move the existing files when changed (no:
+  just document it).
+
 ## TUI / UX design (M7–M11)
 
 **Layout**: persistent left sidebar + main pane + two-line footer
@@ -936,7 +1115,8 @@ do both).
 | M9 | YAML config for non-color settings (time format, first day of week, poll interval). No colors or themes: theming is delegated to the terminal | `internal/config/` | Done |
 | M10 | In-process polling every 5 min, one schedule for all calendars | `internal/ui/model.go` | Done |
 | M11 | Revoked-feed flow in the TUI, `clical logs`, cross-compile check | `internal/ui/feedurl.go`, `internal/app/log.go`, `cmd/clical/logs.go` | Done |
-| M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Planned |
+| M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
+| M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Planned |
 
 ## Verification
 

@@ -26,6 +26,7 @@ import (
 	"github.com/miphe/clical/internal/providers/ical"
 	"github.com/miphe/clical/internal/secrets"
 	"github.com/miphe/clical/internal/store"
+	"github.com/miphe/clical/internal/write"
 )
 
 // ErrLocked is returned by operations that need secrets (sync, adding,
@@ -37,6 +38,7 @@ type Paths struct {
 	Vault string // directory of age-encrypted secrets
 	DB    string // SQLite cache
 	Log   string // log file; "" for none
+	Write string // notes and TODOs, see internal/write
 }
 
 // DefaultPaths is $XDG_DATA_HOME/clical (~/.local/share/clical), with the log
@@ -47,6 +49,7 @@ func DefaultPaths() Paths {
 		Vault: filepath.Join(dir, "vault"),
 		DB:    filepath.Join(dir, "clical.db"),
 		Log:   filepath.Join(xdg.StateHome, "clical", "clical.log"),
+		Write: filepath.Join(dir, "write"),
 	}
 }
 
@@ -70,6 +73,10 @@ type App struct {
 	vault  *secrets.Vault
 	engine *engine.Engine
 	google *google.Provider
+
+	writeOnce sync.Once // see write.go
+	writes    *write.Store
+	writeErr  error
 
 	log     *slog.Logger // see log.go
 	logFile io.Closer

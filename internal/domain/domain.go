@@ -148,6 +148,13 @@ type Event struct {
 	Notes      string
 	AllDay     bool
 
+	// Key identifies the event across reschedules, for things the user
+	// attaches to it (see internal/write). ID can change when an event
+	// moves: for iCal it includes the start time. "" means ID is stable and
+	// is the key; see Identity. The value comes from a feed, so it is never
+	// used as a file name.
+	Key string
+
 	start, end         time.Time
 	startDate, endDate CivilDate
 
@@ -170,6 +177,21 @@ type Link struct {
 	URL   string
 	Label string // human-readable, e.g. "Join Google Meet" or a link's text
 	Kind  LinkKind
+}
+
+// WithKey returns e with its stable key set.
+func (e Event) WithKey(key string) Event {
+	e.Key = key
+	return e
+}
+
+// Identity is the event's stable key: Key, or ID when the provider's IDs are
+// already stable.
+func (e Event) Identity() string {
+	if e.Key != "" {
+		return e.Key
+	}
+	return e.ID
 }
 
 // WithLinks returns e with links attached.

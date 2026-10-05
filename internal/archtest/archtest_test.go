@@ -29,16 +29,19 @@ var layers = map[string][]string{
 	"internal/secrets":          {},
 	"internal/config":           {},
 	"internal/store":            {"internal/domain"},
+	"internal/write":            {"internal/domain"},
 	"internal/providers/ical":   {"internal/domain", "internal/eventtext"},
 	"internal/providers/google": {"internal/domain", "internal/eventtext"},
 	"internal/engine":           {"internal/domain", "internal/store"},
 	"internal/app": {"internal/domain", "internal/store", "internal/secrets",
-		"internal/engine", "internal/providers/ical", "internal/providers/google"},
+		"internal/engine", "internal/providers/ical", "internal/providers/google", "internal/write"},
 
 	// Front-ends: talk to the core only through internal/app (plus the plain
 	// data types in domain and agenda).
-	"internal/ui": {"internal/app", "internal/agenda", "internal/domain"},
-	"cmd/clical":  {"internal/app", "internal/ui", "internal/agenda", "internal/domain", "internal/config"},
+	// internal/write is imported for its plain data types (Item, Ref, ...);
+	// the files themselves are reached through internal/app.
+	"internal/ui": {"internal/app", "internal/agenda", "internal/domain", "internal/write"},
+	"cmd/clical":  {"internal/app", "internal/ui", "internal/agenda", "internal/domain", "internal/config", "internal/write"},
 
 	// Tooling.
 	"internal/archtest": {},

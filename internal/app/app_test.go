@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"golang.org/x/oauth2"
 
@@ -357,5 +358,59 @@ func TestSyncOutcomeNeedsSignIn(t *testing.T) {
 	o := SyncOutcome{Err: fmt.Errorf("wrapped: %w", &domain.ReauthRequiredError{AccountID: "a"})}
 	if !o.NeedsSignIn() || (SyncOutcome{Err: errors.New("other")}).NeedsSignIn() {
 		t.Error("NeedsSignIn misreports")
+	}
+}
+
+func TestMatchEvent(t *testing.T) {
+	at := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
+	mk := func(id, key, title string) domain.Event {
+		return domain.NewTimedEvent(id, "c", title, at, at.Add(time.Hour), "", "").WithKey(key)
+	}
+	events := []domain.Event{mk("u1/x", "u1", "Weekly sync"), mk("u2/x", "u2", "Sync with Ana"), mk("u3/x", "u3", "Dentist")}
+	cases := []struct {
+		text, want string
+		err        any
+	}{
+		{"dentist", "u3", nil},
+		{"u2", "u2", nil},     // by key
+		{"u1/x", "u1", nil},   // by ID
+		{"weekly", "u1", nil}, // a part of a title
+		{"sync", "", &AmbiguousEventError{}},
+		{"lunch", "", &NoEventError{}},
+	}
+	for _, c := range cases {
+		got, err := matchEvent(events, c.text)
+		switch c.err.(type) {
+		case nil:
+			if err != nil || got.Key != c.want {
+				t.Errorf("%q = %v, %v; want %s", c.text, got.Key, err, c.want)
+			}
+		case *AmbiguousEventError:
+			var e *AmbiguousEventError
+			if !errors.As(err, &e) || len(e.Matches) != 2 {
+				t.Errorf("%q: %v; want two matches", c.text, err)
+			}
+		case *NoEventError:
+			var e *NoEventError
+			if !errors.As(err, &e) {
+				t.Errorf("%q: %v; want no match", c.text, err)
+			}
+		}
+	}
+	// An exact title beats longer titles that contain it.
+	both := append(events, mk("u4/x", "u4", "Sync"))
+	if got, err := matchEvent(both, "sync"); err != nil || got.Key != "u4" {
+		t.Errorf("exact title = %v, %v", got.Key, err)
+	}
+}
+
+func TestEventScopeNamesTheCalendarAndStart(t *testing.T) {
+	a, _ := openTest(t)
+	loc := time.FixedZone("EEST", 3*3600)
+	at := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
+	e := domain.NewTimedEvent("u/1", "c", "Sync", at, at.Add(time.Hour), "", "").WithKey("u")
+	ref, hdr := a.EventScope(context.Background(), e, loc)
+	if ref.Key != "u" || ref.Calendar != "c" || ref.Title != "Sync" || hdr.Start != "2026-10-05T12:00:00+03:00" {
+		t.Errorf("EventScope = %+v, %+v", ref, hdr)
 	}
 }

@@ -46,15 +46,17 @@ test ./...` if a package imports something its layer doesn't allow.
 | `internal/secrets`          | age-encrypted vault for feed URLs                                                                | —                                                                |
 | `internal/config`           | The settings files: clock, week start, sync, pulse                                             | —                                                                |
 | `internal/store`            | SQLite cache: accounts, calendars, events, sync tokens                                           | domain                                                           |
+| `internal/write`            | Notes and TODOs the user keeps: markdown files per event and global, a JSONL archive. Not the cache: it can't be rebuilt | domain                                  |
 | `internal/providers/ical`   | Fetch, retry and parse iCal feeds                                                                | domain, eventtext                                                |
 | `internal/eventtext`        | Readable notes and a clean link list from an event's raw content (provider-neutral)              | domain                                                           |
 | `internal/providers/google` | Google Calendar API: sign-in, calendar list, event sync                                          | domain, eventtext                                                |
 | `internal/engine`           | Run a provider sync, apply it to the store                                                       | domain, store                                                    |
-| `internal/app`              | **The seam.** Composes the above into operations                                                 | domain, store, secrets, engine, providers/ical, providers/google |
-| `internal/ui`               | TUI: model, keys, rendering                                                                      | app, agenda, domain                                              |
-| `cmd/clical`                | CLI commands, terminal prompts, starts the TUI                                                   | app, ui, agenda, domain, config                                  |
+| `internal/app`              | **The seam.** Composes the above into operations                                                 | domain, store, secrets, engine, providers/ical, providers/google, write |
+| `internal/ui`               | TUI: model, keys, rendering                                                                      | app, agenda, domain, write                                       |
+| `cmd/clical`                | CLI commands, terminal prompts, starts the TUI                                                   | app, ui, agenda, domain, config, write                           |
 
-Front-ends may also use `domain` and `agenda` directly. Those are plain
+Front-ends may also use `domain`, `agenda` and the data types of `write`
+(items, scopes) directly; the files themselves are reached through `app`. Those are plain
 data and pure functions, so sharing them doesn't couple a front-end to how
 calendars are stored or fetched.
 

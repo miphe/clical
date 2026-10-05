@@ -54,8 +54,8 @@ func (s *Store) ApplySync(ctx context.Context, cal domain.Calendar, r domain.Syn
 		if len(r.Upserted) > 0 {
 			stmt, err := tx.PrepareContext(ctx, `
 				INSERT OR REPLACE INTO events
-					(id, calendar_id, account_id, title, all_day, start_utc, end_utc, start_date, end_date, location, notes, links)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					(id, calendar_id, account_id, title, all_day, start_utc, end_utc, start_date, end_date, location, notes, links, key)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`)
 			if err != nil {
 				return fmt.Errorf("store: prepare upsert: %w", err)
@@ -75,7 +75,7 @@ func (s *Store) ApplySync(ctx context.Context, cal domain.Calendar, r domain.Syn
 					return err
 				}
 				if _, err := stmt.ExecContext(ctx,
-					e.ID, cal.ID, cal.AccountID, e.Title, e.AllDay, startUTC, endUTC, startDate, endDate, e.Location, e.Notes, links,
+					e.ID, cal.ID, cal.AccountID, e.Title, e.AllDay, startUTC, endUTC, startDate, endDate, e.Location, e.Notes, links, e.Key,
 				); err != nil {
 					return fmt.Errorf("store: upsert event: %w", err)
 				}
@@ -102,7 +102,7 @@ func (s *Store) EventsInRange(ctx context.Context, from, to time.Time) ([]domain
 	toDate := domain.CivilDateFromTime(to.Add(-time.Nanosecond)).AddDays(1).String()
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, calendar_id, title, all_day, start_utc, end_utc, start_date, end_date, location, notes, links
+		SELECT id, calendar_id, title, all_day, start_utc, end_utc, start_date, end_date, location, notes, links, key
 		FROM events
 		WHERE (all_day = 0 AND start_utc < ? AND max(end_utc, start_utc + 1) > ?)
 		   OR (all_day = 1 AND start_date < ? AND end_date > ?)
@@ -116,12 +116,12 @@ func (s *Store) EventsInRange(ctx context.Context, from, to time.Time) ([]domain
 	var out []domain.Event
 	for rows.Next() {
 		var (
-			id, calID, title, location, notes, linksJSON string
-			allDay                                       bool
-			startUTC, endUTC                             sql.NullInt64
-			startDate, endDate                           sql.NullString
+			id, calID, title, location, notes, linksJSON, key string
+			allDay                                            bool
+			startUTC, endUTC                                  sql.NullInt64
+			startDate, endDate                                sql.NullString
 		)
-		if err := rows.Scan(&id, &calID, &title, &allDay, &startUTC, &endUTC, &startDate, &endDate, &location, &notes, &linksJSON); err != nil {
+		if err := rows.Scan(&id, &calID, &title, &allDay, &startUTC, &endUTC, &startDate, &endDate, &location, &notes, &linksJSON, &key); err != nil {
 			return nil, fmt.Errorf("store: scan event: %w", err)
 		}
 		links, err := decodeLinks(linksJSON)
@@ -137,11 +137,11 @@ func (s *Store) EventsInRange(ctx context.Context, from, to time.Time) ([]domain
 			if err != nil {
 				return nil, fmt.Errorf("store: event %s: %w", id, err)
 			}
-			out = append(out, domain.NewAllDayEvent(id, calID, title, sd, ed, location, notes).WithLinks(links))
+			out = append(out, domain.NewAllDayEvent(id, calID, title, sd, ed, location, notes).WithLinks(links).WithKey(key))
 			continue
 		}
 		out = append(out, domain.NewTimedEvent(id, calID, title,
-			time.Unix(startUTC.Int64, 0), time.Unix(endUTC.Int64, 0), location, notes).WithLinks(links))
+			time.Unix(startUTC.Int64, 0), time.Unix(endUTC.Int64, 0), location, notes).WithLinks(links).WithKey(key))
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("store: events in range: %w", err)

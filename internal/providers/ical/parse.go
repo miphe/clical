@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/apognu/gocal"
+	"github.com/apognu/gocal/parser"
 
 	"github.com/miphe/clical/internal/domain"
 	"github.com/miphe/clical/internal/eventtext"
@@ -68,7 +69,32 @@ func toDomainEvent(calendarID string, e gocal.Event) domain.Event {
 		Conference:  []string{e.CustomAttributes["X-GOOGLE-CONFERENCE"], e.CustomAttributes["X-MICROSOFT-SKYPETEAMSMEETINGURL"]},
 	})
 	e.Description = notes
-	return toDomainEventWithNotes(calendarID, e).WithLinks(links)
+	return toDomainEventWithNotes(calendarID, e).WithLinks(links).WithKey(eventKey(e))
+}
+
+// eventKey is an event's stable identity: its UID for a one-off event, and
+// UID plus the occurrence's original start for a recurring one, so a moved
+// occurrence (RECURRENCE-ID) keeps the key of the one it replaced. Unlike
+// the event ID it doesn't change when the event is rescheduled.
+func eventKey(e gocal.Event) string {
+	switch {
+	case e.RecurrenceID != "":
+		if orig, err := parser.ParseTime(e.RecurrenceID, e.RawStart.Params, parser.TimeStart, false, time.UTC); err == nil {
+			return eventID(e.Uid, occurrenceStamp(e, *orig))
+		}
+		return e.Uid
+	case e.IsRecurring:
+		return eventID(e.Uid, occurrenceStamp(e, *e.Start))
+	}
+	return e.Uid
+}
+
+// occurrenceStamp formats an occurrence's start the way eventID does.
+func occurrenceStamp(e gocal.Event, start time.Time) string {
+	if isAllDay(e) {
+		return domain.CivilDateFromTime(start.In(time.UTC)).String()
+	}
+	return start.UTC().Format(time.RFC3339)
 }
 
 func toDomainEventWithNotes(calendarID string, e gocal.Event) domain.Event {
