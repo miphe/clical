@@ -15,9 +15,10 @@ import (
 const (
 	stripW        = 3   // the collapsed global panel
 	splitMinWidth = 100 // the event view puts its panels side by side from here
-	itemPrefixW   = 4   // "[ ] " or the indent of a note
+	itemPrefixW   = 5   // "[ ] " or the indent of a note
 	mainMinWidth  = 40  // what the main pane keeps when the global panel opens
 	eventMinWidth = 60  // and what the event view keeps
+	detailRoom    = 80  // the event details are done growing at this width
 )
 
 // globalWidth is the global panel's width in avail columns, leaving at least
@@ -38,6 +39,9 @@ func (m Model) globalWidth(avail, rest int) int {
 // globalRect is the global panel's size.
 func (m Model) globalRect() (w, h int) {
 	h = m.bodyHeight()
+	if !m.writeOn {
+		return 0, h
+	}
 	if m.detail != nil {
 		return m.globalWidth(m.width, eventMinWidth), h
 	}
@@ -59,10 +63,16 @@ type eventLayout struct {
 // details. The details keep the larger share, since the link address needs
 // room.
 func (m Model) eventLayout() eventLayout {
+	if !m.writeOn {
+		return eventLayout{detailW: m.width, detailH: m.bodyHeight(), stacked: true}
+	}
 	gw, _ := m.globalRect()
 	rest, h := m.width-gw, m.bodyHeight()
 	if rest >= splitMinWidth {
-		ww := min(max(rest*2/5, 34), 60)
+		// The Write panel's usual share, and once the details have the room
+		// they can use (their text is at most 76 columns), up to twice that.
+		base := min(max(rest*2/5, 34), 60)
+		ww := min(max(base, rest-detailRoom), 2*base)
 		return eventLayout{detailW: rest - ww, detailH: h, writeW: ww, writeH: h}
 	}
 	wh := min(max(h/3, 5), 12)
@@ -173,7 +183,7 @@ func (m Model) renderWritePanel(which writeWhich, width, height int) []string {
 			lines = append(lines, writeLine(it, k, l, selected, inner))
 		}
 		if origin != "" {
-			lines = append(lines, "  "+strings.Repeat(" ", itemPrefixW-2)+mutedStyle.Render(fit(origin, inner-itemPrefixW-1)))
+			lines = append(lines, strings.Repeat(" ", itemPrefixW+1)+mutedStyle.Render(fit(origin, inner-itemPrefixW-1)))
 		}
 	}
 	if len(rows) == 0 && p.loaded {
@@ -204,28 +214,29 @@ func (m Model) renderWritePanel(which writeWhich, width, height int) []string {
 	return panel(width, height, f, lines)
 }
 
-// writeLine is line k of an item's text.
+// writeLine is line k of an item's text. The selected item is marked with a
+// chevron in the margin; a finished TODO has its box checked, in the success
+// color, and is otherwise like the rest.
 func writeLine(it write.Item, k int, text string, selected bool, inner int) string {
-	prefix := strings.Repeat(" ", itemPrefixW)
+	marker, box := " ", "    "
+	if selected && k == 0 {
+		marker = accentStyle.Render("›")
+	}
 	if k == 0 && it.Todo {
-		prefix = "[ ] "
+		box = "[ ] "
 		if it.Done {
-			prefix = "[x] "
+			box = successStyle.Render("[x]") + " "
 		}
 	}
-	line := " " + prefix + text
-	switch {
-	case selected:
-		return selectedStyle.Render(fit(line, inner))
-	case it.Done:
-		return doneStyle.Render(fit(line, inner))
-	}
-	return fit(line, inner)
+	return fit(marker+" "+box+text, inner)
 }
 
 // renderGlobalPanel is the global panel: expanded, or a strip that says
 // "Write" down its side with the number of open TODOs under it.
 func (m Model) renderGlobalPanel(width, height int) []string {
+	if width <= 0 {
+		return make([]string, height)
+	}
 	if m.globalOpen && width > stripW {
 		return m.renderWritePanel(writeGlobal, width, height)
 	}
@@ -252,6 +263,9 @@ func (m Model) renderGlobalPanel(width, height int) []string {
 // renderEventView draws the event view: the details and the event's Write
 // panel, and the global panel beside them.
 func (m Model) renderEventView(width, height int) []string {
+	if !m.writeOn {
+		return m.renderDetail(width, height)
+	}
 	lay := m.eventLayout()
 	detail := m.renderDetail(lay.detailW, lay.detailH)
 	wp := m.renderWritePanel(writeEvent, lay.writeW, lay.writeH)

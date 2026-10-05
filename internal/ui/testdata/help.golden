@@ -2,7 +2,7 @@
 │ Everywhere                                                                                                           │
 │ 0                 Calendar list                                                                                      │
 │ 1 2 3             Agenda, week, month                                                                                │
-│ tab               Switch between the list and the view                                                               │
+│ tab               Next panel: the list, the view, the global Write panel                                             │
 │ t                 Today                                                                                              │
 │ r                 Sync now (also in the background)                                                                  │
 │ a                 Add a calendar: iCal link or Google                                                                │
@@ -35,6 +35,6 @@
 │ enter             Event details                                                                                      │
 │                                                                                                                      │
 │ Month                                                                                                                │
-╰────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 103 ─╯
+╰────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 106 ─╯
  j/k scroll · pgup/pgdn page · esc close                                                                                
  ◦ Idle        Tue 29 Sep 14:30                                                                            Synced 14:29 

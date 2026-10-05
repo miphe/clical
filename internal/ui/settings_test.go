@@ -16,6 +16,8 @@ const (
 	rowPulse
 	rowLead
 	rowGrace
+	rowWrite
+	rowFlash
 )
 
 func settingsModel(t *testing.T) (Model, *[]Prefs) {

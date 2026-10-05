@@ -150,16 +150,22 @@ until you open it with `W`. Press `w` to move into a panel; in it:
 | --------------- | ------------------------------------------------------------------------- |
 | `a` / `A`       | Add a TODO / a note. Stays open for the next one; `esc` ends it           |
 | `e`             | Edit                                                                      |
-| `space`         | Check or uncheck a TODO (checked ones are struck through, and stay put)    |
+| `space`         | Check or uncheck a TODO (the box turns green; it stays where it is)         |
 | `d`             | Delete (asks)                                                             |
 | `m`             | Move a TODO between the event and the global list                         |
-| `z`             | Archive a checked TODO                                                    |
+| `z` / `Z`       | Archive a checked TODO / every checked TODO in the panel (end of the day) |
+| `tab`           | Next panel: list, view, global Write (and in the event view: event, its Write, global) |
 | `esc`           | Back to the event                                                         |
 
-A moved TODO keeps where it began ("from Weekly sync"). When a collapsed
+The selected item is marked with a `›`. A moved TODO keeps where it began
+("from Weekly sync"). The Write panel takes about 40% of the event view's width
+(34–60 columns), and grows up to twice that on a wide terminal once the event
+details have their room. With the global panel open too, both are visible
+together: press `W` in the event view. When a collapsed
 global panel changes (you moved something into it, or `clical write` did) its
-border flashes once; the settings screen can turn that off. Anything you type
-is text, so `q`, `?` and the rest don't act while you're adding or editing.
+border flashes once; the settings screen can turn that off. The keys that work in
+every pane (`0`–`3`, `r`, `t`, `/`) work in the global panel too, except in the
+event view. Anything you type is text, so `q`, `?` and the rest don't act while you're adding or editing.
 The panels pick up changes made to the files elsewhere within half a minute.
 There is no archive view in the TUI yet; archived TODOs are listed and
 restored with `clical write archived` and `clical write unarchive`.
@@ -210,6 +216,10 @@ next, `h` to the previous, and `custom` asks for a number.
 - **Pulse starts**: 10m, 5m or 1m before the event, or your own seconds
 - **Pulse continues**: 10m, 5m or 1m after it has started, the whole event,
   or your own minutes. For late arrivals.
+- **Write**: off or on (on by default). Off hides the notes and TODOs panels
+  and their keys in the TUI; the files are left alone and `clical write`
+  still works.
+- **Panel flash**: off or on
 
 The pulse makes an event stand out: its line pulses in the agenda, week and
 month, its title pulses in the event view (also if you leave that open and

@@ -24,7 +24,7 @@ func TestSampleIsTheDefaults(t *testing.T) {
 
 func TestSettings(t *testing.T) {
 	c, err := parse(Default(), []byte("time_format: 12H\nweek_start: Sunday\nsync_interval: 15m\n"))
-	want := Config{Clock12: true, WeekStart: time.Sunday, SyncInterval: 15 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute, PanelFlash: true}
+	want := Config{Clock12: true, WeekStart: time.Sunday, SyncInterval: 15 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute, PanelFlash: true, Write: true}
 	if err != nil || c != want {
 		t.Errorf("parse() = %+v, %v; want %+v", c, err, want)
 	}

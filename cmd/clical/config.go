@@ -51,7 +51,7 @@ func (c *ConfigShowCmd) Run() error {
 		grace = config.DurationSetting(cfg.PulseGrace)
 	}
 	fmt.Printf("pulse:         %t\npulse_lead:    %s\npulse_grace:   %s\n", cfg.Pulse, config.DurationSetting(cfg.PulseLead), grace)
-	fmt.Printf("panel_flash:   %t\n", cfg.PanelFlash)
+	fmt.Printf("write:         %t\npanel_flash:   %t\n", cfg.Write, cfg.PanelFlash)
 	if cfg.WriteDir != "" {
 		fmt.Printf("write_dir:     %s\n", cfg.WriteDir)
 	}

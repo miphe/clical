@@ -265,7 +265,7 @@ func (m Model) calendarLabel(calendarID string) string {
 // Footer.
 
 func (m Model) renderFooter() []string {
-	line := fitHints(m.footerHints(), m.width-1)
+	line := fitHints(m.shownHints(), m.width-1)
 	if m.filterInput != nil {
 		line = m.filterLine()
 	}
@@ -330,6 +330,21 @@ const (
 	prioMust            // never dropped
 )
 
+// shownHints is footerHints without the Write ones when the feature is off.
+func (m Model) shownHints() []footHint {
+	hints := m.footerHints()
+	if m.writeOn {
+		return hints
+	}
+	var out []footHint
+	for _, h := range hints {
+		if h.key != "w" || h.desc != "write" {
+			out = append(out, h)
+		}
+	}
+	return out
+}
+
 func (m Model) footerHints() []footHint {
 	h := func(k, desc string, prio int) footHint { return footHint{key: k, desc: desc, prio: prio} }
 	help := h("?", "help", prioMust)
@@ -351,7 +366,7 @@ func (m Model) footerHints() []footHint {
 		return []footHint{h("enter", "add", prioMust), h("esc", "done", prioMust)}
 	case m.focusedPanel() != nil:
 		return []footHint{h("j/k", "move", prioMid), h("a", "TODO", prioHigh), h("A", "note", prioHigh), h("space", "check", prioHigh),
-			h("e", "edit", prioMid), h("d", "delete", prioMid), h("m", "move", prioMid), h("z", "archive", prioMid),
+			h("e", "edit", prioMid), h("d", "delete", prioMid), h("m", "move", prioMid), h("z", "archive", prioMid), h("Z", "archive all", prioLow),
 			h("esc", "back", prioMust), help}
 	case m.settings != nil && m.settings.input != nil:
 		return []footHint{h("enter", "save", prioMust), h("esc", "cancel", prioMust)}

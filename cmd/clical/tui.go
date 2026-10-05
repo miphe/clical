@@ -37,6 +37,7 @@ func (c *TUICmd) Run() error {
 		PulseLead:    cfg.PulseLead,
 		PulseGrace:   cfg.PulseGrace,
 		PanelFlash:   cfg.PanelFlash,
+		Write:        cfg.Write,
 		Save: func(p ui.Prefs) error {
 			return config.SavePrefs(config.PrefsPath(), config.Prefs(p))
 		},

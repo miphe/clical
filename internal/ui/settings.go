@@ -28,6 +28,7 @@ type Prefs struct {
 	PulseLead    time.Duration
 	PulseGrace   time.Duration // or graceEvent
 	PanelFlash   bool
+	Write        bool
 }
 
 type settingsView struct {
@@ -48,6 +49,7 @@ func (m Model) prefs() Prefs {
 		PulseLead:    m.pulse.lead,
 		PulseGrace:   m.pulse.grace,
 		PanelFlash:   m.panelFlash,
+		Write:        m.writeOn,
 	}
 }
 
@@ -134,6 +136,10 @@ func (m Model) settingRows() []settingRow {
 		customGrace = int(m.pulse.grace / time.Minute)
 	}
 
+	writeOn := 0
+	if m.writeOn {
+		writeOn = 1
+	}
 	flash := 0
 	if m.panelFlash {
 		flash = 1
@@ -163,6 +169,9 @@ func (m Model) settingRows() []settingRow {
 			unit: time.Minute, min: 0, max: 1440, custom: customGrace,
 			apply:  func(m *Model, c int) tea.Cmd { m.pulse.grace = graces[c]; return nil },
 			applyN: func(m *Model, n int) tea.Cmd { m.pulse.grace = time.Duration(n) * time.Minute; return nil }},
+		{label: "Write", hint: "Notes and TODOs, on events and globally; off hides it all (the files stay)",
+			choices: []string{"off", "on"}, current: writeOn,
+			apply: func(m *Model, c int) tea.Cmd { return m.setWrite(c == 1) }},
 		{label: "Panel flash", hint: "A collapsed panel's border flashes once when its content changes",
 			choices: []string{"off", "on"}, current: flash,
 			apply: func(m *Model, c int) tea.Cmd { m.panelFlash = c == 1; return nil }},
@@ -364,4 +373,23 @@ func choiceText(text string, active bool) string {
 // customLabel is the active custom value, e.g. 7m or 90s.
 func customLabel(r settingRow) string {
 	return minutesLabel(time.Duration(r.custom) * r.unit)
+}
+
+// setWrite turns the whole Write feature on or off. Off hides the panels and
+// their keys and stops reading the files, which are left as they are.
+func (m *Model) setWrite(on bool) tea.Cmd {
+	m.writeOn = on
+	if !on {
+		m.globalFlash = false
+		if m.focus == focusEventWrite || m.focus == focusGlobalWrite {
+			m.focus = focusMain
+		}
+		m.eventWrite.mode, m.globalWrite.mode = wNormal, wNormal
+		return nil
+	}
+	cmds := []tea.Cmd{m.loadWrite(writeGlobal)}
+	if m.detail != nil {
+		cmds = append(cmds, m.loadWrite(writeEvent))
+	}
+	return tea.Batch(cmds...)
 }

@@ -27,7 +27,7 @@ func helpSections() []helpSection {
 		{"Everywhere", []helpEntry{
 			{"0", "Calendar list"},
 			{"1 2 3", "Agenda, week, month"},
-			{"tab", "Switch between the list and the view"},
+			{"tab", "Next panel: the list, the view, the global Write panel"},
 			{"t", "Today"},
 			{"r", "Sync now (also in the background)"},
 			{"a", "Add a calendar: iCal link or Google"},
@@ -95,7 +95,10 @@ func helpSections() []helpSection {
 			{"d", "Delete (asks first)"},
 			{"m", "Move a TODO: event ↔ global (global → the open event)"},
 			{"z", "Archive a checked TODO"},
-			{"esc  tab", "Back"},
+			{"Z", "Archive every checked TODO in the panel (end of the day)"},
+			{"tab", "Next panel (list, view, global Write)"},
+			{"0–3  r  t  /", "Work here too, as in every pane (not in the event view)"},
+			{"esc", "Back"},
 			{"", "A collapsed global panel flashes when it changes"},
 		}},
 		{"Settings", []helpEntry{

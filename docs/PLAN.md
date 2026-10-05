@@ -992,6 +992,12 @@ while the TUI is open (mtime check above).
   when no event is open), `W` opens and focuses the global panel and collapses
   it again; `e`/`enter` edit, `space` checks, `d` deletes (asks), `m` moves,
   `z` archives. Adding stays open for the next item.
+- `Z` archives every checked TODO in the focused panel; `tab` cycles the
+  panels (list, view, global Write; in the event view: details, the event's
+  Write, global Write), skipping a collapsed strip.
+- A "Write" setting (`write`, on by default) switches the whole feature off in
+  the TUI: no panels, no keys, no reading of the files. The CLI is the files'
+  own tool and stays.
 - A key pressed in the event's Write panel, being a key in the event view,
   ends that event's pulse.
 - Reloads: after every change, and on the clock tick, so edits made with

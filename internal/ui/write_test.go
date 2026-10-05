@@ -51,7 +51,7 @@ func writeModel(t *testing.T, width, height int) (Model, storeSource) {
 func keys(t *testing.T, m Model, ks ...string) Model {
 	t.Helper()
 	defer func(d time.Duration) { quickTimeout = d }(quickTimeout)
-	quickTimeout = 30 * time.Millisecond // file access is quick; blink timers aren't waited for
+	quickTimeout = 100 * time.Millisecond // file access is quick, even with -race; blink timers aren't waited for
 	for _, k := range ks {
 		var cmd tea.Cmd
 		m, cmd = send(t, m, press(k))
@@ -435,4 +435,274 @@ func TestGoldenEventWrite(t *testing.T) {
 	m = typed(t, m, "Agenda: roadmap")
 	m = keys(t, m, "enter", "esc", "k", "k", "space", "W")
 	golden(t, "event_write", screen(m))
+}
+
+func TestWritePanelGrowsWithRoomUpToTwiceItsUsualWidth(t *testing.T) {
+	widthAt := func(w int) (write, detail int) {
+		m, _ := writeModel(t, w, 34)
+		m, _ = openEvent(t, m)
+		l := m.eventLayout()
+		return l.writeW, l.detailW
+	}
+	w130, d130 := widthAt(130)
+	w180, d180 := widthAt(180)
+	w300, d300 := widthAt(300)
+	if w130 > 60 || d130 < 70 {
+		t.Errorf("at 130: write %d, details %d; the usual share is up to 60", w130, d130)
+	}
+	if w180 <= w130 || d180 < detailRoom {
+		t.Errorf("at 180: write %d (was %d at 130), details %d; want it to grow once the details have their room", w180, w130, d180)
+	}
+	if w300 != 120 || d300 != 300-stripW-120 {
+		t.Errorf("at 300: write %d, details %d; want write capped at twice 60", w300, d300)
+	}
+}
+
+func TestSelectionIsAChevronAndDoneIsAChecked(t *testing.T) {
+	m, _ := writeModel(t, 130, 34)
+	m, _ = openEvent(t, m)
+	m = keys(t, m, "w", "a")
+	m = typed(t, m, "one")
+	m = keys(t, m, "enter")
+	m = typed(t, m, "two")
+	m = keys(t, m, "enter", "esc", "space")
+	raw := m.View().Content
+	var checked, open string
+	for _, l := range strings.Split(raw, "\n") {
+		switch {
+		case strings.Contains(ansi.Strip(l), "[x] two"):
+			checked = l
+		case strings.Contains(ansi.Strip(l), "[ ] one"):
+			open = l
+		}
+	}
+	if checked == "" || open == "" {
+		t.Fatalf("rows missing:\n%s", screen(m))
+	}
+	if strings.Contains(checked, "\x1b[9m") || strings.Contains(open, "\x1b[9m") {
+		t.Error("a TODO is struck through")
+	}
+	if strings.Contains(checked, "\x1b[7m") || strings.Contains(open, "\x1b[7m") {
+		t.Error("the selected row is highlighted as a whole")
+	}
+	if !strings.Contains(ansi.Strip(checked), "› [x] two") || !strings.Contains(ansi.Strip(open), "  [ ] one") {
+		t.Errorf("no chevron on the selected row:\n%s\n%s", ansi.Strip(checked), ansi.Strip(open))
+	}
+	if !strings.Contains(checked, "\x1b[1;32m[x]") {
+		t.Errorf("the checked box isn't bold green: %q", checked)
+	}
+}
+
+func TestWFromTheEventViewThenWBackToTheEventPanel(t *testing.T) {
+	m, _ := writeModel(t, 130, 34)
+	m, _ = openEvent(t, m)
+	m = keys(t, m, "W")
+	if m.focus != focusGlobalWrite {
+		t.Fatalf("W: focus = %v", m.focus)
+	}
+	m = keys(t, m, "w")
+	if m.focus != focusEventWrite {
+		t.Errorf("w from the global panel: focus = %v; want the event's panel", m.focus)
+	}
+	// And w with no event open leaves the global panel focused.
+	m = keys(t, m, "esc", "esc", "W", "w")
+	if m.focus != focusGlobalWrite {
+		t.Errorf("w without an event: focus = %v", m.focus)
+	}
+}
+
+func TestZArchivesEverythingChecked(t *testing.T) {
+	m, src := writeModel(t, 130, 34)
+	m, scope := openEvent(t, m)
+	m = keys(t, m, "w", "Z")
+	if !strings.Contains(screen(m), "Nothing checked to archive") {
+		t.Errorf("no hint:\n%s", screen(m))
+	}
+	for _, text := range []string{"one", "two", "three"} {
+		m = keys(t, m, "a")
+		m = typed(t, m, text)
+		m = keys(t, m, "enter", "esc")
+	}
+	// Check one and three.
+	m = keys(t, m, "g", "space", "j", "j", "space")
+	m = keys(t, m, "Z")
+	left := listOf(t, src, scope)
+	if len(left) != 1 || left[0].Text != "two" {
+		t.Fatalf("left in the panel: %+v", left)
+	}
+	arch, _ := src.st.Archived()
+	if len(arch) != 2 {
+		t.Errorf("archive = %+v", arch)
+	}
+}
+
+func TestTabCyclesThroughEveryPanel(t *testing.T) {
+	m, _ := writeModel(t, 130, 34)
+	// The main view: the list, the view, and the global panel once it's open.
+	m = keys(t, m, "tab")
+	if m.focus != focusSidebar {
+		t.Fatalf("tab from the view: %v", m.focus)
+	}
+	m = keys(t, m, "tab")
+	if m.focus != focusMain {
+		t.Fatalf("tab from the list: %v", m.focus)
+	}
+	m = keys(t, m, "W", "esc") // opened, focus back on the view
+	var seen []focus
+	for i := 0; i < 3; i++ {
+		m = keys(t, m, "tab")
+		seen = append(seen, m.focus)
+	}
+	if seen[0] != focusGlobalWrite || seen[1] != focusSidebar || seen[2] != focusMain {
+		t.Errorf("order with the global panel open: %v", seen)
+	}
+	m = keys(t, m, "shift+tab")
+	if m.focus != focusSidebar {
+		t.Errorf("shift+tab: %v", m.focus)
+	}
+
+	// The event view: details, the event's panel, the global panel.
+	m = keys(t, m, "esc")
+	m.focus = focusMain
+	m, _ = openEvent(t, m)
+	seen = nil
+	for i := 0; i < 4; i++ {
+		m = keys(t, m, "tab")
+		seen = append(seen, m.focus)
+	}
+	want := []focus{focusEventWrite, focusGlobalWrite, focusMain, focusEventWrite}
+	for i := range want {
+		if seen[i] != want[i] {
+			t.Errorf("event view tab order = %v; want %v", seen, want)
+			break
+		}
+	}
+}
+
+func TestTabSkipsAStrip(t *testing.T) {
+	m, _ := writeModel(t, 130, 34)
+	m, _ = openEvent(t, m)
+	for i := 0; i < 3; i++ {
+		m = keys(t, m, "tab")
+		if m.focus == focusGlobalWrite {
+			t.Error("tab went to the collapsed global panel")
+		}
+	}
+}
+
+func TestWriteCanBeSwitchedOff(t *testing.T) {
+	m, src := writeModel(t, 130, 34)
+	src.st.Update(write.Ref{}, nil, func(l *write.List) error { _, err := l.AddTodo("x", "11111111"); return err })
+	m, _ = run(t, m, m.reloadWrite())
+	if !strings.Contains(screen(m), "W\n") && !strings.Contains(screen(m), "│W│") {
+		t.Fatalf("setup: the strip is shown:\n%s", screen(m))
+	}
+
+	m.writeOn = false
+	m, _ = openEvent(t, m)
+	s := screen(m)
+	if strings.Contains(s, "Write") || strings.Contains(s, "write") {
+		t.Errorf("Write still shows:\n%s", s)
+	}
+	for _, k := range []string{"w", "W", "a"} {
+		m = keys(t, m, k)
+		if m.focusedPanel() != nil || m.globalOpen || m.eventWrite.mode != wNormal {
+			t.Fatalf("%s did something with Write off", k)
+		}
+	}
+	if m.eventLayout().detailW != 130 {
+		t.Errorf("the details don't take the whole width: %+v", m.eventLayout())
+	}
+	m = keys(t, m, "esc")
+	if strings.Contains(screen(m), "│W│") {
+		t.Errorf("the strip shows with Write off:\n%s", screen(m))
+	}
+	if m.loadWrite(writeGlobal) != nil {
+		t.Error("the notes are still read")
+	}
+}
+
+func TestWriteSettingRowTurnsItOffAndOn(t *testing.T) {
+	var saved []Prefs
+	src := newStoreSource(t)
+	m := loaded(t, 130, 34).WithWrite(src).WithSettings(Settings{
+		Write: true, WeekStart: time.Monday, PulseLead: 5 * time.Minute, PulseGrace: time.Minute,
+		Save: func(p Prefs) error { saved = append(saved, p); return nil },
+	})
+	m = keys(t, m, "W") // focus the global panel
+	m = keys(t, m, "S")
+	m = goTo(t, m, rowWrite)
+	if !strings.Contains(screen(m), "[on]") {
+		t.Fatalf("the Write row:\n%s", screen(m))
+	}
+	m = keys(t, m, "enter")
+	if m.writeOn || m.focus != focusMain {
+		t.Errorf("writeOn %v, focus %v after turning it off", m.writeOn, m.focus)
+	}
+	m.saveCmdRan(t, &saved)
+	if len(saved) == 0 || saved[len(saved)-1].Write {
+		t.Errorf("saved = %+v", saved)
+	}
+	m = keys(t, m, "enter")
+	if !m.writeOn {
+		t.Error("not back on")
+	}
+}
+
+func TestPaneAndViewHotkeysWorkFromTheGlobalPanel(t *testing.T) {
+	for _, c := range []struct {
+		key   string
+		view  viewKind
+		focus focus
+	}{
+		{"0", viewAgenda, focusSidebar},
+		{"1", viewAgenda, focusMain},
+		{"2", viewWeek, focusMain},
+		{"3", viewMonth, focusMain},
+	} {
+		m, _ := writeModel(t, 130, 34)
+		m = keys(t, m, "W")
+		if m.focus != focusGlobalWrite {
+			t.Fatal("setup: the global panel has the focus")
+		}
+		m = keys(t, m, c.key)
+		if m.view != c.view || m.focus != c.focus {
+			t.Errorf("%s from the global panel: view %v, focus %v; want %v, %v", c.key, m.view, m.focus, c.view, c.focus)
+		}
+	}
+	// While typing, they're text.
+	m, _ := writeModel(t, 130, 34)
+	m = keys(t, m, "W", "a", "2")
+	if m.view != viewAgenda || m.globalWrite.input.Value() != "2" {
+		t.Errorf("2 while typing: view %v, input %q", m.view, m.globalWrite.input.Value())
+	}
+}
+
+func TestSyncTodayAndFilterWorkFromTheGlobalPanel(t *testing.T) {
+	m, _ := writeModel(t, 130, 34)
+	m = keys(t, m, "W")
+
+	m.syncing = false
+	m, cmd := send(t, m, press("r"))
+	if !m.syncing || cmd == nil || m.focus != focusGlobalWrite {
+		t.Errorf("r: syncing %v, focus %v", m.syncing, m.focus)
+	}
+
+	m = keys(t, m, "2", "W", "t")
+	if m.view != viewWeek || m.focus != focusMain {
+		t.Errorf("t: view %v, focus %v", m.view, m.focus)
+	}
+
+	m = keys(t, m, "W", "/")
+	if m.filterInput == nil || m.focus != focusMain {
+		t.Errorf("/: filter input open %v, focus %v", m.filterInput != nil, m.focus)
+	}
+	m = keys(t, m, "esc")
+
+	// Typing in a Write panel keeps them as text.
+	m = keys(t, m, "W", "a")
+	m = typed(t, m, "r t /")
+	if m.globalWrite.input.Value() != "r t /" || m.filterInput != nil {
+		t.Errorf("input = %q", m.globalWrite.input.Value())
+	}
 }

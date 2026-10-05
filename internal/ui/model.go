@@ -165,6 +165,7 @@ type Model struct {
 	eventWrite  writePanel
 	globalWrite writePanel
 	globalOpen  bool
+	writeOn     bool // the whole feature; a setting
 	globalFlash bool // its collapsed strip's border is lit
 	flashSeq    int
 	panelFlash  bool // whether it flashes at all
@@ -215,6 +216,7 @@ func New(src Source, loc *time.Location, now time.Time) Model {
 		globalWrite:  writePanel{editAt: -1},
 		eventWrite:   writePanel{editAt: -1},
 		panelFlash:   true,
+		writeOn:      true,
 		pulse:        pulseState{lead: 5 * time.Minute, grace: time.Minute, stopped: map[string]bool{}},
 		openURL:      openInBrowser,
 		hidden:       map[string]bool{},
@@ -243,6 +245,7 @@ type Settings struct {
 	PulseLead  time.Duration
 	PulseGrace time.Duration // after the start; -1 for the whole event
 	PanelFlash bool          // a collapsed panel flashes when its content changes
+	Write      bool          // notes and TODOs at all
 	Save       func(Prefs) error
 }
 
@@ -257,6 +260,7 @@ func (m Model) WithSettings(s Settings) Model {
 	}
 	m.pulse.grace = s.PulseGrace
 	m.panelFlash = s.PanelFlash
+	m.writeOn = s.Write
 	return m
 }
 
@@ -572,9 +576,17 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	switch msg.String() {
 	case "w":
-		return m.focusEventPanel()
+		if m.writeOn {
+			return m.focusEventPanel()
+		}
 	case "W":
-		return m.toggleGlobal(false)
+		if m.writeOn {
+			return m.toggleGlobal(false)
+		}
+	case "tab":
+		return m.cycleFocus(+1)
+	case "shift+tab":
+		return m.cycleFocus(-1)
 	}
 	if m.detail != nil {
 		return m.handleDetailKey(msg)
@@ -588,20 +600,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case msg.String() == "esc" && m.filter != "":
 		return m.setFilter("")
 	case key.Matches(msg, m.keys.Sync):
-		if m.syncing {
-			return m, nil
-		}
-		m.syncing = true
-		m.pollSeq++ // the next scheduled sync counts from this one
-		return m, m.syncCmd()
+		return m.syncNow()
 	case key.Matches(msg, m.keys.Today):
-		switch m.view {
-		case viewWeek:
-			return m.showWeek(m.today(), "")
-		case viewMonth:
-			return m.showMonth(m.today())
-		}
-		return m.jumpTo(m.today())
+		return m.goToday()
 	case key.Matches(msg, m.keys.ViewAgenda):
 		return m.switchView(viewAgenda)
 	case key.Matches(msg, m.keys.ViewWeek):
@@ -959,4 +960,25 @@ func (m Model) failureList() []string {
 		add(f)
 	}
 	return out
+}
+
+// syncNow starts a sync, unless one is running.
+func (m Model) syncNow() (tea.Model, tea.Cmd) {
+	if m.syncing {
+		return m, nil
+	}
+	m.syncing = true
+	m.pollSeq++ // the next scheduled sync counts from this one
+	return m, m.syncCmd()
+}
+
+// goToday shows today in the current view.
+func (m Model) goToday() (tea.Model, tea.Cmd) {
+	switch m.view {
+	case viewWeek:
+		return m.showWeek(m.today(), "")
+	case viewMonth:
+		return m.showMonth(m.today())
+	}
+	return m.jumpTo(m.today())
 }

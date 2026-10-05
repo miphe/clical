@@ -145,7 +145,7 @@ func (m Model) eventPanel(e domain.Event) writePanel {
 
 func (m Model) loadWrite(which writeWhich) tea.Cmd {
 	w := m.writes
-	if w == nil {
+	if w == nil || !m.writeOn {
 		return nil
 	}
 	p := *(&m).panel(which)
@@ -265,10 +265,43 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch s := msg.String(); s {
 	case "ctrl+c":
 		return m, tea.Quit
-	case "esc", "q", "tab":
+	case "esc", "q":
 		m.focus = focusMain
+	case "tab":
+		return m.cycleFocus(+1)
+	case "shift+tab":
+		return m.cycleFocus(-1)
+	case "w":
+		if m.detail != nil {
+			m.focus = focusEventWrite
+		}
 	case "W":
 		return m.toggleGlobal(false)
+	case "0", "1", "2", "3", "r", "t", "/":
+		// The keys that work from every pane work from here too: the panel
+		// and view keys, sync, today and the filter. (Inside the event view
+		// they don't, as there.)
+		if m.detail != nil {
+			break
+		}
+		switch s {
+		case "r":
+			return m.syncNow()
+		case "t":
+			m.focus = focusMain
+			return m.goToday()
+		case "/":
+			return m.startFilter()
+		case "0":
+			m.focus = focusSidebar
+			m.ensureSidebarSelection()
+			return m, nil
+		case "1":
+			return m.switchView(viewAgenda)
+		case "2":
+			return m.switchView(viewWeek)
+		}
+		return m.switchView(viewMonth)
 	case "j", "down":
 		p.sel = min(p.sel+1, max(len(rows)-1, 0))
 	case "k", "up":
@@ -311,6 +344,27 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "m":
 		return m.moveSelected(which)
+	case "Z":
+		// The end of the day: file away everything that's done.
+		var ids []string
+		for _, i := range rows {
+			if it := p.list.Items[i]; it.Todo && it.Done {
+				ids = append(ids, it.ID)
+			}
+		}
+		if len(ids) == 0 {
+			p.note = "Nothing checked to archive"
+			break
+		}
+		now := time.Now()
+		return m, m.writeOp(func(w WriteSource) error {
+			for _, id := range ids {
+				if err := w.WriteArchive(id, now); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 	case "z":
 		if !have || !item.Todo {
 			p.note = "Only a TODO can be archived"
@@ -448,4 +502,39 @@ func (m *Model) clampWrite(which writeWhich) {
 		p.offset = bottom - h
 	}
 	p.offset = max(p.offset, 0)
+}
+
+// focusOrder is the panels tab goes through, in order: the calendar list,
+// the main view and the global Write panel when it's open; in the event view,
+// the details, the event's Write panel and the global one.
+func (m Model) focusOrder() []focus {
+	var order []focus
+	if m.detail != nil {
+		order = []focus{focusMain}
+		if m.writeOn {
+			order = append(order, focusEventWrite)
+		}
+	} else {
+		order = []focus{focusSidebar, focusMain}
+	}
+	if gw, _ := m.globalRect(); m.writeOn && m.globalOpen && gw > stripW {
+		order = append(order, focusGlobalWrite)
+	}
+	return order
+}
+
+// cycleFocus moves the focus to the next (or previous) panel.
+func (m Model) cycleFocus(dir int) (tea.Model, tea.Cmd) {
+	order := m.focusOrder()
+	at := 0
+	for i, f := range order {
+		if f == m.focus {
+			at = i
+		}
+	}
+	m.focus = order[(at+dir+len(order))%len(order)]
+	if m.focus == focusSidebar {
+		m.ensureSidebarSelection()
+	}
+	return m, nil
 }

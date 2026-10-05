@@ -38,6 +38,8 @@ type Config struct {
 	WriteDir string
 	// PanelFlash makes a collapsed panel flash once when its content changes.
 	PanelFlash bool
+	// Write turns notes and TODOs on in the TUI.
+	Write bool
 }
 
 // GraceWholeEvent as a PulseGrace pulses until the event ends.
@@ -55,7 +57,7 @@ const MinSyncInterval = time.Minute
 
 // Default is what clical runs with when nothing is set.
 func Default() Config {
-	return Config{WeekStart: time.Monday, SyncInterval: 5 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute, PanelFlash: true}
+	return Config{WeekStart: time.Monday, SyncInterval: 5 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute, PanelFlash: true, Write: true}
 }
 
 // DefaultPath is $XDG_CONFIG_HOME/clical/config.yaml
@@ -88,6 +90,11 @@ pulse_lead: 5m
 # 0s for none, or event for as long as the event lasts.
 pulse_grace: 1m
 
+# Notes and TODOs in the TUI (the Write panels and their keys): true or false.
+# Turning it off hides them; the files are left alone, and "clical write"
+# still works.
+write: true
+
 # A collapsed panel (the global Write panel) flashes once when its content
 # changes: true or false.
 panel_flash: true
@@ -115,6 +122,7 @@ type file struct {
 	PulseGrace   string `yaml:"pulse_grace"`
 	WriteDir     string `yaml:"write_dir"`
 	PanelFlash   *bool  `yaml:"panel_flash"`
+	Write        *bool  `yaml:"write"`
 }
 
 // Load reads the settings file at path. A missing file gives the defaults;
@@ -177,6 +185,7 @@ type Prefs struct {
 	PulseLead    time.Duration
 	PulseGrace   time.Duration
 	PanelFlash   bool
+	Write        bool
 }
 
 // SavePrefs writes p to path, atomically and readable only by the user.
@@ -190,9 +199,9 @@ func SavePrefs(path string, p Prefs) error {
 		grace = DurationSetting(p.PulseGrace)
 	}
 	data := fmt.Sprintf("# Written by clical's settings dialog (S). Overrides config.yaml.\n"+
-		"time_format: %s\nweek_start: %s\nsync_interval: %s\npulse: %t\npulse_lead: %s\npulse_grace: %s\npanel_flash: %t\n",
+		"time_format: %s\nweek_start: %s\nsync_interval: %s\npulse: %t\npulse_lead: %s\npulse_grace: %s\npanel_flash: %t\nwrite: %t\n",
 		format, strings.ToLower(p.WeekStart.String()), syncSetting(p.SyncInterval), p.Pulse,
-		DurationSetting(p.PulseLead), grace, p.PanelFlash)
+		DurationSetting(p.PulseLead), grace, p.PanelFlash, p.Write)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
@@ -293,6 +302,9 @@ func parse(c Config, data []byte) (Config, error) {
 			return Config{}, fmt.Errorf("pulse_grace must be event, or a duration up to %v like 5m (0s for none), not %q", MaxPulseGrace, f.PulseGrace)
 		}
 		c.PulseGrace = d
+	}
+	if f.Write != nil {
+		c.Write = *f.Write
 	}
 	if f.PanelFlash != nil {
 		c.PanelFlash = *f.PanelFlash
