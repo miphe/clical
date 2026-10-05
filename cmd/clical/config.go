@@ -21,7 +21,7 @@ type ConfigCmd struct {
 // loadConfig reads the settings file; an invalid one stops clical with an
 // error naming the file and the setting.
 func loadConfig() (config.Config, error) {
-	return config.Load(config.DefaultPath())
+	return config.LoadAll(config.DefaultPath(), config.PrefsPath())
 }
 
 func clockFor(c config.Config) agenda.Clock { return agenda.Clock{Twelve: c.Clock12} }
@@ -31,7 +31,7 @@ type ConfigShowCmd struct{}
 
 func (c *ConfigShowCmd) Run() error {
 	path := config.DefaultPath()
-	cfg, err := config.Load(path)
+	cfg, err := config.LoadAll(path, config.PrefsPath())
 	if err != nil {
 		return err
 	}
@@ -46,6 +46,12 @@ func (c *ConfigShowCmd) Run() error {
 	}
 	fmt.Printf("time_format:   %s\nweek_start:    %s\nsync_interval: %s\n",
 		timeFormat, strings.ToLower(cfg.WeekStart.String()), intervalSetting(cfg.SyncInterval))
+	grace := "event"
+	if cfg.PulseGrace != config.GraceWholeEvent {
+		grace = config.DurationSetting(cfg.PulseGrace)
+	}
+	fmt.Printf("pulse:         %t\npulse_lead:    %s\npulse_grace:   %s\n", cfg.Pulse, config.DurationSetting(cfg.PulseLead), grace)
+	fmt.Printf("\nThe S dialog saves to %s, which overrides the file above.\n", config.PrefsPath())
 	return nil
 }
 
