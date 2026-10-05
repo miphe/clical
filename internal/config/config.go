@@ -33,6 +33,11 @@ type Config struct {
 	// PulseGrace is how long the pulse goes on after the event has started,
 	// or GraceWholeEvent for as long as the event lasts.
 	PulseGrace time.Duration
+	// WriteDir is where notes and TODOs are kept; "" for the default, in the
+	// data directory.
+	WriteDir string
+	// PanelFlash makes a collapsed panel flash once when its content changes.
+	PanelFlash bool
 }
 
 // GraceWholeEvent as a PulseGrace pulses until the event ends.
@@ -50,7 +55,7 @@ const MinSyncInterval = time.Minute
 
 // Default is what clical runs with when nothing is set.
 func Default() Config {
-	return Config{WeekStart: time.Monday, SyncInterval: 5 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute}
+	return Config{WeekStart: time.Monday, SyncInterval: 5 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute, PanelFlash: true}
 }
 
 // DefaultPath is $XDG_CONFIG_HOME/clical/config.yaml
@@ -82,6 +87,15 @@ pulse_lead: 5m
 # How long the pulse goes on after the event has started: a duration like 5m,
 # 0s for none, or event for as long as the event lasts.
 pulse_grace: 1m
+
+# A collapsed panel (the global Write panel) flashes once when its content
+# changes: true or false.
+panel_flash: true
+
+# Where notes and TODOs are kept, as plain markdown files; e.g. ~/notes/clical
+# to keep them in a synced folder. Move existing files there yourself.
+# Default: the data directory (~/.local/share/clical/write).
+# write_dir: ~/notes/clical
 `
 
 // PrefsPath is the file the settings dialog writes, beside config.yaml. The
@@ -99,6 +113,8 @@ type file struct {
 	Pulse        *bool  `yaml:"pulse"`
 	PulseLead    string `yaml:"pulse_lead"`
 	PulseGrace   string `yaml:"pulse_grace"`
+	WriteDir     string `yaml:"write_dir"`
+	PanelFlash   *bool  `yaml:"panel_flash"`
 }
 
 // Load reads the settings file at path. A missing file gives the defaults;
@@ -116,6 +132,22 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("%s: %w", path, err)
 	}
 	return c, nil
+}
+
+// expandDir turns ~/x into the home directory's x and insists on an absolute
+// path, since a relative one would depend on where clical was started.
+func expandDir(v string) (string, error) {
+	if v == "~" || strings.HasPrefix(v, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("write_dir: %w", err)
+		}
+		v = filepath.Join(home, strings.TrimPrefix(v, "~"))
+	}
+	if !filepath.IsAbs(v) {
+		return "", fmt.Errorf("write_dir must be an absolute path (or start with ~/), not %q", v)
+	}
+	return filepath.Clean(v), nil
 }
 
 // LoadAll reads the hand-written file at path, then the dialog's file at
@@ -144,6 +176,7 @@ type Prefs struct {
 	Pulse        bool
 	PulseLead    time.Duration
 	PulseGrace   time.Duration
+	PanelFlash   bool
 }
 
 // SavePrefs writes p to path, atomically and readable only by the user.
@@ -157,9 +190,9 @@ func SavePrefs(path string, p Prefs) error {
 		grace = DurationSetting(p.PulseGrace)
 	}
 	data := fmt.Sprintf("# Written by clical's settings dialog (S). Overrides config.yaml.\n"+
-		"time_format: %s\nweek_start: %s\nsync_interval: %s\npulse: %t\npulse_lead: %s\npulse_grace: %s\n",
+		"time_format: %s\nweek_start: %s\nsync_interval: %s\npulse: %t\npulse_lead: %s\npulse_grace: %s\npanel_flash: %t\n",
 		format, strings.ToLower(p.WeekStart.String()), syncSetting(p.SyncInterval), p.Pulse,
-		DurationSetting(p.PulseLead), grace)
+		DurationSetting(p.PulseLead), grace, p.PanelFlash)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
@@ -260,6 +293,16 @@ func parse(c Config, data []byte) (Config, error) {
 			return Config{}, fmt.Errorf("pulse_grace must be event, or a duration up to %v like 5m (0s for none), not %q", MaxPulseGrace, f.PulseGrace)
 		}
 		c.PulseGrace = d
+	}
+	if f.PanelFlash != nil {
+		c.PanelFlash = *f.PanelFlash
+	}
+	if v := strings.TrimSpace(f.WriteDir); v != "" {
+		dir, err := expandDir(v)
+		if err != nil {
+			return Config{}, err
+		}
+		c.WriteDir = dir
 	}
 	return c, nil
 }

@@ -35,7 +35,15 @@ func fixedPassphrase(passphrase string) func() (string, error) {
 const noCalendarsHint = "No calendars yet. Add one with `clical calendars add --account <group> --name <name>`."
 
 func openApp() (*app.App, error) {
-	return app.Open(app.DefaultPaths())
+	paths := app.DefaultPaths()
+	cfg, err := loadConfig()
+	if err != nil {
+		return nil, err
+	}
+	if cfg.WriteDir != "" {
+		paths.Write = cfg.WriteDir
+	}
+	return app.Open(paths)
 }
 
 // unlock prompts for the vault passphrase and unlocks a. If no vault exists

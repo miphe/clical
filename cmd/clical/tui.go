@@ -37,7 +37,10 @@ func (c *TUICmd) Run() error {
 		PulseLead:    cfg.PulseLead,
 		PulseGrace:   cfg.PulseGrace,
 		Save: func(p ui.Prefs) error {
-			return config.SavePrefs(config.PrefsPath(), config.Prefs(p))
+			return config.SavePrefs(config.PrefsPath(), config.Prefs{
+				Clock12: p.Clock12, WeekStart: p.WeekStart, SyncInterval: p.SyncInterval,
+				Pulse: p.Pulse, PulseLead: p.PulseLead, PulseGrace: p.PulseGrace, PanelFlash: true,
+			})
 		},
 	})
 	_, err = tea.NewProgram(m).Run()

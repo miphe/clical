@@ -51,6 +51,10 @@ func (c *ConfigShowCmd) Run() error {
 		grace = config.DurationSetting(cfg.PulseGrace)
 	}
 	fmt.Printf("pulse:         %t\npulse_lead:    %s\npulse_grace:   %s\n", cfg.Pulse, config.DurationSetting(cfg.PulseLead), grace)
+	fmt.Printf("panel_flash:   %t\n", cfg.PanelFlash)
+	if cfg.WriteDir != "" {
+		fmt.Printf("write_dir:     %s\n", cfg.WriteDir)
+	}
 	fmt.Printf("\nThe S dialog saves to %s, which overrides the file above.\n", config.PrefsPath())
 	return nil
 }

@@ -24,7 +24,7 @@ func TestSampleIsTheDefaults(t *testing.T) {
 
 func TestSettings(t *testing.T) {
 	c, err := parse(Default(), []byte("time_format: 12H\nweek_start: Sunday\nsync_interval: 15m\n"))
-	want := Config{Clock12: true, WeekStart: time.Sunday, SyncInterval: 15 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute}
+	want := Config{Clock12: true, WeekStart: time.Sunday, SyncInterval: 15 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute, PanelFlash: true}
 	if err != nil || c != want {
 		t.Errorf("parse() = %+v, %v; want %+v", c, err, want)
 	}
@@ -120,5 +120,19 @@ func TestDamagedPrefsAreIgnored(t *testing.T) {
 	c, err := LoadAll(filepath.Join(dir, "none.yaml"), prefs)
 	if err != nil || c != Default() {
 		t.Errorf("LoadAll = %+v, %v; want the defaults", c, err)
+	}
+}
+
+func TestWriteDir(t *testing.T) {
+	c, err := parse(Default(), []byte("write_dir: /srv/notes/\n"))
+	if err != nil || c.WriteDir != "/srv/notes" {
+		t.Errorf("parse() = %+v, %v", c, err)
+	}
+	home, _ := os.UserHomeDir()
+	if c, err := parse(Default(), []byte("write_dir: ~/notes\n")); err != nil || c.WriteDir != filepath.Join(home, "notes") {
+		t.Errorf("~/notes = %+v, %v", c, err)
+	}
+	if _, err := parse(Default(), []byte("write_dir: notes\n")); err == nil {
+		t.Error("a relative write_dir was accepted")
 	}
 }
