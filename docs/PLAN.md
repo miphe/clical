@@ -44,7 +44,7 @@ multi-account merge → config/themes → in-process background polling.
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
 | M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
 | — | Release pipeline: GoReleaser, GitHub releases, PolyForm Noncommercial license | `.goreleaser.yaml`, `LICENSE.md` | Done (v0.0.1) |
-| M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | Planned |
+| M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | In progress (M14a done) |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -1209,7 +1209,7 @@ The main panel is split in three:
 
 | Step | What |
 |---|---|
-| M14a | `CompletionsByDay`, `app.WriteArchived`, tests |
+| M14a (done) | `CompletionsByDay`, `app.WriteArchived`, tests |
 | M14b | Heatmap grid, levels, selection and keys, golden snapshots |
 | M14c | Tasks panel |
 | M14d | `4`, slim agenda reuse, wide and stacked layouts, focus order |

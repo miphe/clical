@@ -138,3 +138,13 @@ func (a *App) WriteArchive(id string, now time.Time) error {
 	_, err = st.Archive(id, now)
 	return err
 }
+
+// WriteArchived lists the archived TODOs, oldest first, see
+// write.Store.Archived.
+func (a *App) WriteArchived() ([]write.Archived, error) {
+	st, err := a.Write()
+	if err != nil {
+		return nil, err
+	}
+	return st.Archived()
+}

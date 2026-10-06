@@ -22,6 +22,7 @@ func (s storeSource) WriteUpdate(scope write.Ref, hdr *write.Header, fn func(*wr
 func (s storeSource) WriteMove(id string, to write.Ref, hdr *write.Header) error {
 	return s.st.Move(id, to, hdr)
 }
+func (s storeSource) WriteArchived() ([]write.Archived, error) { return s.st.Archived() }
 func (s storeSource) WriteArchive(id string, now time.Time) error {
 	_, err := s.st.Archive(id, now)
 	return err

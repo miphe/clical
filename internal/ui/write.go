@@ -25,6 +25,7 @@ type WriteSource interface {
 	WriteUpdate(scope write.Ref, hdr *write.Header, fn func(*write.List) error) error
 	WriteMove(id string, to write.Ref, hdr *write.Header) error
 	WriteArchive(id string, now time.Time) error
+	WriteArchived() ([]write.Archived, error)
 }
 
 // WithWrite sets where notes are kept. Call it before the program starts.
