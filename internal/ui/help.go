@@ -26,7 +26,7 @@ func helpSections() []helpSection {
 	return []helpSection{
 		{"Everywhere", []helpEntry{
 			{"0", "Calendar list"},
-			{"1 2 3", "Agenda, week, month"},
+			{"1 2 3 4", "Agenda, week, month, focus"},
 			{"tab", "Next panel: the list, the view, the global Write panel"},
 			{"t", "Today"},
 			{"r", "Sync now (also in the background)"},
@@ -76,6 +76,16 @@ func helpSections() []helpSection {
 			{"u", "New address for an iCal calendar (⚠)"},
 			{"c", "Collapse or expand the list"},
 			{"l  →", "Back to the view"},
+		}},
+		{"Focus", []helpEntry{
+			{"j k  ↓ ↑", "Next, previous day in the heatmap"},
+			{"h l  ← →", "Previous, next week"},
+			{"shift + move", "Extend the selection (or H J K L)"},
+			{"space", "Select by day, week or month"},
+			{"esc", "Back to one day"},
+			{"t", "Today"},
+			{"", "A day's shade is how many tasks were completed"},
+			{"", "that day. Only archived tasks (z in Write) count."},
 		}},
 		{"Event details", []helpEntry{
 			{"j k  ↓ ↑", "Select a link, or scroll without links"},

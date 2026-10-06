@@ -43,6 +43,7 @@ var (
 	colorAccent  = ansiBlue  // focus, the active tab, today, work in progress
 	colorSuccess = ansiGreen // a finished sync
 	colorError   = ansiRed   // failures
+	colorHeat    = ansiGreen // the heatmap's glyphs: never text
 	colorNow     = ansiRed   // the "now" line: red by calendar convention, not an error
 	// colorWarning is ANSI yellow. Nothing uses it yet: yellow text reads
 	// poorly on light backgrounds, so it's reserved for genuine warnings.
@@ -58,6 +59,16 @@ var (
 	successStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSuccess)
 	errorStyle   = lipgloss.NewStyle().Bold(true).Foreground(colorError)
 	nowStyle     = lipgloss.NewStyle().Foreground(colorNow)
+
+	// The heatmap's intensity steps share one hue; the glyph (░ ▒ ▓ █) carries
+	// the intensity, so it reads without color too.
+	heatStyles = [5]lipgloss.Style{
+		mutedStyle,
+		lipgloss.NewStyle().Foreground(colorHeat).Faint(true),
+		lipgloss.NewStyle().Foreground(colorHeat),
+		lipgloss.NewStyle().Foreground(colorHeat),
+		lipgloss.NewStyle().Foreground(colorHeat).Bold(true),
+	}
 
 	todayStyle         = accentStyle
 	busyStyle          = accentStyle

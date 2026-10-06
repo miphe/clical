@@ -104,10 +104,15 @@ func (m Model) renderMain(width, height int) []string {
 		{label: weekLabel, active: m.view == viewWeek},
 		{label: monthLabel, active: m.view == viewMonth},
 	}
+	if m.heatEnabled() {
+		tabs = append(tabs, tab{label: "[4] Focus", active: m.view == viewHeat})
+	}
 	inner, innerH := width-2, height-2
 	var content []string
 	var right string
 	switch m.view {
+	case viewHeat:
+		content = m.renderHeat(inner, innerH)
 	case viewWeek:
 		content = m.renderWeek(inner, innerH)
 		right = m.weekSpan()
@@ -382,7 +387,12 @@ func (m Model) footerHints() []footHint {
 	}
 
 	// Pane keys first, the same everywhere.
+	views := "1-3"
+	if m.heatEnabled() {
+		views = "1-4"
+	}
 	hints := []footHint{h("0", "calendars", prioHigh), h("1-3", "views", prioHigh), h("tab", "switch pane", prioMid)}
+	hints[1].key = views
 	if m.filter != "" {
 		// The active filter leads, so it's clear why events are missing.
 		hints = append([]footHint{h("/"+m.filter, "", prioMust), h("esc", "clear", prioMust)}, hints...)
@@ -399,6 +409,9 @@ func (m Model) footerHints() []footHint {
 		}
 		view = append(view, h("j/k", "move", prioLow), h("space", "show/hide", prioHigh), h("enter", "fold", prioLow),
 			h("a", "add", prioHigh), h("n", "rename", prioMid), h("d", "remove", prioMid), h("c", "collapse", prioLow))
+	case m.view == viewHeat:
+		view = []footHint{h("h/l", "week", prioMid), h("j/k", "day", prioMid), h("shift", "extend", prioHigh),
+			h("space", "day/week/month", prioHigh), h("t", "today", prioMid)}
 	case m.view == viewWeek:
 		view = []footHint{h("h/l", "day", prioMid), h("j/k", "move", prioLow), h("enter", "details", prioHigh),
 			h("[/]", "week", prioMid), h("t", "today", prioMid), h("/", "filter", prioMid)}

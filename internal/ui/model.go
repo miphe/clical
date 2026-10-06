@@ -68,6 +68,7 @@ const (
 	viewAgenda viewKind = iota
 	viewWeek
 	viewMonth
+	viewHeat // the focus view
 	viewCount
 )
 
@@ -145,6 +146,7 @@ type Model struct {
 
 	week  weekState
 	month monthState
+	heat  heatState // focus.go
 
 	detail  *detailView
 	openURL func(string) error // opens a link in the browser; swapped in tests
@@ -261,6 +263,9 @@ func (m Model) WithSettings(s Settings) Model {
 	m.pulse.grace = s.PulseGrace
 	m.panelFlash = s.PanelFlash
 	m.writeOn = s.Write
+	if !m.writeOn && m.view == viewHeat {
+		m.view = viewAgenda // the focus view reads what Write keeps
+	}
 	return m
 }
 
@@ -353,7 +358,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuild()
 		m.rebuildWeek()
 		m.rebuildMonth()
-		refresh := tea.Batch(m.pulseRefresh(), m.reloadWrite())
+		refresh := tea.Batch(m.pulseRefresh(), m.reloadWrite(), m.reloadHeat())
 		if m.poll != 0 && !m.syncing && !m.nextPoll.IsZero() && !m.now.Before(m.nextPoll) {
 			// Overdue: timers stop while the computer sleeps, but the clock
 			// doesn't, so a sync due during sleep starts on waking.
@@ -518,7 +523,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.actionErr = fmt.Errorf("Can't save notes: %w", msg.err)
 		}
-		return m, m.reloadWrite()
+		return m, tea.Batch(m.reloadWrite(), m.reloadHeat())
+
+	case heatLoadedMsg:
+		return m.heatLoaded(msg), nil
 
 	case writeFlashEndMsg:
 		if msg.seq == m.flashSeq {
@@ -592,6 +600,11 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.detail != nil {
 		return m.handleDetailKey(msg)
 	}
+	if m.view == viewHeat && m.focus == focusMain {
+		if next, cmd, ok := m.handleHeatKey(msg); ok {
+			return next, cmd
+		}
+	}
 
 	switch {
 	case key.Matches(msg, m.keys.Quit):
@@ -610,6 +623,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.switchView(viewWeek)
 	case key.Matches(msg, m.keys.ViewMonth):
 		return m.switchView(viewMonth)
+	case key.Matches(msg, m.keys.ViewHeat) && m.heatEnabled():
+		return m.switchView(viewHeat)
 	case key.Matches(msg, m.keys.FocusList):
 		m.focus = focusSidebar
 		m.ensureSidebarSelection()
@@ -635,6 +650,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleWeekKey(msg)
 	case m.view == viewMonth:
 		return m.handleMonthKey(msg)
+	case m.view == viewHeat:
+		return m, nil // the heatmap's own keys came first
 	}
 	return m.handleMainKey(msg)
 }
@@ -653,6 +670,8 @@ func (m Model) switchView(to viewKind) (tea.Model, tea.Cmd) {
 		return m.showWeek(day, id)
 	case viewMonth:
 		return m.showMonth(day)
+	case viewHeat:
+		return m.showHeat(day)
 	}
 	return m.showAgenda(day, id)
 }
@@ -665,6 +684,8 @@ func (m Model) viewDay() (domain.CivilDate, string) {
 		return m.selectedWeekDate(), m.selectedWeekEventID()
 	case viewMonth:
 		return m.month.sel, ""
+	case viewHeat:
+		return m.heat.cursor, ""
 	}
 	return m.currentDay(), m.selectedAgendaEventID()
 }
@@ -980,6 +1001,9 @@ func (m Model) goToday() (tea.Model, tea.Cmd) {
 		return m.showWeek(m.today(), "")
 	case viewMonth:
 		return m.showMonth(m.today())
+	case viewHeat:
+		m.heat = m.heat.goTo(m.today(), m.today())
+		return m.heatFit(), nil
 	}
 	return m.jumpTo(m.today())
 }

@@ -128,6 +128,10 @@ func press(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyEscape}
 	case "space":
 		return tea.KeyPressMsg{Code: ' ', Text: " "}
+	case "up", "down", "left", "right":
+		return tea.KeyPressMsg{Code: map[string]rune{"up": tea.KeyUp, "down": tea.KeyDown, "left": tea.KeyLeft, "right": tea.KeyRight}[s]}
+	case "shift+up", "shift+down", "shift+left", "shift+right":
+		return tea.KeyPressMsg{Code: map[string]rune{"up": tea.KeyUp, "down": tea.KeyDown, "left": tea.KeyLeft, "right": tea.KeyRight}[s[len("shift+"):]], Mod: tea.ModShift}
 	}
 	r := []rune(s)[0]
 	return tea.KeyPressMsg{Code: r, Text: s}
@@ -965,7 +969,8 @@ func screensToCheck(t *testing.T) map[string]Model {
 	form, _ := send(t, m, press("a"), press("enter"))
 	syncing, _ := send(t, m, press("r"))
 	month := toMonth(t, m, testEvents())
-	return map[string]Model{"agenda": m, "week": week, "month": month, "sidebar": side, "form": form, "syncing": syncing}
+	heat := heatModel(t, 100, 24)
+	return map[string]Model{"agenda": m, "week": week, "month": month, "sidebar": side, "form": form, "syncing": syncing, "heat": heat}
 }
 
 func TestOnlyANSIColorsReachTheTerminal(t *testing.T) {
@@ -1010,7 +1015,7 @@ func TestNoColorKeepsStatesVisible(t *testing.T) {
 }
 
 func TestWeekTabShowsTheWeekNumber(t *testing.T) {
-	m := loaded(t, 100, 24)
+	m := loaded(t, 112, 24) // the date span needs room beside four tabs
 	if top := ansi.Strip(strings.SplitN(screen(m), "\n", 2)[0]); !strings.Contains(top, "[2] Week ─") {
 		t.Errorf("agenda view: week tab should be plain \"[2] Week\":\n%s", top)
 	}
@@ -1070,7 +1075,7 @@ func TestMonthLinesFitTheWindow(t *testing.T) {
 }
 
 func TestMonthGridAndHeader(t *testing.T) {
-	m := toMonth(t, loaded(t, 100, 30), testEvents())
+	m := toMonth(t, loaded(t, 112, 30), testEvents())
 	if m.month.month != domain.NewCivilDate(2026, 9, 1) || m.month.start != domain.NewCivilDate(2026, 8, 31) || m.month.weeks != 5 {
 		t.Fatalf("month %s grid %s×%d, want September 2026 from Mon 31 Aug, 5 weeks", m.month.month, m.month.start, m.month.weeks)
 	}
@@ -1218,7 +1223,7 @@ func TestFooterAlwaysStartsWithPaneKeys(t *testing.T) {
 		"list":   func() Model { m, _ := send(t, loaded(t, 100, 30), press("0")); return m }(),
 	} {
 		lines := strings.Split(screen(m), "\n")
-		if hints := strings.TrimSpace(lines[len(lines)-2]); !strings.HasPrefix(hints, "0 calendars · 1-3 views · tab switch pane │") {
+		if hints := strings.TrimSpace(lines[len(lines)-2]); !strings.HasPrefix(hints, "0 calendars · 1-4 views · tab switch pane │") {
 			t.Errorf("%s footer = %q", name, hints)
 		}
 	}

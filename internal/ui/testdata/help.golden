@@ -1,7 +1,7 @@
 ╭─ Keys ───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Everywhere                                                                                                           │
 │ 0                 Calendar list                                                                                      │
-│ 1 2 3             Agenda, week, month                                                                                │
+│ 1 2 3 4           Agenda, week, month, focus                                                                         │
 │ tab               Next panel: the list, the view, the global Write panel                                             │
 │ t                 Today                                                                                              │
 │ r                 Sync now (also in the background)                                                                  │
@@ -35,6 +35,6 @@
 │ enter             Event details                                                                                      │
 │                                                                                                                      │
 │ Month                                                                                                                │
-╰────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 106 ─╯
+╰────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 116 ─╯
  j/k scroll · pgup/pgdn page · esc close                                                                                
  ◦ Idle        Tue 29 Sep 14:30                                                                            Synced 14:29 
