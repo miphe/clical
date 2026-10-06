@@ -1177,8 +1177,8 @@ The main panel is split in three:
     `pgup`/`pgdn` scroll it from the heatmap; `tab` moves focus into it for
     `j`/`k`, and `esc` comes back.
 - **Tasks panel:** read-only. A header with the selection ("Week 23 ·
-  1–7 Jun 2026 · 14 tasks"), then days newest first, tasks within a day by
-  completion time (oldest first): time, text, and "from Weekly sync" when it has an origin.
+  1–7 Jun 2026 · 14 tasks"), then days oldest first and tasks within a day by
+  completion time, so the newest is last, like a log: time, text, and "from Weekly sync" when it has an origin.
   Text goes through `domain.SafeText`. Empty states: "No tasks completed on
   these days" and, with an empty archive, a hint to press `z` in a Write
   panel. Unarchive from here is out of scope.
