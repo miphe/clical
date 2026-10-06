@@ -40,8 +40,12 @@ var layers = map[string][]string{
 	// data types in domain and agenda).
 	// internal/write is imported for its plain data types (Item, Ref, ...);
 	// the files themselves are reached through internal/app.
-	"internal/ui": {"internal/app", "internal/agenda", "internal/domain", "internal/write"},
-	"cmd/clical":  {"internal/app", "internal/ui", "internal/agenda", "internal/domain", "internal/config", "internal/write"},
+	// Mock data for developing the front-ends (`clical --mock`): it stands in
+	// for the core, so it sits beside the front-ends and is reached only from
+	// cmd/clical.
+	"internal/mock": {"internal/app", "internal/domain", "internal/write"},
+	"internal/ui":   {"internal/app", "internal/agenda", "internal/domain", "internal/write"},
+	"cmd/clical":    {"internal/app", "internal/ui", "internal/agenda", "internal/domain", "internal/config", "internal/write", "internal/mock"},
 
 	// Tooling.
 	"internal/archtest": {},

@@ -6,13 +6,17 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/miphe/clical/internal/config"
+	"github.com/miphe/clical/internal/mock"
 	"github.com/miphe/clical/internal/ui"
 )
 
 // TUICmd opens the full-screen calendar. It's the default command.
 type TUICmd struct{}
 
-func (c *TUICmd) Run() error {
+func (c *TUICmd) Run(cli *CLI) error {
+	if cli.Mock { // --mock, see runMock
+		return runMock()
+	}
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
@@ -42,6 +46,30 @@ func (c *TUICmd) Run() error {
 			return config.SavePrefs(config.PrefsPath(), config.Prefs(p))
 		},
 	})
+	_, err = tea.NewProgram(m).Run()
+	return err
+}
+
+// runMock opens the TUI on generated data, in a temporary directory that is
+// removed on exit. It never reads the settings, vault, cache, notes or log, and
+// settings changed in it are not saved.
+func runMock() error {
+	f, err := mock.Open(time.Now(), time.Local)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	var src ui.Source = f.Source
+	m := ui.New(src, time.Local, time.Now()).WithWrite(f.App).WithSettings(ui.Settings{
+		WeekStart:    time.Monday,
+		SyncInterval: 5 * time.Minute,
+		Pulse:        true,
+		PulseLead:    10 * time.Minute,
+		PulseGrace:   time.Minute,
+		PanelFlash:   true,
+		Write:        true,
+		Save:         func(ui.Prefs) error { return nil },
+	}).WithNotice(mock.Notice)
 	_, err = tea.NewProgram(m).Run()
 	return err
 }

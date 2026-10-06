@@ -52,6 +52,7 @@ test ./...` if a package imports something its layer doesn't allow.
 | `internal/providers/google` | Google Calendar API: sign-in, calendar list, event sync                                          | domain, eventtext                                                |
 | `internal/engine`           | Run a provider sync, apply it to the store                                                       | domain, store                                                    |
 | `internal/app`              | **The seam.** Composes the above into operations                                                 | domain, store, secrets, engine, providers/ical, providers/google, write |
+| `internal/mock`             | Made-up calendars, events, notes and a year and a half of completed tasks, for `clical --mock`. Reads and writes nothing real; only `cmd/clical` uses it | app, domain, write |
 | `internal/ui`               | TUI: model, keys, rendering                                                                      | app, agenda, domain, write                                       |
 | `cmd/clical`                | CLI commands, terminal prompts, starts the TUI                                                   | app, ui, agenda, domain, config, write                           |
 

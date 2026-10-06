@@ -26,6 +26,9 @@ func (m Model) View() tea.View {
 	v := tea.NewView(m.render())
 	v.AltScreen = true
 	v.WindowTitle = "clical"
+	if m.notice != "" {
+		v.WindowTitle += " (" + strings.ToLower(m.notice) + ")"
+	}
 	return v
 }
 
@@ -287,6 +290,9 @@ func (m Model) renderFooter() []string {
 	hintLine := fit(" "+line, m.width)
 
 	left := " " + m.activity() + m.now.In(m.loc).Format("Mon 2 Jan ") + m.clock.Time(m.now.In(m.loc))
+	if m.notice != "" {
+		left += "  " + accentStyle.Render(m.notice)
+	}
 	right := m.status()
 	if alert := m.pulseAlert(); alert != "" {
 		right = alert

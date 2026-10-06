@@ -55,6 +55,11 @@ never touched:
 
 - **Prompts** (passphrase, y/N): `expect`. Not macOS `script`, which sends EOF
   before line-based reads.
+- **TUI with plenty of data:** `clical --mock` (or `go run ./cmd/clical --mock`)
+  opens the TUI on generated calendars, events, notes and a year and a half of
+  completed tasks, with no vault prompt. Nothing real is read or written (the
+  data lives in a temporary directory), so it needs no `XDG_DATA_HOME`. The
+  data is in `internal/mock`, relative to the current time.
 - **TUI screens:** `scripts/tui_screens.py` (needs `pyte` in a throwaway
   venv; see the script's docstring). It prints what the screen actually
   shows. Don't grep raw terminal output: Bubble Tea only sends changed

@@ -128,7 +128,8 @@ type Model struct {
 	hidden           map[string]bool
 	side             sidebarState
 	sidebarCollapsed bool
-	sideAuto         bool // the focus view collapsed it, and gives it back
+	sideAuto         bool   // the focus view collapsed it, and gives it back
+	notice           string // always shown in the status line, and the window title
 	focus            focus
 	view             viewKind
 
@@ -252,6 +253,13 @@ type Settings struct {
 	PanelFlash bool          // a collapsed panel flashes when its content changes
 	Write      bool          // notes and TODOs at all
 	Save       func(Prefs) error
+}
+
+// WithNotice shows text in the status line and the window title for as long
+// as the program runs, e.g. to say the data isn't real.
+func (m Model) WithNotice(text string) Model {
+	m.notice = text
+	return m
 }
 
 // WithSettings applies s. Call it before the program starts.
