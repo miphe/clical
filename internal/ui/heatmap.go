@@ -36,16 +36,20 @@ const (
 	heatRows   = 7
 )
 
-// heatGlyphs are the intensity steps, from no tasks to the busiest days.
-// Intensity is the glyph, never a background color.
-var heatGlyphs = [5]string{"·", "░", "▒", "▓", "█"}
+// A day with no tasks is a dot; a day with tasks is a flat square whose
+// intensity is a text attribute (faint, plain, bold), never a shade glyph or a
+// background color.
+const (
+	heatNone = "·"
+	heatDone = "■"
+)
 
 // heatState is the heatmap's data and where the user is in it.
 type heatState struct {
 	loaded bool
 	err    error
 	days   map[domain.CivilDate][]write.Archived
-	cut    [3]int           // task counts at the top of intensity steps 1–3
+	cut    [2]int           // task counts at the top of intensity steps 1 and 2
 	first  domain.CivilDate // the earliest and latest day with a task
 	last   domain.CivilDate
 	at     time.Time // when the data was read
@@ -99,28 +103,28 @@ func (h heatState) withData(days map[domain.CivilDate][]write.Archived, at time.
 	return h
 }
 
-// heatCutoffs are the quartiles of the busy days' task counts, as GitHub
-// does: a day is as intense as the share of busy days it is busier than.
-func heatCutoffs(days map[domain.CivilDate][]write.Archived) [3]int {
+// heatCutoffs are the terciles of the busy days' task counts: a day is as
+// intense as the share of busy days it is busier than.
+func heatCutoffs(days map[domain.CivilDate][]write.Archived) [2]int {
 	var counts []int
 	for _, tasks := range days {
 		if len(tasks) > 0 {
 			counts = append(counts, len(tasks))
 		}
 	}
-	var cut [3]int
+	var cut [2]int
 	if len(counts) == 0 {
 		return cut
 	}
 	sort.Ints(counts)
 	for k := range cut {
-		cut[k] = counts[((k+1)*len(counts)+3)/4-1]
+		cut[k] = counts[((k+1)*len(counts)+2)/3-1]
 	}
 	return cut
 }
 
-// heatLevel is a day's intensity step: 0 for none, then 1–4.
-func heatLevel(count int, cut [3]int) int {
+// heatLevel is a day's intensity step: 0 for none, then 1–3.
+func heatLevel(count int, cut [2]int) int {
 	if count <= 0 {
 		return 0
 	}

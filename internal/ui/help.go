@@ -84,7 +84,7 @@ func helpSections() []helpSection {
 			{"space", "Select by day, week or month"},
 			{"esc", "Back to one day"},
 			{"t", "Today"},
-			{"", "A day's shade is how many tasks were completed"},
+			{"", "A day's intensity is how many tasks were completed"},
 			{"", "that day. Only archived tasks (z in Write) count."},
 		}},
 		{"Event details", []helpEntry{

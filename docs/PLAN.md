@@ -1158,10 +1158,11 @@ The main panel is split in three:
   `week_start` order). Today is the last cell; later days are blank. It shows
   as many recent weeks as fit and scrolls back without a limit (to the
   earliest task).
-- **Intensity without background colors:** one glyph per level
-  (`·` none, then `░ ▒ ▓ █`), colored with one ANSI hue from `theme.go`
-  (green, glyphs only). Levels are the quartiles of the non-zero days in the
-  archive, like GitHub. Under `NO_COLOR` the glyphs still differ.
+- **Flat and one hue.** A day with tasks is a solid square (`■`), a day
+  without is a dot, and the only color is the accent. Intensity is a text
+  attribute (faint, plain, bold), not shade glyphs or backgrounds, so it holds
+  under `NO_COLOR`. Three steps, from the terciles of the busy days' task
+  counts. (Four shade glyphs, `░▒▓█`, were tried and looked like a shadow.)
 - **Selection** is a range of days, always at least the cursor's day, and
   works like selecting in an OS list:
   - `j`/`k`/↓/↑ move a day (wrapping into the next or previous week),

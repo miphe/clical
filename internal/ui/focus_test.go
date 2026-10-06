@@ -1,12 +1,16 @@
 package ui
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/miphe/clical/internal/domain"
 	"github.com/miphe/clical/internal/write"
@@ -197,5 +201,37 @@ func TestHeatReloadsWhenTheArchiveChanges(t *testing.T) {
 	m, _ = run(t, m, cmd)
 	if s := screen(m); !strings.Contains(s, "2 tasks") {
 		t.Errorf("after the tick:\n%s", s)
+	}
+}
+
+func TestHeatmapIsFlatAndOneHue(t *testing.T) {
+	m := heatModel(t, 130, 24)
+	heat := strings.Join(m.renderHeat(80, 12), "\n")
+	if strings.ContainsAny(ansi.Strip(heat), "░▒▓█") {
+		t.Error("the heatmap uses shade glyphs; it should be flat squares")
+	}
+	var buf bytes.Buffer
+	w := &colorprofile.Writer{Forward: &buf, Profile: colorprofile.Env([]string{"TERM=xterm-256color"})}
+	if _, err := w.WriteString(heat); err != nil {
+		t.Fatal(err)
+	}
+	// The only hue is the accent (blue, 34); intensity is faint, plain, bold.
+	var blue, faint, bold bool
+	for _, params := range sgrParams(buf.String()) {
+		for _, p := range params {
+			switch {
+			case p == 34:
+				blue = true
+			case p == 2:
+				faint = true
+			case p == 1:
+				bold = true
+			case (p >= 30 && p <= 37) || (p >= 90 && p <= 97):
+				t.Errorf("the heatmap uses color %d, want only the accent (34): %v", p, params)
+			}
+		}
+	}
+	if !blue || !faint || !bold {
+		t.Errorf("accent %v, faint %v, bold %v: want all three", blue, faint, bold)
 	}
 }

@@ -55,16 +55,16 @@ func (m Model) renderHeat(width, height int) []string {
 	return padLines(lines, height, width)
 }
 
-// heatCell is one day: its intensity glyph twice (the cell is two columns
-// wide), or the selection's mark over it. Days after the last one are blank.
+// heatCell is one day, two columns wide: a square or a dot, or the
+// selection's mark over it. Days after the last one are blank.
 func (m Model) heatCell(d, hi, selLo, selHi domain.CivilDate) string {
 	if hi.Before(d) {
 		return strings.Repeat(" ", heatCellW)
 	}
 	level := heatLevel(len(m.heat.days[d]), m.heat.cut)
-	cell := heatGlyphs[level] + heatGlyphs[level]
+	cell := heatDone + " "
 	if level == 0 {
-		cell = heatGlyphs[0] + " "
+		cell = heatNone + " "
 	}
 	sel, cursor := selectedStyle, selectedStyle.Bold(true).Underline(true)
 	if m.focus != focusMain {
