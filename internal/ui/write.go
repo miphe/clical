@@ -521,7 +521,15 @@ func (m Model) focusOrder() []focus {
 			order = append(order, focusEventWrite)
 		}
 	} else if m.view == viewHeat {
-		order = []focus{focusSidebar, focusHeat, focusTasks}
+		order = []focus{focusSidebar}
+		lay := m.focusLayout()
+		if lay.agendaH > 0 {
+			order = append(order, focusMain)
+		}
+		order = append(order, focusHeat)
+		if lay.tasksH > 0 {
+			order = append(order, focusTasks)
+		}
 	} else {
 		order = []focus{focusSidebar, focusMain}
 	}

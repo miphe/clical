@@ -193,7 +193,7 @@ func (m Model) selectedEvent() (domain.Event, bool) {
 		if it, ok := m.selectedWeekItem(); ok {
 			return it.Event, true
 		}
-	case viewAgenda:
+	case viewAgenda, viewHeat:
 		if i := m.selIndex(); i >= 0 && m.rows[i].kind == rowItem {
 			return m.rows[i].item.Event, true
 		}

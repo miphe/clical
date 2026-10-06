@@ -16,6 +16,9 @@ const (
 	// sits after a two-column gutter holding the current-day marker.
 	itemIndent          = "   "
 	minWidth, minHeight = 30, 6
+	// An agenda narrower than this lays its rows out compactly.
+	compactAgendaWidth = 40
+	compactWhenW       = 7 // "all day", "12:00pm"
 )
 
 // View renders the whole screen.
@@ -205,7 +208,14 @@ func (m Model) renderItem(r row, selected bool, width int) string {
 	if width >= 60 {
 		labelW = m.labelWidth()
 	}
-	titleW := width - ansi.StringWidth(itemIndent) - 2 - m.clock.Width() - 2
+	// In a narrow panel (the focus view's agenda) a row is tighter: a smaller
+	// indent, only the start time, and one space before the title.
+	indent, whenW, gap := itemIndent, m.clock.Width(), "  "
+	if width < compactAgendaWidth {
+		indent, whenW, gap = " ", compactWhenW, " "
+		when = strings.SplitN(when, "–", 2)[0]
+	}
+	titleW := width - ansi.StringWidth(indent) - 2 - whenW - len(gap)
 	if labelW > 0 {
 		titleW -= labelW + 2
 	}
@@ -213,7 +223,7 @@ func (m Model) renderItem(r row, selected bool, width int) string {
 	slot := m.calendarSlot(it.Event.CalendarID)
 	glyph := calendarGlyph(slot, false)
 	plain := func(swatch string) string {
-		s := itemIndent + swatch + " " + fit(when, m.clock.Width()) + "  " + fit(it.Event.Title, titleW)
+		s := indent + swatch + " " + fit(when, whenW) + gap + fit(it.Event.Title, titleW)
 		if labelW > 0 {
 			s += "  " + fit(label, labelW)
 		}
@@ -222,16 +232,16 @@ func (m Model) renderItem(r row, selected bool, width int) string {
 
 	switch {
 	case m.isPulsing(it.Event):
-		return itemIndent + m.pulseLine(it.Event, strings.TrimPrefix(plain(glyph), itemIndent))
+		return indent + m.pulseLine(it.Event, strings.TrimPrefix(plain(glyph), indent))
 	case selected && m.focus == focusMain:
-		return itemIndent + selectedStyle.Render(fit(strings.TrimPrefix(plain(glyph), itemIndent), width-ansi.StringWidth(itemIndent)))
+		return indent + selectedStyle.Render(fit(strings.TrimPrefix(plain(glyph), indent), width-ansi.StringWidth(indent)))
 	case selected:
-		return itemIndent + inactiveSelStyle.Render(fit(strings.TrimPrefix(plain(glyph), itemIndent), width-ansi.StringWidth(itemIndent)))
+		return indent + inactiveSelStyle.Render(fit(strings.TrimPrefix(plain(glyph), indent), width-ansi.StringWidth(indent)))
 	}
 
 	ended := !it.Event.AllDay && !it.End.After(m.now)
 	swatch := calendarBullet(slot)
-	s := itemIndent + swatch + " " + fit(when, m.clock.Width()) + "  " + fit(it.Event.Title, titleW)
+	s := indent + swatch + " " + fit(when, whenW) + gap + fit(it.Event.Title, titleW)
 	if labelW > 0 {
 		s += "  " + mutedStyle.Render(fit(label, labelW))
 	}
@@ -411,7 +421,7 @@ func (m Model) footerHints() []footHint {
 			h("a", "add", prioHigh), h("n", "rename", prioMid), h("d", "remove", prioMid), h("c", "collapse", prioLow))
 	case m.focus == focusTasks:
 		view = []footHint{h("j/k", "scroll", prioHigh), h("pgup/pgdn", "page", prioMid), h("esc", "back", prioMid)}
-	case m.view == viewHeat:
+	case m.view == viewHeat && m.focus != focusMain:
 		view = []footHint{h("h/l", "week", prioMid), h("j/k", "day", prioMid), h("shift", "extend", prioHigh),
 			h("space", "day/week/month", prioHigh), h("pgup/pgdn", "scroll tasks", prioLow), h("t", "today", prioMid)}
 	case m.view == viewWeek:

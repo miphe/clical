@@ -128,6 +128,7 @@ type Model struct {
 	hidden           map[string]bool
 	side             sidebarState
 	sidebarCollapsed bool
+	sideAuto         bool // the focus view collapsed it, and gives it back
 	focus            focus
 	view             viewKind
 
@@ -339,7 +340,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	next, cmd := m.update(msg)
-	nm := next.(Model)
+	nm := next.(Model).fitFocusView()
 	spin := nm.keepSpinning() // mutates nm; must run before nm is returned
 	return nm, tea.Batch(cmd, spin)
 }
@@ -657,8 +658,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleWeekKey(msg)
 	case m.view == viewMonth:
 		return m.handleMonthKey(msg)
-	case m.view == viewHeat:
-		return m, nil // the heatmap's own keys came first
+	case m.view == viewHeat && m.focus != focusMain:
+		return m, nil // the heatmap's own keys came first; the agenda's follow
 	}
 	return m.handleMainKey(msg)
 }
@@ -925,6 +926,9 @@ func (m Model) bodyHeight() int {
 
 // agendaHeight is how many agenda rows fit inside the main panel's border.
 func (m Model) agendaHeight() int {
+	if m.view == viewHeat {
+		return max(m.focusLayout().agendaH-2, 0)
+	}
 	return m.bodyHeight() - 2
 }
 
@@ -1012,6 +1016,9 @@ func (m Model) goToday() (tea.Model, tea.Cmd) {
 	case viewMonth:
 		return m.showMonth(m.today())
 	case viewHeat:
+		if m.focus == focusMain { // the agenda panel
+			return m.jumpTo(m.today())
+		}
 		m.heat = m.heat.goTo(m.today(), m.today())
 		return m.heatFit(), nil
 	}

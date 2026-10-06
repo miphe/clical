@@ -44,7 +44,7 @@ multi-account merge → config/themes → in-process background polling.
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
 | M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
 | — | Release pipeline: GoReleaser, GitHub releases, PolyForm Noncommercial license | `.goreleaser.yaml`, `LICENSE.md` | Done (v0.0.1) |
-| M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | In progress (M14a–c done) |
+| M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | Done (v0.0.2 candidate) |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -1126,7 +1126,7 @@ do both).
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
 | M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
 
-## Focus view and completion heatmap — M14 (planned)
+## Focus view and completion heatmap — M14 (done)
 
 A fourth main view on `4`, a dashboard for "what's next" and "what did I do".
 The calendar list stays on the left and the global Write panel on the right.
@@ -1191,13 +1191,16 @@ The main panel is split in three:
   through `domain.SafeText`. Empty states: "No tasks completed on Mon 21 Sep
   2026." and, with an empty archive, a hint to press `z` in a Write panel.
   Unarchive from here is out of scope.
-- **Narrow terminals:** first the calendar list collapses (as it already does
-  below `narrowWidth`). If the main panel is still too narrow for the agenda
-  beside the tasks, the three stack: agenda on top, tasks, heatmap at the
-  bottom. The global Write panel is never dropped. Too short for the stack:
-  the main panel says so and points at `1`–`3`.
+- **Narrow terminals:** the calendar list collapses first (and comes back when
+  there is room or in another view; a list the user collapsed stays so). If
+  the main area is still under 78 columns (the agenda's 26 plus 52 for the
+  tasks panel, which holds the view tabs), the three stack: agenda on top,
+  tasks, heatmap at the bottom. Short windows drop the tasks, then the
+  agenda; the heatmap is always kept, with the tabs. The global Write panel is
+  never dropped. Below 40 columns the agenda's rows are compact: a one-column
+  indent and the start time only.
 - **Focus order** (`tab`): calendar list, agenda, heatmap, tasks, global
-  Write. `4` focuses the heatmap.
+  Write, skipping panels that are dropped. `4` focuses the heatmap.
 
 ### Where the code goes
 
@@ -1221,8 +1224,8 @@ The main panel is split in three:
 | M14a (done) | `CompletionsByDay`, `app.WriteArchived`, tests |
 | M14b (done) | Heatmap grid, levels, selection and keys, golden snapshots. Also a first `4` view with the heatmap alone, so it can be tried before the other panels exist. A fourth tab costs the week and month views their date span in the top edge below about 110 columns. |
 | M14c (done) | Tasks panel above the heatmap, which is now its own panel along the bottom. The view tabs sit in the tasks panel's top edge (in the heatmap's when the window is too short for the tasks panel). `tab` cycles list, heatmap, tasks, global Write. |
-| M14d | Slim agenda reuse, wide and stacked layouts, focus order |
-| M14e | `?` help and footer, README (the `4` view only), this plan's status |
+| M14d (done) | Slim agenda beside the tasks, reusing the agenda's state and rows with a compact row format (start time only) below 40 columns; wide, collapsed-list and stacked layouts; `tab` order list, agenda, heatmap, tasks; `4` starts the agenda at today. The tasks panel needs 52 columns (the view tabs); below that the list collapses, then the panels stack. |
+| M14e (done) | `?` help and footer, this plan's status. The README is left for the author: the view reads Write's archive. |
 
 Verification: the usual checks, golden diffs reviewed, `TestNoColorKeepsStatesVisible`
 extended, and the built binary driven with `scripts/tui_screens.py` against a

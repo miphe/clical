@@ -13,44 +13,98 @@ import (
 // the heatmap in its own panel along the bottom.
 
 const (
-	heatPanelH    = heatRows + 2 // the heatmap and its border
-	minTasksPanel = 5            // below this the tasks panel is dropped
+	heatPanelH    = heatRows + 2     // the heatmap and its border
+	minTasksPanel = 5                // below this a panel above the heatmap is dropped
+	agendaPanelW  = sidebarInner + 2 // the agenda is as wide as the calendar list
+	minTasksW     = 52               // the view tabs need this much to show in full
+	minAgendaH    = 5
+	maxAgendaH    = 8
 )
 
-type focusLayout struct{ tasksH, heatH int }
-
-func (m Model) focusLayout() focusLayout {
-	h := m.bodyHeight()
-	if h-heatPanelH < minTasksPanel {
-		return focusLayout{heatH: h}
-	}
-	return focusLayout{tasksH: h - heatPanelH, heatH: heatPanelH}
+// focusLayout is where the focus view's panels go. Wide: the agenda and the
+// tasks side by side above the heatmap. Narrower: the agenda on top, then the
+// tasks, then the heatmap. Short: panels above the heatmap are dropped, the
+// tasks first, and the heatmap is always kept.
+type focusLayout struct {
+	agendaW, agendaH int // 0 when absent
+	tasksW, tasksH   int
+	heatH            int
+	stacked          bool
 }
 
-// renderFocus draws the focus view's panels in a width×height area, with the
-// view tabs in the top panel's edge.
+func (m Model) focusLayout() focusLayout {
+	w, h := m.mainWidth(), m.bodyHeight()
+	rest := h - heatPanelH
+	if rest < minTasksPanel {
+		return focusLayout{heatH: h}
+	}
+	if w >= agendaPanelW+minTasksW {
+		return focusLayout{agendaW: agendaPanelW, agendaH: rest, tasksW: w - agendaPanelW, tasksH: rest, heatH: heatPanelH}
+	}
+	agendaH := min(max(rest/3, minAgendaH), maxAgendaH)
+	if rest-agendaH < minTasksPanel {
+		return focusLayout{agendaW: w, agendaH: rest, heatH: heatPanelH, stacked: true}
+	}
+	return focusLayout{agendaW: w, agendaH: agendaH, tasksW: w, tasksH: rest - agendaH, heatH: heatPanelH, stacked: true}
+}
+
+// renderFocus draws the focus view's panels in a width×height area. The view
+// tabs go in the top edge of the panel that leads: the tasks beside the
+// agenda, the agenda when stacked, the heatmap when it is alone.
 func (m Model) renderFocus(width, height int, tabs []tab) []string {
 	lay := m.focusLayout()
-	var out []string
+	agendaTabs := []tab{{label: "Next", active: true}}
+	tasksTabs := []tab{{label: "Completed", active: true}}
 	heatTabs := []tab{{label: "Heatmap", active: true}}
-	if lay.tasksH > 0 {
-		out = m.renderTasks(width, lay.tasksH, tabs)
-	} else {
+	switch {
+	case lay.agendaH == 0:
 		heatTabs = tabs
+	case lay.stacked:
+		agendaTabs = tabs
+	default:
+		tasksTabs = tabs
+	}
+
+	var out []string
+	if lay.agendaH > 0 {
+		agenda := m.renderAgendaPanel(lay.agendaW, lay.agendaH, agendaTabs)
+		switch {
+		case lay.stacked:
+			out = append(out, agenda...)
+			if lay.tasksH > 0 {
+				out = append(out, m.renderTasks(lay.tasksW, lay.tasksH, tasksTabs)...)
+			}
+		default:
+			tasks := m.renderTasks(lay.tasksW, lay.tasksH, tasksTabs)
+			for i := range agenda {
+				out = append(out, agenda[i]+tasks[i])
+			}
+		}
 	}
 	heat := m.renderHeat(width-2, lay.heatH-2)
 	out = append(out, panel(width, lay.heatH, frame{focused: m.focus == focusHeat, tabs: heatTabs}, heat)...)
 	return padLines(out, height, width)
 }
 
+// renderAgendaPanel is the agenda, the same rows as view 1, in a panel.
+func (m Model) renderAgendaPanel(width, height int, tabs []tab) []string {
+	inner, innerH := width-2, height-2
+	content := m.renderAgenda(inner-1, innerH) // a column of padding, as in view 1
+	for i := range content {
+		content[i] = " " + content[i]
+	}
+	return panel(width, height, frame{focused: m.focus == focusMain, tabs: tabs}, content)
+}
+
 // tasksView is the room for the task lines: inside the border, and under the
 // header and its blank line when the selection has one.
 func (m Model) tasksView() (width, height int) {
-	height = m.focusLayout().tasksH - 2
+	lay := m.focusLayout()
+	height = lay.tasksH - 2
 	if m.heatHasHeader() {
 		height -= 2
 	}
-	return m.mainWidth() - 2, height
+	return lay.tasksW - 2, height
 }
 
 // heatHasHeader reports whether the selection is named above the list: only

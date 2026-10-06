@@ -128,6 +128,7 @@ func (m Model) handleSidebarKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		move(len(rows) - 1)
 	case key.Matches(msg, m.keys.Collapse):
 		m.sidebarCollapsed = !m.sidebarCollapsed
+		m.sideAuto = false // the user's call from here
 		m.ensureSidebarSelection()
 	case key.Matches(msg, m.keys.Back):
 		m.focus = m.mainFocus()

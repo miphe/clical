@@ -56,9 +56,41 @@ func (m Model) heatLoaded(msg heatLoadedMsg) Model {
 // showHeat switches to the focus view with day under the cursor.
 func (m Model) showHeat(day domain.CivilDate) (tea.Model, tea.Cmd) {
 	m.view = viewHeat
-	m.focus = focusHeat
 	m.heat = m.heat.goTo(day, m.today())
-	return m.heatFit(), m.loadHeat()
+	m = m.heatFit()
+	// The agenda beside it answers "what's next", so it starts at today.
+	next, cmd := m.jumpTo(m.today())
+	m = next.(Model)
+	m.focus = focusHeat
+	return m.fitFocusView(), tea.Batch(cmd, m.loadHeat())
+}
+
+// fitFocusView keeps the focus view's parts in order as the window or the
+// view changes: the calendar list is collapsed when the panels would be
+// squeezed (and given back when there is room, or in another view), a panel
+// that was dropped doesn't keep the focus, and the agenda stays in view.
+func (m Model) fitFocusView() Model {
+	if m.width == 0 {
+		return m
+	}
+	open := m
+	open.sidebarCollapsed = false
+	roomy := m.view != viewHeat || open.mainWidth() >= agendaPanelW+minTasksW
+	switch {
+	case !roomy && !m.sidebarCollapsed:
+		m.sidebarCollapsed, m.sideAuto = true, true
+	case roomy && m.sideAuto:
+		m.sidebarCollapsed, m.sideAuto = false, false
+	}
+	if m.view != viewHeat {
+		return m
+	}
+	lay := m.focusLayout()
+	if (m.focus == focusMain && lay.agendaH == 0) || (m.focus == focusTasks && lay.tasksH == 0) {
+		m.focus = focusHeat
+	}
+	m.ensureVisible()
+	return m
 }
 
 // heatFit scrolls the heatmap so the cursor is in view.

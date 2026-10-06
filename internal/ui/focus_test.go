@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 
@@ -380,5 +382,185 @@ func TestSingleDayHasNoHeader(t *testing.T) {
 	m = keys(t, m, "J") // 28–29 Sep
 	if s = screen(m); !strings.Contains(s, "28–29 Sep 2026") || !strings.Contains(s, "Mon 28 Sep 2026") {
 		t.Errorf("a range has its header and the day's label:\n%s", s)
+	}
+}
+
+// evSource serves the test events for every window, so the agenda has rows
+// after the focus view reloads it.
+type evSource struct{ nopSource }
+
+func (evSource) Events(context.Context, time.Time, time.Time) ([]domain.Event, error) {
+	return testEvents(), nil
+}
+
+// focusModel is the focus view with events behind its agenda and a busy
+// archive behind its heatmap.
+func focusModel(t *testing.T, width, height int) Model {
+	t.Helper()
+	m := New(evSource{}, loc, testNow)
+	m.tick = 0
+	m, _ = send(t, m,
+		tea.WindowSizeMsg{Width: width, Height: height},
+		calendarsLoadedMsg{rows: testCalendars},
+		eventsLoadedMsg{from: m.from, days: m.days, events: testEvents()},
+		syncDoneMsg{at: at(29, 14, 29)},
+		flashEndMsg{until: at(29, 14, 29).Add(flashDuration)},
+	)
+	src := newStoreSource(t)
+	m = m.WithWrite(src)
+	m.panelFlash = true
+	m, _ = run(t, m, m.loadWrite(writeGlobal))
+	seedArchive(t, src, busyArchive())
+	return keys(t, m, "4")
+}
+
+func TestFocusViewLayoutsGolden(t *testing.T) {
+	golden(t, "focus_wide", screen(focusModel(t, 140, 32)))
+	golden(t, "focus_collapsed_list", screen(focusModel(t, 100, 30)))
+	golden(t, "focus_stacked", screen(focusModel(t, 60, 36)))
+	golden(t, "focus_agenda_and_heat", screen(focusModel(t, 100, 20)))
+}
+
+func TestFocusAgendaShowsWhatsNext(t *testing.T) {
+	m := focusModel(t, 140, 32)
+	s := screen(m)
+	for _, want := range []string{"▸ Tue 29 Sep · today", "15:00   Dentist", "23:00   Night train", "── now 14:30"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("the agenda lacks %q:\n%s", want, s)
+		}
+	}
+	// The slim panel is as wide as the calendar list.
+	lay := m.focusLayout()
+	if lay.agendaW != sidebarInner+2 || lay.stacked {
+		t.Errorf("layout = %+v", lay)
+	}
+}
+
+func TestFocusAgendaMovesAndOpensEvents(t *testing.T) {
+	m := focusModel(t, 140, 32)
+	if m.focus != focusHeat {
+		t.Fatalf("4 focuses %v, want the heatmap", m.focus)
+	}
+	// tab: tasks, then (global strip is closed) the list, then the agenda.
+	m = keys(t, m, "tab", "tab", "tab")
+	if m.focus != focusMain {
+		t.Fatalf("focus = %v, want the agenda", m.focus)
+	}
+	before := m.sel
+	m = keys(t, m, "j")
+	if m.sel == before {
+		t.Error("j didn't move in the agenda")
+	}
+	cursor := m.heat.cursor
+	m = keys(t, m, "enter")
+	if m.detail == nil {
+		t.Fatal("enter didn't open the event")
+	}
+	m = keys(t, m, "esc")
+	if m.detail != nil || m.view != viewHeat || m.focus != focusMain || m.heat.cursor != cursor {
+		t.Errorf("back from the event: detail %v, view %v, focus %v", m.detail != nil, m.view, m.focus)
+	}
+	// t is the agenda's today here, and the heatmap's in the heatmap.
+	m = keys(t, m, "t")
+	if m.from != m.today() {
+		t.Errorf("agenda starts %v, want today", m.from)
+	}
+	m = keys(t, m, "tab", "h", "tab", "tab", "tab", "tab", "t") // heatmap, a week back, round to the heatmap again, today
+	if m.focus != focusHeat || m.heat.cursor != m.today() {
+		t.Errorf("focus %v cursor %v", m.focus, m.heat.cursor)
+	}
+}
+
+func TestFocusFilterAppliesToTheAgenda(t *testing.T) {
+	m := focusModel(t, 140, 32)
+	m = keys(t, m, "/")
+	m = typed(t, m, "dentist")
+	m = keys(t, m, "enter")
+	s := screen(m)
+	if !strings.Contains(s, "Dentist") || strings.Contains(s, "Night train") {
+		t.Errorf("filter:\n%s", s)
+	}
+}
+
+func TestFocusAgendaPulses(t *testing.T) {
+	row := func(m Model) string {
+		for _, l := range strings.Split(renderWithProfile(t, m, []string{"TERM=xterm-256color"}), "\n") {
+			if plain := ansi.Strip(l); strings.Contains(plain, "15:00") && strings.Contains(plain, "Dentist") {
+				return l
+			}
+		}
+		t.Fatalf("no dentist row:\n%s", screen(m))
+		return ""
+	}
+	m := focusModel(t, 140, 32)
+	plain := row(m)
+	m.pulse.on = true
+	m.pulse.lead, m.pulse.grace = 30*time.Minute, 0
+	m, _ = send(t, m, upcomingMsg{events: testEvents()})
+	if !dentist(m) {
+		t.Fatal("the dentist isn't pulsing")
+	}
+	if row(m) == plain {
+		t.Error("the agenda row doesn't pulse in the focus view")
+	}
+	if !strings.Contains(screen(m), "Dentist in 30:00") {
+		t.Error("the status line doesn't count down")
+	}
+}
+
+func TestFocusCollapsesTheListThenStacks(t *testing.T) {
+	// 140 columns: room for everything.
+	m := focusModel(t, 140, 32)
+	if m.sidebarCollapsed || m.focusLayout().stacked {
+		t.Errorf("wide: collapsed %v, layout %+v", m.sidebarCollapsed, m.focusLayout())
+	}
+	// 100 columns: the list gives way first, the panels stay side by side.
+	m = focusModel(t, 100, 30)
+	if !m.sidebarCollapsed || m.focusLayout().stacked {
+		t.Errorf("100: collapsed %v, layout %+v", m.sidebarCollapsed, m.focusLayout())
+	}
+	// And comes back when leaving, or when the window grows.
+	back := keys(t, m, "1")
+	if back.sidebarCollapsed {
+		t.Error("the list stayed collapsed in another view")
+	}
+	m, _ = send(t, m, tea.WindowSizeMsg{Width: 140, Height: 30})
+	if m.sidebarCollapsed {
+		t.Error("the list stayed collapsed after the window grew")
+	}
+	// 60 columns: still too narrow, so the panels stack.
+	m = focusModel(t, 60, 36)
+	lay := m.focusLayout()
+	if !m.sidebarCollapsed || !lay.stacked || lay.agendaH == 0 || lay.tasksH == 0 {
+		t.Errorf("60: collapsed %v, layout %+v", m.sidebarCollapsed, lay)
+	}
+	// A list the user collapsed themselves stays that way.
+	m = focusModel(t, 140, 32)
+	m = keys(t, m, "0", "c", "4", "1")
+	if !m.sidebarCollapsed {
+		t.Error("the user's collapse was undone")
+	}
+}
+
+func TestFocusDropsPanelsWhenShort(t *testing.T) {
+	m := focusModel(t, 140, 32)
+	m = keys(t, m, "tab", "tab", "tab") // the agenda
+	if m.focus != focusMain {
+		t.Fatalf("focus = %v", m.focus)
+	}
+	m, _ = send(t, m, tea.WindowSizeMsg{Width: 140, Height: 15}) // under the heatmap and 5 rows
+	if lay := m.focusLayout(); lay.agendaH != 0 || lay.tasksH != 0 || lay.heatH != m.bodyHeight() {
+		t.Errorf("layout = %+v", lay)
+	}
+	if m.focus != focusHeat {
+		t.Errorf("focus stayed on a dropped panel: %v", m.focus)
+	}
+	if s := screen(m); !strings.Contains(s, "[4] Focus") {
+		t.Errorf("the tabs have to stay:\n%s", s)
+	}
+	// tab skips what isn't there.
+	m = keys(t, m, "tab", "tab")
+	if m.focus != focusHeat {
+		t.Errorf("tab went to %v", m.focus)
 	}
 }
