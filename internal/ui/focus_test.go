@@ -209,12 +209,12 @@ func TestHeatReloadsWhenTheArchiveChanges(t *testing.T) {
 	}
 }
 
-func TestHeatmapIsFlatAndOnlyTheHueDiffers(t *testing.T) {
+func TestHeatmapIsFlatOneHueInThreeStrengths(t *testing.T) {
 	m := heatModel(t, 130, 24)
 	heat := strings.Join(m.renderHeat(80, 12), "\n")
 	plain := ansi.Strip(heat)
-	// Every day with tasks is the same square; the rest are dots, and a
-	// selected day has a dot in its square.
+	// Every day with tasks is the same square; the rest, and the filler, are
+	// dots; a selected day has a dot in its square.
 	if strings.ContainsAny(plain, "░▒▓▪█") {
 		t.Error("the heatmap has shade glyphs or squares of other sizes")
 	}
@@ -228,24 +228,101 @@ func TestHeatmapIsFlatAndOnlyTheHueDiffers(t *testing.T) {
 	if _, err := w.WriteString(heat); err != nil {
 		t.Fatal(err)
 	}
-	// Three hues and no other: cyan 1–3, blue 4–6, magenta 7+. (The dots and
-	// labels are the quiet default color.)
-	hues := map[int]bool{}
+	// One hue, the accent (blue, 34), plain and bold; the busiest days are the
+	// terminal's own text color in bold, with no color code at all.
+	var blue, bold bool
 	for _, params := range sgrParams(buf.String()) {
 		for _, p := range params {
 			switch {
-			case p == 36 || p == 34 || p == 35:
-				hues[p] = true
+			case p == 34:
+				blue = true
+			case p == 1:
+				bold = true
 			case (p >= 30 && p <= 37) || (p >= 90 && p <= 97):
 				t.Errorf("the heatmap uses color %d: %v", p, params)
 			}
 		}
 	}
-	if len(hues) != 3 {
-		t.Errorf("hues in use = %v, want cyan, blue and magenta", hues)
+	if !blue || !bold {
+		t.Errorf("blue %v, bold %v: want both", blue, bold)
 	}
 	if !strings.Contains(ansi.Strip(strings.Join(m.renderFocus(130, 24, nil), "\n")), "none  ■ 1–3  ■ 4–6  ■ 7+") {
-		t.Error("no legend for the hues")
+		t.Error("no legend")
+	}
+}
+
+func TestHeatmapFillsBetweenMonthsWithDots(t *testing.T) {
+	m := heatModel(t, 130, 24)
+	lines := m.renderHeat(m.mainWidth()-2, heatRows)
+	// Inside the grid there are no two blanks in a row: months are separated
+	// by dots, not by empty space. (Only the days after today are blank, at
+	// the end of the last column.)
+	for _, l := range lines {
+		body := strings.TrimRight(ansi.Strip(l), " ")
+		if strings.Contains(body, "  ") {
+			t.Errorf("empty space inside the grid: %q", body)
+		}
+	}
+	// The filler can't be reached: walking through every day never lands on it.
+	d := domain.NewCivilDate(2026, 9, 29)
+	seen := map[domain.CivilDate]bool{}
+	h := m.heat
+	for i := 0; i < 120; i++ {
+		h = h.move(heatUp, false, d)
+		seen[h.cursor] = true
+	}
+	if len(seen) != 120 {
+		t.Errorf("moving up 120 times visited %d distinct days", len(seen))
+	}
+}
+
+func TestDayLabelsHaveTheirSquaresColor(t *testing.T) {
+	m, src := writeModel(t, 140, 40)
+	var recs []write.Archived
+	for _, c := range []struct{ day, n int }{{20, 2}, {21, 5}, {22, 9}} {
+		for i := 0; i < c.n; i++ {
+			recs = append(recs, done("x", "task", 2026, 9, c.day, 8+i%9))
+		}
+	}
+	seedArchive(t, src, recs)
+	m = keys(t, m, "4", "h", "k", "k") // Sun 20 Sep: 1–3 tasks
+	label := func(m Model, text string) string {
+		var buf bytes.Buffer
+		w := &colorprofile.Writer{Forward: &buf, Profile: colorprofile.Env([]string{"TERM=xterm-256color"})}
+		if _, err := w.WriteString(strings.Join(m.renderTasks(m.focusLayout().tasksW, m.focusLayout().tasksH, nil), "\n")); err != nil {
+			t.Fatal(err)
+		}
+		for _, l := range strings.Split(buf.String(), "\n") {
+			if strings.Contains(ansi.Strip(l), text) {
+				return l
+			}
+		}
+		t.Fatalf("no %q in:\n%s", text, buf.String())
+		return ""
+	}
+	has := func(line string, code int) bool {
+		for _, params := range sgrParams(line) {
+			for _, p := range params {
+				if p == code {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	low := label(m, "Sun 20 Sep 2026")
+	if !has(low, 34) || has(low, 1) {
+		t.Errorf("1–3 tasks: the label should be plain accent blue: %q", low)
+	}
+	m = keys(t, m, "j")
+	mid := label(m, "Mon 21 Sep 2026")
+	if !has(mid, 34) || !has(mid, 1) {
+		t.Errorf("4–6 tasks: the label should be bold accent blue: %q", mid)
+	}
+	m = keys(t, m, "j")
+	high := label(m, "Tue 22 Sep 2026")
+	if has(high, 34) || !has(high, 1) {
+		t.Errorf("7+ tasks: the label should be bold in the terminal's own color: %q", high)
 	}
 }
 

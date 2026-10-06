@@ -1158,8 +1158,8 @@ The main panel is split in three:
   is, so a Monday-first week can span two columns. Each month is a block of
   columns of its own with exactly its days: the first column starts on the
   weekday of the 1st, the last ends on the last day (so 31 Dec is the last
-  glyph of December), and a blank column separates the months (no month
-  labels). A week that spans two months is drawn in both, each with its own
+  glyph of December), and a filler column of dots, as wide as a day's,
+  separates the months (no month labels). A week that spans two months is drawn in both, each with its own
   days. A cell is two columns wide; weekday letters on the left
   (`S M T W T F S`); today is the last cell and later days are blank. It shows
   as many recent columns as fit and scrolls back. `h`/`l` move 7 days, so
@@ -1167,16 +1167,21 @@ The main panel is split in three:
 - **Empty days can be selected.** The cursor moves through every day, a year
   and a week back from today (or to the oldest task, if older), so the whole
   year can be walked with the arrow keys.
-- **Flat, and the hue is the intensity.** A day without tasks is a quiet dot
+- **Flat, one hue in three strengths.** A day without tasks is a quiet dot
   (`·`, the default color, dimmed). Every day with tasks is the same solid
-  square (`■`), and only its hue says how many were completed: cyan for 1–3,
-  blue for 4–6, magenta for 7 or more (fixed steps, so a day means the same
-  whatever else is in the archive). A legend sits in the panel's top edge. All
-  three are normal ANSI hues from `theme.go` and only color the glyph. No
-  shade glyphs (`░▒▓`, which looked like a shadow), sizes, backgrounds or
-  hex colors. Under `NO_COLOR` the three look alike. A selected day keeps its
-  hue and shows `▣` (a square with a dot) in bold, no inverse video or underline;
-  its style is still to be refined.
+  square (`■`), and only its strength says how many were completed (fixed
+  steps, so a day means the same whatever else is in the archive): the accent
+  blue for 1–3, bold accent blue for 4–6 (brighter on most terminals), and for
+  7 or more bold in the terminal's own text color, near-white on a dark theme
+  and near-black on a light one (a literal ANSI white would vanish on light
+  themes). Where a terminal doesn't brighten bold, the first two look alike.
+  A legend sits in the panel's top edge. Everything is the palette's accent or
+  no color at all: no shade glyphs (`░▒▓`), sizes, other hues, backgrounds or
+  hex. Between and around the months (the filler column, and the rows above
+  the 1st and below the last day) the grid is filled with the same quiet dot,
+  unreachable by the cursor, so it reads as one surface. A day in the tasks
+  panel is named in the color of its square. A selected day keeps its color and
+  shows `▣` (a square with a dot) in bold; its style is still to be refined.
 - **Selection** is a range of days, always at least the cursor's day, and
   works like selecting in an OS list:
   - `j`/`k`/↓/↑ move a day (wrapping into the next or previous week),

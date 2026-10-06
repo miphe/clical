@@ -87,8 +87,8 @@ func helpSections() []helpSection {
 			{"pgup pgdn", "Scroll the completed tasks (j k in that panel)"},
 			{"t", "Today (the agenda's, when it has focus)"},
 			{"", "The agenda works as in view 1: j k, enter, / filter"},
-			{"", "A day's hue is how many tasks were completed:"},
-			{"", "cyan 1–3, blue 4–6, magenta 7+. Only archived tasks count."},
+			{"", "A day's strength is how many tasks were completed:"},
+			{"", "blue 1–3, bold blue 4–6, bold text color 7+. Archived only."},
 		}},
 		{"Event details", []helpEntry{
 			{"j k  ↓ ↑", "Select a link, or scroll without links"},

@@ -131,12 +131,13 @@ func TestHeatColumnsFitTheWidth(t *testing.T) {
 	if want := "2026-09-13 2026-09-20 2026-09-27 2026-10-01 2026-10-04"; strings.Join(starts, " ") != want {
 		t.Errorf("columns = %v, want %v", starts, want)
 	}
-	// Width counts the gap: five columns and one gap need 11.
-	if got := len(heatColumns(left, hi, 10)); got != 4 {
-		t.Errorf("10 columns hold %d, want 4", got)
+	// Width counts the filler column, as wide as a day: five columns and the
+	// filler need 12.
+	if got := len(heatColumns(left, hi, 11)); got != 4 {
+		t.Errorf("11 columns hold %d, want 4", got)
 	}
-	if got := len(heatColumns(left, hi, 11)); got != 5 {
-		t.Errorf("11 columns hold %d, want 5", got)
+	if got := len(heatColumns(left, hi, 12)); got != 5 {
+		t.Errorf("12 columns hold %d, want 5", got)
 	}
 }
 

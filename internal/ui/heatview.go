@@ -40,12 +40,12 @@ func (m Model) renderHeat(width, height int) []string {
 		b.WriteString(mutedStyle.Render(weekdayLetter(time.Weekday(r)) + " "))
 		for _, c := range cols {
 			if c.gap {
-				b.WriteString(" ")
+				b.WriteString(heatFiller)
 			}
 			if d, ok := c.day(r); ok {
 				b.WriteString(m.heatCell(d, hi, selLo, selHi))
 			} else {
-				b.WriteString(strings.Repeat(" ", heatCellW))
+				b.WriteString(heatFiller)
 			}
 		}
 		lines = append(lines, b.String())
@@ -56,7 +56,10 @@ func (m Model) renderHeat(width, height int) []string {
 	return padLines(lines, height, width)
 }
 
-// heatCell is one day, two columns wide. A selected day keeps its hue and
+// heatFiller fills what isn't a day between and around the months.
+var heatFiller = heatFillStyle.Render(heatNone + " ")
+
+// heatCell is one day, two columns wide. A selected day keeps its color and
 // shows a dot inside its square, in bold; the days after the last one are
 // blank.
 func (m Model) heatCell(d, hi, selLo, selHi domain.CivilDate) string {
@@ -74,7 +77,7 @@ func (m Model) heatCell(d, hi, selLo, selHi domain.CivilDate) string {
 	return heatStyles[level].Render(glyph + " ")
 }
 
-// heatLegend says what the hues mean, for the heatmap panel's top edge.
+// heatLegend says what the colors mean, for the heatmap panel's top edge.
 func heatLegend() string {
 	key := func(level int, glyph, label string) string {
 		return heatStyles[level].Render(glyph) + mutedStyle.Render(" "+label)
