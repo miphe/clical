@@ -234,7 +234,7 @@ func (m Model) toggleGlobal(force bool) (tea.Model, tea.Cmd) {
 		m.clampWrite(writeGlobal)
 	case m.focus == focusGlobalWrite:
 		m.globalOpen = false
-		m.focus = focusMain
+		m.focus = m.mainFocus()
 	default:
 		m.focus = focusGlobalWrite
 	}
@@ -249,7 +249,7 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	p := m.panel(which)
 	if m.writes == nil {
 		if s := msg.String(); s == "esc" || s == "q" || s == "tab" {
-			m.focus = focusMain
+			m.focus = m.mainFocus()
 		}
 		return m, nil
 	}
@@ -267,7 +267,7 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		return m, tea.Quit
 	case "esc", "q":
-		m.focus = focusMain
+		m.focus = m.mainFocus()
 	case "tab":
 		return m.cycleFocus(+1)
 	case "shift+tab":
@@ -289,7 +289,7 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "r":
 			return m.syncNow()
 		case "t":
-			m.focus = focusMain
+			m.focus = m.mainFocus()
 			return m.goToday()
 		case "/":
 			return m.startFilter()
@@ -520,6 +520,8 @@ func (m Model) focusOrder() []focus {
 		if m.writeOn {
 			order = append(order, focusEventWrite)
 		}
+	} else if m.view == viewHeat {
+		order = []focus{focusSidebar, focusHeat, focusTasks}
 	} else {
 		order = []focus{focusSidebar, focusMain}
 	}

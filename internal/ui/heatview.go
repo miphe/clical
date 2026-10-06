@@ -10,8 +10,7 @@ import (
 	"github.com/miphe/clical/internal/domain"
 )
 
-// renderHeat draws the heatmap and, under it, what is selected, for a
-// width×height area inside the main panel.
+// renderHeat draws the heatmap for a width×height area inside its panel.
 func (m Model) renderHeat(width, height int) []string {
 	note := func(s string) []string {
 		lines := strings.Split(lipgloss.NewStyle().Width(width).Render(s), "\n")
@@ -25,7 +24,7 @@ func (m Model) renderHeat(width, height int) []string {
 		return note("The heatmap needs the notes folder, which isn't available.")
 	case width-heatLabelW < 4*heatCellW:
 		return note("Too narrow for the heatmap. Widen the window, or press 1 for the agenda.")
-	case height < heatRows+3:
+	case height < heatRows:
 		return note("Too short for the heatmap. Make the window taller, or press 1 for the agenda.")
 	}
 
@@ -47,8 +46,6 @@ func (m Model) renderHeat(width, height int) []string {
 		}
 		lines = append(lines, b.String())
 	}
-	lines = append(lines, "")
-	lines = append(lines, m.heatSummary(selLo, selHi)...)
 	for i := range lines {
 		lines[i] = fit(lines[i], width)
 	}
@@ -67,7 +64,7 @@ func (m Model) heatCell(d, hi, selLo, selHi domain.CivilDate) string {
 		cell = heatNone + " "
 	}
 	sel, cursor := selectedStyle, selectedStyle.Bold(true).Underline(true)
-	if m.focus != focusMain {
+	if m.focus != focusHeat {
 		sel, cursor = inactiveSelStyle, inactiveSelStyle.Bold(true)
 	}
 	switch {
@@ -77,34 +74,6 @@ func (m Model) heatCell(d, hi, selLo, selHi domain.CivilDate) string {
 		return sel.Render(cell)
 	}
 	return heatStyles[level].Render(cell)
-}
-
-// heatSummary says what is selected and how much was done in it.
-func (m Model) heatSummary(lo, hi domain.CivilDate) []string {
-	switch {
-	case m.heat.err != nil:
-		return []string{errorStyle.Render("Can't read the archive: " + m.heat.err.Error())}
-	case !m.heat.loaded:
-		return []string{mutedStyle.Render("Loading…")}
-	case len(m.heat.days) == 0:
-		return []string{boldStyle.Render(m.heatTitle(lo, hi)),
-			mutedStyle.Render("No archived tasks yet. Check a TODO in a Write panel and press z to archive it.")}
-	}
-	tasks, busy := 0, 0
-	for d := lo; !hi.Before(d); d = d.AddDays(1) {
-		if n := len(m.heat.days[d]); n > 0 {
-			tasks += n
-			busy++
-		}
-	}
-	count := fmt.Sprintf("%d %s", tasks, plural(tasks, "task", "tasks"))
-	if busy > 1 {
-		count += fmt.Sprintf(" on %d days", busy)
-	}
-	if tasks == 0 {
-		count = "no tasks completed"
-	}
-	return []string{boldStyle.Render(m.heatTitle(lo, hi)), mutedStyle.Render(count)}
 }
 
 func plural(n int, one, many string) string {

@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -99,7 +100,7 @@ func TestHeatCountsTasksOnTheirCompletionDay(t *testing.T) {
 		t.Errorf("the 20th:\n%s", s)
 	}
 	m = keys(t, m, "j") // Mon 21: archive day of two of them, no completions
-	if s := screen(m); !strings.Contains(s, "Mon 21 Sep 2026") || !strings.Contains(s, "no tasks completed") {
+	if s := screen(m); !strings.Contains(s, "Mon 21 Sep 2026") || !strings.Contains(s, "No tasks completed on this day.") {
 		t.Errorf("the 21st:\n%s", s)
 	}
 }
@@ -233,5 +234,89 @@ func TestHeatmapIsFlatAndOneHue(t *testing.T) {
 	}
 	if !blue || !faint || !bold {
 		t.Errorf("accent %v, faint %v, bold %v: want all three", blue, faint, bold)
+	}
+}
+
+func TestTasksPanelListsTheSelectionOldestFirst(t *testing.T) {
+	m, src := writeModel(t, 130, 30)
+	ev := write.Ref{Calendar: "cal", Key: "weekly", Title: "Weekly sync"}
+	seedArchive(t, src, []write.Archived{
+		{ID: "c", Text: "write the\nreport", Completed: time.Date(2026, 9, 22, 16, 5, 0, 0, loc), Origin: ev},
+		{ID: "a", Text: "first", Completed: time.Date(2026, 9, 21, 9, 30, 0, 0, loc)},
+		{ID: "b", Text: "second\x1b[31m", Completed: time.Date(2026, 9, 21, 11, 0, 0, 0, loc)},
+		{ID: "z", Text: "outside", Completed: time.Date(2026, 9, 14, 11, 0, 0, 0, loc)},
+	})
+	m = keys(t, m, "4", "h", "space") // the week of 21 Sep
+	s := screen(m)
+	for _, want := range []string{"Week 39 · 21–27 Sep 2026", "3 tasks on 2 days", "Mon 21 Sep", "09:30  first", "11:00  second[31m", "Tue 22 Sep", "16:05  write the report  · from Weekly sync"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q:\n%s", want, s)
+		}
+	}
+	if strings.Contains(s, "outside") || strings.Contains(s, "\x1b") {
+		t.Errorf("shows what isn't selected, or an escape code:\n%s", s)
+	}
+	if strings.Index(s, "first") > strings.Index(s, "second") || strings.Index(s, "second") > strings.Index(s, "write the") {
+		t.Errorf("not oldest first:\n%s", s)
+	}
+	// The heatmap panel sits under the tasks, along the bottom.
+	if strings.Index(s, "Heatmap") < strings.Index(s, "write the") {
+		t.Errorf("the heatmap should be below the tasks:\n%s", s)
+	}
+}
+
+func TestTasksPanelScrolls(t *testing.T) {
+	m, src := writeModel(t, 130, 24)
+	var recs []write.Archived
+	for i := 0; i < 30; i++ {
+		recs = append(recs, write.Archived{ID: "x", Text: fmt.Sprintf("task number %02d", i), Completed: time.Date(2026, 9, 28, 8, i, 0, 0, loc)})
+	}
+	seedArchive(t, src, recs)
+	m = keys(t, m, "4", "k") // Mon 28 Sep, the day before today
+	if s := screen(m); !strings.Contains(s, "30 tasks") || !strings.Contains(s, "1–") || !strings.Contains(s, "of 31") {
+		t.Fatalf("header and position label:\n%s", s)
+	}
+	// PgDn from the heatmap scrolls the list; the cursor stays.
+	cursor := m.heat.cursor
+	m = keys(t, m, "pgdown")
+	if m.heat.cursor != cursor || m.heat.scroll == 0 {
+		t.Errorf("pgdown: cursor %v→%v, scroll %d", cursor, m.heat.cursor, m.heat.scroll)
+	}
+	// Tab moves into the list; j/k scroll, G and g jump, esc comes back.
+	m = keys(t, m, "tab")
+	if m.focus != focusTasks {
+		t.Fatalf("tab went to focus %v", m.focus)
+	}
+	m = keys(t, m, "G")
+	if s := screen(m); !strings.Contains(s, "task number 29") {
+		t.Errorf("the end of the list isn't shown:\n%s", s)
+	}
+	m = keys(t, m, "g")
+	if m.heat.scroll != 0 {
+		t.Errorf("g left scroll at %d", m.heat.scroll)
+	}
+	m = keys(t, m, "j", "j")
+	if m.heat.scroll != 2 {
+		t.Errorf("scroll = %d, want 2", m.heat.scroll)
+	}
+	m = keys(t, m, "esc")
+	if m.focus != focusHeat {
+		t.Errorf("esc went to focus %v", m.focus)
+	}
+	// Moving the selection starts the list from the top.
+	m = keys(t, m, "pgdown", "j")
+	if m.heat.scroll != 0 {
+		t.Errorf("a new selection kept scroll %d", m.heat.scroll)
+	}
+}
+
+func TestFocusViewDropsTheTasksPanelWhenShort(t *testing.T) {
+	m := heatModel(t, 130, 14) // the body leaves under 5 rows above the heatmap
+	lay := m.focusLayout()
+	if lay.tasksH != 0 || lay.heatH != m.bodyHeight() {
+		t.Errorf("layout = %+v for a body of %d", lay, m.bodyHeight())
+	}
+	if s := screen(m); !strings.Contains(s, "[4] Focus") {
+		t.Errorf("the tabs have to stay with the top panel:\n%s", s)
 	}
 }

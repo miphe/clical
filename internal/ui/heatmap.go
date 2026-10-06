@@ -57,6 +57,7 @@ type heatState struct {
 	cursor, anchor domain.CivilDate // the selection is anchor..cursor
 	unit           heatUnit
 	left           domain.CivilDate // first visible week
+	scroll         int              // first visible line of the tasks list
 }
 
 func isSet(d domain.CivilDate) bool { return d.Year != 0 }

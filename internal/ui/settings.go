@@ -382,7 +382,7 @@ func (m *Model) setWrite(on bool) tea.Cmd {
 	if !on {
 		m.globalFlash = false
 		if m.focus == focusEventWrite || m.focus == focusGlobalWrite {
-			m.focus = focusMain
+			m.focus = m.mainFocus()
 		}
 		m.eventWrite.mode, m.globalWrite.mode = wNormal, wNormal
 		return nil

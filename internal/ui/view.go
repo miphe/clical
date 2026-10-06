@@ -112,7 +112,7 @@ func (m Model) renderMain(width, height int) []string {
 	var right string
 	switch m.view {
 	case viewHeat:
-		content = m.renderHeat(inner, innerH)
+		return m.renderFocus(width, height, tabs)
 	case viewWeek:
 		content = m.renderWeek(inner, innerH)
 		right = m.weekSpan()
@@ -409,9 +409,11 @@ func (m Model) footerHints() []footHint {
 		}
 		view = append(view, h("j/k", "move", prioLow), h("space", "show/hide", prioHigh), h("enter", "fold", prioLow),
 			h("a", "add", prioHigh), h("n", "rename", prioMid), h("d", "remove", prioMid), h("c", "collapse", prioLow))
+	case m.focus == focusTasks:
+		view = []footHint{h("j/k", "scroll", prioHigh), h("pgup/pgdn", "page", prioMid), h("esc", "back", prioMid)}
 	case m.view == viewHeat:
 		view = []footHint{h("h/l", "week", prioMid), h("j/k", "day", prioMid), h("shift", "extend", prioHigh),
-			h("space", "day/week/month", prioHigh), h("t", "today", prioMid)}
+			h("space", "day/week/month", prioHigh), h("pgup/pgdn", "scroll tasks", prioLow), h("t", "today", prioMid)}
 	case m.view == viewWeek:
 		view = []footHint{h("h/l", "day", prioMid), h("j/k", "move", prioLow), h("enter", "details", prioHigh),
 			h("[/]", "week", prioMid), h("t", "today", prioMid), h("/", "filter", prioMid)}

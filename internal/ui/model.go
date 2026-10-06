@@ -60,6 +60,8 @@ const (
 	focusSidebar
 	focusEventWrite  // the event's Write panel, in the event view
 	focusGlobalWrite // the global Write panel
+	focusHeat        // the focus view's heatmap
+	focusTasks       // the focus view's completed tasks
 )
 
 type viewKind int
@@ -600,8 +602,13 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.detail != nil {
 		return m.handleDetailKey(msg)
 	}
-	if m.view == viewHeat && m.focus == focusMain {
+	if m.view == viewHeat && m.focus == focusHeat {
 		if next, cmd, ok := m.handleHeatKey(msg); ok {
+			return next, cmd
+		}
+	}
+	if m.view == viewHeat && m.focus == focusTasks {
+		if next, cmd, ok := m.handleTasksKey(msg); ok {
 			return next, cmd
 		}
 	}
@@ -631,7 +638,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, m.keys.SwitchPane):
 		if m.focus == focusSidebar {
-			m.focus = focusMain
+			m.focus = m.mainFocus()
 		} else {
 			m.focus = focusSidebar
 			m.ensureSidebarSelection()
@@ -661,6 +668,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // place in time.
 func (m Model) switchView(to viewKind) (tea.Model, tea.Cmd) {
 	m.focus = focusMain
+	if to == viewHeat {
+		m.focus = focusHeat
+	}
 	if to == m.view {
 		return m, nil
 	}

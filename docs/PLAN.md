@@ -44,7 +44,7 @@ multi-account merge → config/themes → in-process background polling.
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
 | M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
 | — | Release pipeline: GoReleaser, GitHub releases, PolyForm Noncommercial license | `.goreleaser.yaml`, `LICENSE.md` | Done (v0.0.1) |
-| M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | In progress (M14a–b done) |
+| M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | In progress (M14a–c done) |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -1212,7 +1212,7 @@ The main panel is split in three:
 |---|---|
 | M14a (done) | `CompletionsByDay`, `app.WriteArchived`, tests |
 | M14b (done) | Heatmap grid, levels, selection and keys, golden snapshots. Also a first `4` view with the heatmap alone, so it can be tried before the other panels exist. A fourth tab costs the week and month views their date span in the top edge below about 110 columns. |
-| M14c | Tasks panel |
+| M14c (done) | Tasks panel above the heatmap, which is now its own panel along the bottom. The view tabs sit in the tasks panel's top edge (in the heatmap's when the window is too short for the tasks panel). `tab` cycles list, heatmap, tasks, global Write. |
 | M14d | Slim agenda reuse, wide and stacked layouts, focus order |
 | M14e | `?` help and footer, README (the `4` view only), this plan's status |
 

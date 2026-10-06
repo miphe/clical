@@ -56,7 +56,7 @@ func (m Model) heatLoaded(msg heatLoadedMsg) Model {
 // showHeat switches to the focus view with day under the cursor.
 func (m Model) showHeat(day domain.CivilDate) (tea.Model, tea.Cmd) {
 	m.view = viewHeat
-	m.focus = focusMain
+	m.focus = focusHeat
 	m.heat = m.heat.goTo(day, m.today())
 	return m.heatFit(), m.loadHeat()
 }
@@ -84,6 +84,40 @@ func (m Model) heatCellsWidth() int {
 	return m.mainWidth() - 2 - heatLabelW
 }
 
+// mainFocus is the panel focus returns to after a side panel: the view's main
+// one.
+func (m Model) mainFocus() focus {
+	if m.view == viewHeat {
+		return focusHeat
+	}
+	return focusMain
+}
+
+// handleTasksKey scrolls the completed-tasks list while it has focus.
+func (m Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
+	_, room := m.tasksView()
+	page := max(room-1, 1)
+	switch msg.String() {
+	case "j", "down":
+		return m.scrollTasks(1), nil, true
+	case "k", "up":
+		return m.scrollTasks(-1), nil, true
+	case "pgdown", "space":
+		return m.scrollTasks(page), nil, true
+	case "pgup":
+		return m.scrollTasks(-page), nil, true
+	case "g", "home":
+		m.heat.scroll = 0
+		return m, nil, true
+	case "G", "end":
+		return m.scrollTasks(1 << 20), nil, true
+	case "esc":
+		m.focus = focusHeat
+		return m, nil, true
+	}
+	return m, nil, false
+}
+
 // handleHeatKey moves the heatmap's cursor. It reports false for keys that
 // aren't the heatmap's, which then work as everywhere.
 func (m Model) handleHeatKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
@@ -108,17 +142,27 @@ func (m Model) handleHeatKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		dir, extend = heatRight, true
 	case "space":
 		m.heat = m.heat.cycleUnit()
+		m.heat.scroll = 0
 		return m.heatFit(), nil, true
 	case "t":
 		m.heat = m.heat.goTo(m.today(), m.today())
+		m.heat.scroll = 0
 		return m.heatFit(), nil, true
 	case "esc":
 		h, ok := m.heat.collapse()
 		m.heat = h
+		m.heat.scroll = 0
 		return m.heatFit(), nil, ok
+	case "pgdown":
+		_, room := m.tasksView()
+		return m.scrollTasks(max(room-1, 1)), nil, true
+	case "pgup":
+		_, room := m.tasksView()
+		return m.scrollTasks(-max(room-1, 1)), nil, true
 	default:
 		return m, nil, false
 	}
 	m.heat = m.heat.move(dir, extend, m.today())
+	m.heat.scroll = 0
 	return m.heatFit(), nil, true
 }

@@ -130,7 +130,7 @@ func (m Model) handleSidebarKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.sidebarCollapsed = !m.sidebarCollapsed
 		m.ensureSidebarSelection()
 	case key.Matches(msg, m.keys.Back):
-		m.focus = focusMain
+		m.focus = m.mainFocus()
 	case msg.String() == "s":
 		if acct, ok := m.selectedGoogleAccount(); ok {
 			return m.startGoogleFlow(acct.Label)
