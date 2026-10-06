@@ -32,7 +32,7 @@ func helpSections() []helpSection {
 			{"r", "Sync now (also in the background)"},
 			{"a", "Add a calendar: iCal link or Google"},
 			{"/", "Filter events by title or location"},
-			{"w  W", "Write: focus a panel; show or hide the global one"},
+			{"w  W", "Write: the event's panel; the global panel (show, hide)"},
 			{"S  ,", "Settings: clock, week, sync, pulse"},
 			{"?", "This help"},
 			{"q  ctrl+c", "Quit"},
@@ -86,7 +86,7 @@ func helpSections() []helpSection {
 			{"esc  q", "Close"},
 		}},
 		{"Write", []helpEntry{
-			{"w", "Event Write panel (event view), else the global one"},
+			{"w", "The event's Write panel (event view only)"},
 			{"W", "Show the global Write panel, or collapse it"},
 			{"j k  g G", "Move"},
 			{"a  A", "Add a TODO, a note; enter adds the next"},

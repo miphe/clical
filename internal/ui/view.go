@@ -338,7 +338,7 @@ func (m Model) shownHints() []footHint {
 	}
 	var out []footHint
 	for _, h := range hints {
-		if h.key != "w" || h.desc != "write" {
+		if h.desc != "write" {
 			out = append(out, h)
 		}
 	}
@@ -409,7 +409,7 @@ func (m Model) footerHints() []footHint {
 		view = []footHint{h("j/k", "move", prioLow), h("enter", "details", prioHigh), h("[/]", "day", prioMid), h("t", "today", prioMid),
 			h("/", "filter", prioMid)}
 	}
-	view = append(view, h("w", "write", prioMid), h("r", "sync", prioLow), h("S", "settings", prioLow), h("q", "quit", prioMid), help)
+	view = append(view, h("W", "write", prioMid), h("r", "sync", prioLow), h("S", "settings", prioLow), h("q", "quit", prioMid), help)
 	view[0].newGroup = true
 	return append(hints, view...)
 }

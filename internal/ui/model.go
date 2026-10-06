@@ -576,7 +576,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	switch msg.String() {
 	case "w":
-		if m.writeOn {
+		// Only the event's Write panel; the global one is W.
+		if m.writeOn && m.detail != nil {
 			return m.focusEventPanel()
 		}
 	case "W":

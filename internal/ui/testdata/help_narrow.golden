@@ -7,7 +7,7 @@
 │ r                 Sync now (also in the background)      │
 │ a                 Add a calendar: iCal link or Google    │
 │ /                 Filter events by title or location     │
-│ w  W              Write: focus a panel; show or hide the…│
+│ w  W              Write: the event's panel; the global p…│
 │ S  ,              Settings: clock, week, sync, pulse     │
 │ ?                 This help                              │
 │ q  ctrl+c         Quit                                   │

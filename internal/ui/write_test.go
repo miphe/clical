@@ -128,6 +128,19 @@ func TestEventViewHasDetailsAndWritePanels(t *testing.T) {
 	}
 }
 
+func TestLowerWOnlyFocusesTheEventsWritePanel(t *testing.T) {
+	m, _ := writeModel(t, 130, 34)
+	before := m
+	m = keys(t, m, "w")
+	if m.focus != before.focus || m.globalOpen != before.globalOpen {
+		t.Fatalf("w outside the event view changed focus or the global panel: focus %v, open %v", m.focus, m.globalOpen)
+	}
+	m = keys(t, m, "W")
+	if m.focus != focusGlobalWrite || !m.globalOpen {
+		t.Fatal("W didn't open and focus the global panel")
+	}
+}
+
 func TestAddTodosAndNotesWhileViewingAnEvent(t *testing.T) {
 	m, src := writeModel(t, 130, 34)
 	m, scope := openEvent(t, m)

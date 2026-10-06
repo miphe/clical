@@ -217,7 +217,7 @@ func (m Model) updateList(p writePanel, fn func(l *write.List) error) tea.Cmd {
 
 func (m Model) focusEventPanel() (tea.Model, tea.Cmd) {
 	if m.detail == nil {
-		return m.toggleGlobal(true)
+		return m, nil
 	}
 	m.focus = focusEventWrite
 	return m, nil
