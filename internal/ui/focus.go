@@ -64,7 +64,7 @@ func (m Model) showHeat(day domain.CivilDate) (tea.Model, tea.Cmd) {
 // heatFit scrolls the heatmap so the cursor is in view.
 func (m Model) heatFit() Model {
 	_, hi := m.heat.bounds(m.today())
-	m.heat.left = m.heat.viewLeft(m.heatCellsWidth(), m.weekStart, hi)
+	m.heat.left = m.heat.viewLeft(m.heatCellsWidth(), hi)
 	return m
 }
 

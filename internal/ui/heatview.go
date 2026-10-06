@@ -31,13 +31,13 @@ func (m Model) renderHeat(width, height int) []string {
 	h := m.heat
 	_, hi := h.bounds(m.today())
 	cellsW := width - heatLabelW
-	cols := heatColumns(h.viewLeft(cellsW, m.weekStart, hi), weekFloor(hi, m.weekStart), cellsW)
+	cols := heatColumns(h.viewLeft(cellsW, hi), weekFloor(hi, heatStart), cellsW)
 	selLo, selHi := h.span(m.weekStart)
 
 	lines := make([]string, 0, height)
 	for r := 0; r < heatRows; r++ {
 		var b strings.Builder
-		b.WriteString(mutedStyle.Render(weekdayLetter((m.weekStart+time.Weekday(r))%7) + " "))
+		b.WriteString(mutedStyle.Render(weekdayLetter(time.Weekday(r)) + " "))
 		for _, c := range cols {
 			if c.gap {
 				b.WriteString(" ")
@@ -52,28 +52,26 @@ func (m Model) renderHeat(width, height int) []string {
 	return padLines(lines, height, width)
 }
 
-// heatCell is one day, two columns wide: a square or a dot, or the
-// selection's mark over it. Days after the last one are blank.
+// heatCell is one day, two columns wide: a square or a dot. A selected day
+// keeps its color and intensity and shows a dot inside its square instead;
+// the cursor's day is also underlined. Days after the last one are blank.
 func (m Model) heatCell(d, hi, selLo, selHi domain.CivilDate) string {
 	if hi.Before(d) {
 		return strings.Repeat(" ", heatCellW)
 	}
 	level := heatLevel(len(m.heat.days[d]), m.heat.cut)
-	cell := heatDone + " "
+	glyph := heatDone
 	if level == 0 {
-		cell = heatNone + " "
+		glyph = heatNone
 	}
-	sel, cursor := selectedStyle, selectedStyle.Bold(true).Underline(true)
-	if m.focus != focusHeat {
-		sel, cursor = inactiveSelStyle, inactiveSelStyle.Bold(true)
+	style := heatStyles[level]
+	if !d.Before(selLo) && !selHi.Before(d) {
+		glyph = heatSel
 	}
-	switch {
-	case d == m.heat.cursor:
-		return cursor.Render(cell)
-	case !d.Before(selLo) && !selHi.Before(d):
-		return sel.Render(cell)
+	if d == m.heat.cursor {
+		style = style.Underline(true)
 	}
-	return heatStyles[level].Render(cell)
+	return style.Render(glyph + " ")
 }
 
 func plural(n int, one, many string) string {

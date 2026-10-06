@@ -1152,17 +1152,22 @@ The main panel is split in three:
   archive day. A checked task that isn't archived yet is not counted. The
   bucket is the day in the record's own UTC offset (`Archived.Completed` keeps
   the offset it was checked in), as decided for M13.
-- **Heatmap shape:** weeks are columns, weekdays rows, starting on
-  `week_start`. A cell is two columns wide; a blank column separates months
-  (no month labels). Weekday letters on the left (`M T W T F S S`, in the
-  `week_start` order). Today is the last cell; later days are blank. It shows
-  as many recent weeks as fit and scrolls back without a limit (to the
-  earliest task).
+- **Heatmap shape:** weeks are columns, and the rows are always Sunday on top
+  to Saturday at the bottom, whatever `week_start` says, so the working days
+  (where the activity is) sit in the middle rows. The setting still decides
+  what a selected "week" is, so a Monday-first week spans two columns. A cell
+  is two columns wide; a blank column separates months (no month labels).
+  Weekday letters on the left (`S M T W T F S`). Today is the last cell; later
+  days are blank. It shows as many recent weeks as fit and scrolls back.
+- **Empty days can be selected.** The cursor moves through every day, a year
+  and a week back from today (or to the oldest task, if older), so the whole
+  year can be walked with the arrow keys.
 - **Flat and one hue.** A day with tasks is a solid square (`■`), a day
   without is a dot, and the only color is the accent. Intensity is a text
   attribute (faint, plain, bold), not shade glyphs or backgrounds, so it holds
   under `NO_COLOR`. Three steps, from the terciles of the busy days' task
-  counts. (Four shade glyphs, `░▒▓█`, were tried and looked like a shadow.)
+  counts. A selected day keeps its color and intensity and shows `▣` (a square
+  with a dot) instead; the cursor's day is also underlined. No inverse video. (Four shade glyphs, `░▒▓█`, were tried and looked like a shadow.)
 - **Selection** is a range of days, always at least the cursor's day, and
   works like selecting in an OS list:
   - `j`/`k`/↓/↑ move a day (wrapping into the next or previous week),
@@ -1177,12 +1182,15 @@ The main panel is split in three:
   - There is no "enter": the tasks panel **always shows the selection**.
     `pgup`/`pgdn` scroll it from the heatmap; `tab` moves focus into it for
     `j`/`k`, and `esc` comes back.
-- **Tasks panel:** read-only. A header with the selection ("Week 23 ·
-  1–7 Jun 2026 · 14 tasks"), then days oldest first and tasks within a day by
-  completion time, so the newest is last, like a log: time, text, and "from Weekly sync" when it has an origin.
-  Text goes through `domain.SafeText`. Empty states: "No tasks completed on
-  these days" and, with an empty archive, a hint to press `z` in a Write
-  panel. Unarchive from here is out of scope.
+- **Tasks panel:** read-only. Days oldest first and tasks within a day by
+  completion time, so the newest is last, like a log: each day with tasks has
+  one label ("Mon 21 Sep 2026"), then its tasks as time, text, and "from
+  Weekly sync" when it has an origin. Days without tasks get no label. A
+  selection of several days has a header above ("Week 39 · 21–27 Sep 2026 ·
+  6 tasks on 4 days"); a single day has none, as its label names it. Text goes
+  through `domain.SafeText`. Empty states: "No tasks completed on Mon 21 Sep
+  2026." and, with an empty archive, a hint to press `z` in a Write panel.
+  Unarchive from here is out of scope.
 - **Narrow terminals:** first the calendar list collapses (as it already does
   below `narrowWidth`). If the main panel is still too narrow for the agenda
   beside the tasks, the three stack: agenda on top, tasks, heatmap at the

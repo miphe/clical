@@ -77,10 +77,10 @@ func TestFocusViewWithNoArchive(t *testing.T) {
 	if !strings.Contains(s, "[4] Focus") || !strings.Contains(s, "No archived tasks yet") {
 		t.Errorf("empty archive:\n%s", s)
 	}
-	// Still moves, and stays on today (nothing earlier to go to).
+	// Empty days can be walked through: a week back and a day up.
 	m = keys(t, m, "h", "k")
-	if m.heat.cursor != m.today() {
-		t.Errorf("cursor = %v, want today", m.heat.cursor)
+	if want := m.today().AddDays(-8); m.heat.cursor != want {
+		t.Errorf("cursor = %v, want %v", m.heat.cursor, want)
 	}
 }
 
@@ -96,11 +96,13 @@ func TestHeatCountsTasksOnTheirCompletionDay(t *testing.T) {
 	if m.heat.cursor != domain.NewCivilDate(2026, 9, 20) {
 		t.Fatalf("cursor = %v", m.heat.cursor)
 	}
-	if s := screen(m); !strings.Contains(s, "Sun 20 Sep 2026") || !strings.Contains(s, "3 tasks") {
+	s := screen(m)
+	// One label for the day, then its three tasks.
+	if strings.Count(s, "Sun 20 Sep") != 1 || !strings.Contains(s, "09:00  one") || !strings.Contains(s, "22:00  two") || !strings.Contains(s, "23:00  three") {
 		t.Errorf("the 20th:\n%s", s)
 	}
 	m = keys(t, m, "j") // Mon 21: archive day of two of them, no completions
-	if s := screen(m); !strings.Contains(s, "Mon 21 Sep 2026") || !strings.Contains(s, "No tasks completed on this day.") {
+	if s := screen(m); !strings.Contains(s, "No tasks completed on Mon 21 Sep 2026.") || strings.Contains(s, "three") {
 		t.Errorf("the 21st:\n%s", s)
 	}
 }
@@ -194,13 +196,13 @@ func TestHeatReloadsWhenTheArchiveChanges(t *testing.T) {
 	m, src := writeModel(t, 100, 24)
 	seedArchive(t, src, []write.Archived{done("a", "one", 2026, 9, 29, 9)})
 	m = keys(t, m, "4")
-	if s := screen(m); !strings.Contains(s, "1 task") {
+	if s := screen(m); !strings.Contains(s, "09:00  one") || strings.Contains(s, "two") {
 		t.Fatalf("one task:\n%s", s)
 	}
 	seedArchive(t, src, []write.Archived{done("a", "one", 2026, 9, 29, 9), done("b", "two", 2026, 9, 29, 10)})
 	m, cmd := send(t, m, tickMsg(m.now.Add(30*time.Second)))
 	m, _ = run(t, m, cmd)
-	if s := screen(m); !strings.Contains(s, "2 tasks") {
+	if s := screen(m); !strings.Contains(s, "10:00  two") {
 		t.Errorf("after the tick:\n%s", s)
 	}
 }
@@ -272,9 +274,9 @@ func TestTasksPanelScrolls(t *testing.T) {
 		recs = append(recs, write.Archived{ID: "x", Text: fmt.Sprintf("task number %02d", i), Completed: time.Date(2026, 9, 28, 8, i, 0, 0, loc)})
 	}
 	seedArchive(t, src, recs)
-	m = keys(t, m, "4", "k") // Mon 28 Sep, the day before today
-	if s := screen(m); !strings.Contains(s, "30 tasks") || !strings.Contains(s, "1–") || !strings.Contains(s, "of 31") {
-		t.Fatalf("header and position label:\n%s", s)
+	m = keys(t, m, "4", "k")                                                         // Mon 28 Sep, the day before today
+	if s := screen(m); !strings.Contains(s, "1–") || !strings.Contains(s, "of 31") { // the day's label and 30 tasks
+		t.Fatalf("position label:\n%s", s)
 	}
 	// PgDn from the heatmap scrolls the list; the cursor stays.
 	cursor := m.heat.cursor
@@ -318,5 +320,65 @@ func TestFocusViewDropsTheTasksPanelWhenShort(t *testing.T) {
 	}
 	if s := screen(m); !strings.Contains(s, "[4] Focus") {
 		t.Errorf("the tabs have to stay with the top panel:\n%s", s)
+	}
+}
+
+func TestHeatmapRowsAreSundayToSaturday(t *testing.T) {
+	m := heatModel(t, 130, 24)
+	var letters []string
+	for _, l := range strings.Split(screen(m), "\n") {
+		if i := strings.Index(l, "││"); i >= 0 && len(l) > i+5 && strings.ContainsAny(l[i+len("││"):i+len("││")+1], "SMTWF") && l[i+len("││")+1] == ' ' {
+			letters = append(letters, l[i+len("││"):i+len("││")+1])
+		}
+	}
+	if got := strings.Join(letters, ""); !strings.HasSuffix(got, "SMTWTFS") {
+		t.Errorf("row labels = %q, want S M T W T F S top to bottom", got)
+	}
+	// A Monday-first setting changes what a week selection is, not the rows.
+	m.weekStart = time.Monday
+	m = keys(t, m, "t", "space") // the week of Mon 28 Sep: Mon–Sat in one column, Sun 4 Oct is in the future
+	lo, hi := m.heat.span(m.weekStart)
+	if lo != domain.NewCivilDate(2026, 9, 28) || hi != domain.NewCivilDate(2026, 10, 4) {
+		t.Errorf("span = %v–%v", lo, hi)
+	}
+}
+
+func TestSelectedDaysKeepTheirColor(t *testing.T) {
+	m := heatModel(t, 130, 24)
+	m = keys(t, m, "h", "k", "K", "K") // a week back, then three days selected
+	heat := strings.Join(m.renderHeat(m.mainWidth()-2, heatRows), "\n")
+	lo, hi := m.heat.span(m.weekStart)
+	if want := 3; hi != lo.AddDays(want-1) || strings.Count(ansi.Strip(heat), heatSel) != want {
+		t.Errorf("selected cells = %d, want %d (%v–%v)", strings.Count(ansi.Strip(heat), heatSel), want, lo, hi)
+	}
+	var buf bytes.Buffer
+	w := &colorprofile.Writer{Forward: &buf, Profile: colorprofile.Env([]string{"TERM=xterm-256color"})}
+	if _, err := w.WriteString(heat); err != nil {
+		t.Fatal(err)
+	}
+	for _, params := range sgrParams(buf.String()) {
+		for _, p := range params {
+			if p == 7 || (p >= 40 && p <= 47) {
+				t.Errorf("a selected day is inverted or on a background: %v", params)
+			}
+		}
+	}
+	// The cursor's day is the underlined one.
+	if !strings.Contains(buf.String(), ";4m") && !strings.Contains(buf.String(), "[4m") {
+		t.Error("no underline for the cursor")
+	}
+}
+
+func TestSingleDayHasNoHeader(t *testing.T) {
+	m, src := writeModel(t, 130, 24)
+	seedArchive(t, src, []write.Archived{done("a", "one", 2026, 9, 28, 9)})
+	m = keys(t, m, "4", "k") // Mon 28 Sep
+	s := screen(m)
+	if strings.Count(s, "28 Sep") != 1 {
+		t.Errorf("the day is named once:\n%s", s)
+	}
+	m = keys(t, m, "J") // 28–29 Sep
+	if s = screen(m); !strings.Contains(s, "28–29 Sep 2026") || !strings.Contains(s, "Mon 28 Sep 2026") {
+		t.Errorf("a range has its header and the day's label:\n%s", s)
 	}
 }

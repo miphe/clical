@@ -43,22 +43,38 @@ func (m Model) renderFocus(width, height int, tabs []tab) []string {
 	return padLines(out, height, width)
 }
 
-// tasksView is the room for the task lines: inside the border, under the
-// header and its blank line.
+// tasksView is the room for the task lines: inside the border, and under the
+// header and its blank line when the selection has one.
 func (m Model) tasksView() (width, height int) {
-	return m.mainWidth() - 2, m.focusLayout().tasksH - 4
+	height = m.focusLayout().tasksH - 2
+	if m.heatHasHeader() {
+		height -= 2
+	}
+	return m.mainWidth() - 2, height
+}
+
+// heatHasHeader reports whether the selection is named above the list: only
+// when it is more than one day, since a single day is named by its own label.
+func (m Model) heatHasHeader() bool {
+	lo, hi := m.heat.span(m.weekStart)
+	return lo != hi
 }
 
 // renderTasks draws the completed-tasks panel.
 func (m Model) renderTasks(width, height int, tabs []tab) []string {
 	inner := width - 2
 	lo, hi := m.heat.span(m.weekStart)
-	content := []string{fit(m.heatHeader(lo, hi), inner), ""}
+	var content []string
+	room := height - 2
+	if m.heatHasHeader() {
+		content = []string{fit(m.heatHeader(lo, hi), inner), ""}
+		room -= 2
+	}
 	var bottom string
 	if lines, msg := m.heatTaskLines(inner); msg != "" {
 		content = append(content, mutedStyle.Render(msg))
 	} else {
-		room := max(height-4, 1)
+		room = max(room, 1)
 		start := min(max(m.heat.scroll, 0), max(len(lines)-room, 0))
 		end := min(start+room, len(lines))
 		content = append(content, lines[start:end]...)
@@ -69,7 +85,7 @@ func (m Model) renderTasks(width, height int, tabs []tab) []string {
 	return panel(width, height, frame{focused: m.focus == focusTasks, tabs: tabs, bottom: bottom}, content)
 }
 
-// heatHeader names the selection and how much was done in it.
+// heatHeader names a selection of several days and how much was done in it.
 func (m Model) heatHeader(lo, hi domain.CivilDate) string {
 	title := boldStyle.Render(m.heatTitle(lo, hi))
 	if !m.heat.loaded || m.heat.err != nil || len(m.heat.days) == 0 {
@@ -125,7 +141,7 @@ func (m Model) heatTaskLines(width int) ([]string, string) {
 		if len(lines) > 0 {
 			lines = append(lines, "")
 		}
-		lines = append(lines, fit(boldStyle.Render(d.In(m.loc).Format("Mon 2 Jan")), width))
+		lines = append(lines, fit(boldStyle.Render(d.In(m.loc).Format("Mon 2 Jan 2006")), width))
 		for _, a := range tasks {
 			line := "  " + mutedStyle.Render(fit(m.clock.Time(a.Completed), timeW)) + "  " + domain.SafeText(oneLine(a.Text))
 			if from := domain.SafeText(oneLine(a.Origin.Title)); from != "" {
@@ -136,7 +152,7 @@ func (m Model) heatTaskLines(width int) ([]string, string) {
 	}
 	if len(lines) == 0 {
 		if lo == hi {
-			return nil, "No tasks completed on this day."
+			return nil, "No tasks completed on " + lo.In(m.loc).Format("Mon 2 Jan 2006") + "."
 		}
 		return nil, "No tasks completed on these days."
 	}

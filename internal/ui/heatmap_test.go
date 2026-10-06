@@ -64,8 +64,8 @@ func TestHeatLevels(t *testing.T) {
 }
 
 func TestHeatColumnsSeparateMonths(t *testing.T) {
-	last := cd(2026, 10, 5) // a Monday
-	left := cd(2026, 9, 14)
+	last := cd(2026, 10, 4) // a Sunday: columns are Sunday-first weeks
+	left := cd(2026, 9, 13)
 	cols := heatColumns(left, last, 100)
 	var starts []string
 	var gaps []bool
@@ -73,8 +73,8 @@ func TestHeatColumnsSeparateMonths(t *testing.T) {
 		starts = append(starts, c.start.String())
 		gaps = append(gaps, c.gap)
 	}
-	// 14, 21, 28 Sep; then 5 Oct starts October: a blank column before it.
-	if len(cols) != 4 || cols[3].start != last || starts[0] != "2026-09-14" {
+	// 13, 20, 27 Sep; then 4 Oct starts October: a blank column before it.
+	if len(cols) != 4 || cols[3].start != last || starts[0] != "2026-09-13" {
 		t.Fatalf("columns = %v", starts)
 	}
 	if want := []bool{false, false, false, true}; gaps[0] != want[0] || gaps[1] != want[1] || gaps[2] != want[2] || gaps[3] != want[3] {
@@ -91,7 +91,7 @@ func TestHeatColumnsSeparateMonths(t *testing.T) {
 }
 
 func TestHeatLeftForFillsTheWindow(t *testing.T) {
-	last := cd(2026, 9, 28)
+	last := cd(2026, 9, 27)
 	for _, width := range []int{2, 6, 21, 40, 119} {
 		left := heatLeftFor(last, width)
 		cols := heatColumns(left, last, width)
@@ -107,38 +107,37 @@ func TestHeatLeftForFillsTheWindow(t *testing.T) {
 }
 
 func TestViewLeftKeepsTheCursorOnScreen(t *testing.T) {
-	today := cd(2026, 9, 29)
+	today := cd(2026, 9, 29) // Tue; its Sunday-first week starts 27 Sep
 	hi := today
-	ws := time.Monday
 	width := 20
 	h := heatState{loaded: true, cursor: today}
 
-	left := h.viewLeft(width, ws, hi)
-	if cols := heatColumns(left, weekFloor(hi, ws), width); cols[len(cols)-1].start != weekFloor(today, ws) {
+	left := h.viewLeft(width, hi)
+	if cols := heatColumns(left, weekFloor(hi, heatStart), width); cols[len(cols)-1].start != cd(2026, 9, 27) {
 		t.Fatal("not pinned to the newest week")
 	}
 
 	// Scroll back far: the window moves just enough, cursor at the left edge.
-	h.cursor = cd(2026, 3, 2)
+	h.cursor = cd(2026, 3, 2) // its week starts Sun 1 Mar
 	h.left = left
-	left2 := h.viewLeft(width, ws, hi)
-	if left2 != cd(2026, 3, 2) {
+	left2 := h.viewLeft(width, hi)
+	if left2 != cd(2026, 3, 1) {
 		t.Errorf("left = %v, want the cursor's week", left2)
 	}
 
 	// Moving forward again shows the cursor at the right edge, not the left.
 	h.left = left2
-	h.cursor = cd(2026, 6, 1)
-	left3 := h.viewLeft(width, ws, hi)
-	cols := heatColumns(left3, weekFloor(hi, ws), width)
-	if cols[len(cols)-1].start != cd(2026, 6, 1) {
+	h.cursor = cd(2026, 6, 1) // week of Sun 31 May
+	left3 := h.viewLeft(width, hi)
+	cols := heatColumns(left3, weekFloor(hi, heatStart), width)
+	if cols[len(cols)-1].start != cd(2026, 5, 31) {
 		t.Errorf("cursor week isn't the rightmost: left %v", left3)
 	}
 
 	// Back at the newest week it pins again.
 	h.left = left3
 	h.cursor = today
-	if got := h.viewLeft(width, ws, hi); got != left {
+	if got := h.viewLeft(width, hi); got != left {
 		t.Errorf("left = %v, want %v", got, left)
 	}
 }
@@ -184,18 +183,26 @@ func TestHeatMoveAndExtend(t *testing.T) {
 	}
 }
 
-func TestHeatCannotGoBeforeTheFirstTask(t *testing.T) {
+func TestHeatCursorCrossesEmptyDaysForAYear(t *testing.T) {
 	today := cd(2026, 9, 29)
 	h := heatState{cursor: today, anchor: today}.withData(daysWith(map[domain.CivilDate]int{cd(2026, 9, 10): 2}), time.Time{})
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 80; i++ {
 		h = h.move(heatLeft, false, today)
 	}
-	if h.cursor != cd(2026, 9, 10) {
-		t.Errorf("cursor = %v, want the first task's day", h.cursor)
+	if want := today.AddDays(-heatReach); h.cursor != want {
+		t.Errorf("cursor = %v, want a year and a week back, %v", h.cursor, want)
+	}
+	// Older tasks extend the reach.
+	old := heatState{cursor: today, anchor: today}.withData(daysWith(map[domain.CivilDate]int{cd(2024, 5, 1): 1}), time.Time{})
+	for i := 0; i < 200; i++ {
+		old = old.move(heatLeft, false, today)
+	}
+	if old.cursor != cd(2024, 5, 1) {
+		t.Errorf("cursor = %v, want the oldest task's day", old.cursor)
 	}
 	// Before the data arrives, any past day is fine.
-	pre := heatState{}.goTo(cd(2026, 1, 1), today)
-	if pre.cursor != cd(2026, 1, 1) {
+	pre := heatState{}.goTo(cd(2020, 1, 1), today)
+	if pre.cursor != cd(2020, 1, 1) {
 		t.Errorf("before load: %v", pre.cursor)
 	}
 }
@@ -261,10 +268,10 @@ func TestHeatUnits(t *testing.T) {
 
 func TestWeekdayLetters(t *testing.T) {
 	var got string
-	for d := time.Monday; len(got) < 7; d = (d + 1) % 7 {
-		got += weekdayLetter(d)
+	for r := 0; r < heatRows; r++ {
+		got += weekdayLetter(time.Weekday(r))
 	}
-	if got != "MTWTFSS" {
+	if got != "SMTWTFS" { // Sunday on top, Saturday at the bottom
 		t.Errorf("letters = %q", got)
 	}
 }

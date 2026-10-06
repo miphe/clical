@@ -34,6 +34,16 @@ const (
 	heatCellW  = 2 // columns per day
 	heatLabelW = 2 // the weekday letter and a space
 	heatRows   = 7
+
+	// heatStart is the heatmap's first row, whatever the week-start setting:
+	// Sunday on top and Saturday at the bottom keep the working days, where
+	// the activity is, in the middle rows. The setting still decides what a
+	// selected "week" is.
+	heatStart = time.Sunday
+
+	// heatReach is how far back the cursor can go through empty days: a year
+	// and a week, further if there are older tasks.
+	heatReach = 371
 )
 
 // A day with no tasks is a dot; a day with tasks is a flat square whose
@@ -42,6 +52,7 @@ const (
 const (
 	heatNone = "·"
 	heatDone = "■"
+	heatSel  = "▣" // a selected day: the square with a dot in it, in its own color
 )
 
 // heatState is the heatmap's data and where the user is in it.
@@ -138,15 +149,16 @@ func heatLevel(count int, cut [2]int) int {
 	return level
 }
 
-// bounds are the first and last day the cursor can reach: from the earliest
-// task (once known) to today, or to a later task if the clock was ahead.
+// bounds are the first and last day the cursor can reach, empty days
+// included: a year back from today (or to an older task), up to today (or to
+// a later task if the clock was ahead).
 func (h heatState) bounds(today domain.CivilDate) (lo, hi domain.CivilDate) {
 	hi = today
 	if isSet(h.last) {
 		hi = maxDay(hi, h.last)
 	}
 	if h.loaded {
-		lo = today
+		lo = today.AddDays(-heatReach)
 		if isSet(h.first) {
 			lo = minDay(lo, h.first)
 		}
@@ -276,13 +288,13 @@ func heatLeftFor(last domain.CivilDate, width int) domain.CivilDate {
 // viewLeft is the first visible week for a window width columns wide: the
 // stored one, moved just far enough to keep the cursor's week on screen, and
 // pinned to the newest week when the window reaches it.
-func (h heatState) viewLeft(width int, start time.Weekday, hi domain.CivilDate) domain.CivilDate {
-	last := weekFloor(hi, start)
+func (h heatState) viewLeft(width int, hi domain.CivilDate) domain.CivilDate {
+	last := weekFloor(hi, heatStart)
 	left := heatLeftFor(last, width)
 	if isSet(h.left) {
-		left = weekFloor(h.left, start)
+		left = weekFloor(h.left, heatStart)
 	}
-	cw := weekFloor(h.cursor, start)
+	cw := weekFloor(h.cursor, heatStart)
 	cols := heatColumns(left, last, width)
 	switch {
 	case cw.Before(left):
