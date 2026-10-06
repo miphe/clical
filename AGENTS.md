@@ -63,6 +63,16 @@ never touched:
 Google's public US-holidays feed is a safe test URL:
 `https://calendar.google.com/calendar/ical/en.usa%23holiday%40group.v.calendar.google.com/public/basic.ics`
 
+## Releases
+
+- Versions are semver, tagged `vX.Y.Z` (alpha: `v0.0.x`). `.goreleaser.yaml`
+  builds darwin and linux on arm64 and amd64 and sets `main.version` from the
+  tag. The `0.1.0-dev` in `cmd/clical/main.go` is only for local builds.
+- Check with `goreleaser check` and `goreleaser release --snapshot --clean`
+  (nothing is published) before tagging.
+- License: PolyForm Noncommercial 1.0.0 (`LICENSE.md`). Don't add
+  dependencies whose licenses conflict with it.
+
 ## Commits
 
 - Conventional Commits (Commitizen), e.g. `feat: …`, `fix: …`, `docs: …`.

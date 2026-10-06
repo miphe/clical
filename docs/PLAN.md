@@ -42,7 +42,8 @@ multi-account merge → config/themes → in-process background polling.
 | M9 | Settings file: 12/24-hour clock, week start, sync interval | Done |
 | M11 | Dead iCal feeds fixed from the TUI, log file and `clical logs` | Done |
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
-| M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Planned |
+| M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
+| — | Release pipeline: GoReleaser, GitHub releases, PolyForm Noncommercial license | `.goreleaser.yaml`, `LICENSE.md` | v0.0.1 pending |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -1122,7 +1123,7 @@ do both).
 | M10 | In-process polling every 5 min, one schedule for all calendars | `internal/ui/model.go` | Done |
 | M11 | Revoked-feed flow in the TUI, `clical logs`, cross-compile check | `internal/ui/feedurl.go`, `internal/app/log.go`, `cmd/clical/logs.go` | Done |
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
-| M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Planned |
+| M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
 
 ## Verification
 

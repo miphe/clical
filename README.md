@@ -1,271 +1,60 @@
 # CLIcal
 
-Terminal calendar app for macOS and Arch Linux. Read-only in v1: it pulls your
-calendars (e.g. Google Calendar, personal and work) from their secret iCal
-feeds and shows them merged in one agenda/week/month view. Elm-architecture TUI
-(Bubble Tea), pure-Go SQLite cache, age-encrypted secrets.
+A read-only terminal calendar for macOS and Linux. It merges iCal feeds and
+Google accounts into one agenda, week and month view.
 
-## Key decisions
+## Install
 
-Full rationale in [`docs/PLAN.md`](docs/PLAN.md).
+Download the archive for your system from the
+[latest release](https://github.com/miphe/clical/releases), unpack it, and put
+`clical` somewhere on your `PATH`:
 
-- Go, single static binary, darwin+linux only (never Windows).
-- Elm architecture: immutable model, pure `Update`, all I/O as `tea.Cmd`.
-- Integration: iCal secret URLs (no setup), or Google accounts signed in
-  with your own OAuth client (for calendars without a secret address, such
-  as many work accounts).
-- Secrets (feed URLs) live only in an age-encrypted vault, keyed by a
-  passphrase held in memory for the session. No OS keychain.
-- Background sync is in-process polling while the TUI runs — no daemon.
-- All-day events are civil dates (no timezone), never UTC timestamps.
-- Colors come only from your terminal's 16 ANSI colors, so CLIcal follows
-  your terminal theme (including Omarchy themes) with no configuration, and
-  respects `NO_COLOR`.
+```bash
+tar -xzf clical_*_darwin_arm64.tar.gz   # or linux_amd64, and so on
+sudo mv clical /usr/local/bin/
+```
 
-## Adding a calendar
+If macOS refuses to open it because it was downloaded in a browser, run
+`xattr -d com.apple.quarantine /usr/local/bin/clical`.
 
-The easiest way is inside CLIcal: open it with `clical` and press `a`. Fill
-in the account (a group name such as Personal or Work), a name, and the
-secret iCal URL (see step 2 below for where to find it). The URL is masked
-on screen and checked before it's saved. Or use the command line:
+## Use
 
-Until there's a release, run CLIcal from the repo with `go run ./cmd/clical`
-(or `go install ./cmd/clical` to get a `clical` binary on your `PATH`).
+```bash
+clical
+```
 
-For each Google calendar you want in CLIcal:
+On the first run, you choose a passphrase that protects your calendar
+addresses. Press `a` to add a calendar, and `?` to see all keys.
 
-1. Open [Google Calendar](https://calendar.google.com/) → **Settings** → pick
-   the calendar under "Settings for my calendars" → **Integrate calendar**.
-2. Copy **Secret address in iCal format**. Treat it like a password: anyone
-   with it can read the calendar. (If it's missing on a work account, your
-   Workspace admin has disabled it.)
-3. Run:
+- **iCal link:** in Google Calendar, open **Settings**, choose the calendar,
+  and copy **Secret address in iCal format** from **Integrate calendar**.
+  Treat it like a password.
+- **Google account:** create a Desktop OAuth client in the
+  [Google Cloud Console](https://console.cloud.google.com/) with the Google
+  Calendar API enabled, then enter its client ID and secret in CLIcal.
 
-       clical calendars add --account Work --name "Team"
+## Development
 
-   Paste the URL at the hidden prompt, then enter your vault passphrase (the
-   first time, this sets it — remember it). CLIcal fetches the feed once to
-   check it before saving.
+You need Go 1.27 or newer.
 
-4. `clical calendars list` shows what's been added.
+```bash
+git clone https://github.com/miphe/clical.git
+cd clical
+go run ./cmd/clical        # run from source
+go test ./...              # run the tests
+```
 
-## Adding a Google account (e.g. work calendars)
+To keep your real calendars untouched while developing, point
+`XDG_DATA_HOME` at a temporary directory, for example
+`XDG_DATA_HOME=$(mktemp -d) go run ./cmd/clical`.
 
-Use this when a calendar has no "Secret address in iCal format", for example
-because your Workspace admin disabled it. Don't use the _public_ address for
-those: it contains your email address, so anyone can read the calendar.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the code layout and
+[`docs/PLAN.md`](docs/PLAN.md) for design decisions.
 
-Once, in your **personal** Google account
-([Google Cloud Console](https://console.cloud.google.com/)):
+## License
 
-1. Create a project and enable the **Google Calendar API**.
-2. Under _Google Auth Platform_: set the audience to **External**, and add
-   the data-access scope `…/auth/calendar.readonly` (plus `openid`, `email`).
-3. Create an **OAuth client** of type **Desktop app**; note its client ID and
-   secret.
-4. While the app is in **Testing**, add every account you'll sign in with
-   under _Audience → Test users_; sign-ins then expire after 7 days. Press
-   **Publish app** to stop that (the "unverified app" warning on sign-in is
-   expected).
-
-Then in CLIcal, per account: press `a`, choose **Google account**, enter the
-client ID and secret (first time only), sign in in the browser that opens,
-and tick the calendars to show. When a sign-in expires, the account is
-marked ⚠ in the calendar list; select it and press `s`.
-
-If a company's sign-in says access is blocked by the administrator, ask IT
-to trust your OAuth client ID (Admin console → Security → API controls).
-
-## Using it
-
-    clical                 # open the calendar (asks for the passphrase, then syncs)
-
-| Key                        | Action                                                                            |
-| -------------------------- | --------------------------------------------------------------------------------- |
-| `0`                        | Go to the calendar list                                                           |
-| `1` / `2` / `3`            | Go to the main view as agenda / week / month (all stay on the same day)           |
-| `tab`                      | Switch between the calendar list and the main view                                |
-| `j` / `k`, arrows          | Move between events                                                               |
-| `g` / `G`                  | First / last event (of the day, in the week view)                                 |
-| `h` / `l` (week, month)    | Previous / next day (never changes pane)                                          |
-| `j` / `k` (month)          | Previous / next week                                                              |
-| `enter` (month)            | Open the selected day in the agenda                                               |
-| `enter`                    | Event details (`esc` or `q` to close)                                             |
-| `j` / `k`, `1`–`9` (event) | Select a link: its full address is shown at the bottom                            |
-| `enter` (event)            | Open the selected link in your browser                                            |
-| `PgUp` / `PgDn` (event)    | Scroll long notes                                                                 |
-| `[` / `]`                  | Previous / next day in the agenda, week in the week view, month in the month view |
-| `t`                        | Back to today                                                                     |
-| `r`                        | Sync now                                                                          |
-| `a`                        | Add a calendar (iCal link or Google account)                                      |
-| `s` (calendar list)        | Sign a Google account in again (when marked ⚠)                                    |
-| `u` (calendar list)        | Give an iCal calendar its new secret address (when marked ⚠)                      |
-| `n` (calendar list)        | Rename the selected calendar or account (only in CLIcal)                          |
-| `d` (calendar list)        | Remove the selected calendar (asks first)                                         |
-| `space` (calendar list)    | Show or hide a calendar, or all of an account's calendars                         |
-| `enter` (calendar list)    | Fold or unfold an account                                                         |
-| `l` (calendar list)        | Back to the main view (same as `tab`)                                             |
-| `c` (calendar list)        | Collapse or expand the calendar list                                              |
-| `/`                        | Filter events by title or location; `esc` clears                                  |
-| `w`                        | Write: the open event's notes and TODOs, else the global ones                     |
-| `W`                        | Show or collapse the global Write panel                                           |
-| `S` or `,`                 | Settings: time format, week start, sync interval, the event pulse                 |
-| `?`                        | All keys and what the status line shows                                           |
-| `q`                        | Quit                                                                              |
-
-Without the full screen:
-
-    clical sync            # fetch the latest events
-    clical agenda          # print the next 14 days from the local cache
-    clical agenda --days 30
-
-The first time, CLIcal creates the vault and asks for a new passphrase twice.
-It can't be recovered if forgotten; the fix is to delete
-`~/.local/share/clical/vault/` and add your calendars again.
-
-## Managing calendars
-
-    clical calendars list
-    clical calendars rename Main Family # your own name; leave it out to undo
-    clical accounts rename Personal Home
-    clical calendars set-url Main       # after resetting a secret address
-    clical calendars remove Main        # asks y/N; --yes to skip
-
-Calendars are referenced by name, nickname or the ID shown in `list`; add
-`--account Work` if the name exists in more than one account. A rename
-only changes what CLIcal shows: the calendar in Google Calendar, and the
-email address a Google account signs in with, stay as they are. If a secret
-address leaks, use "Reset" next to it in Google Calendar, then
-`clical calendars set-url` with the new one, or press `u` on the calendar in
-the TUI. A calendar whose address stopped working is marked ⚠.
-
-## Write: notes and TODOs
-
-Notes and TODOs, kept globally or on one event. In the TUI the event view is
-split into the event (with its **Description** and links) and its **Write**
-panel; beside the main view there is a global **Write** panel, a thin strip
-until you open it with `W`. Press `w` to move into a panel; in it:
-
-| Key             | Does                                                                      |
-| --------------- | ------------------------------------------------------------------------- |
-| `a` / `A`       | Add a TODO / a note. Stays open for the next one; `esc` ends it           |
-| `e`             | Edit                                                                      |
-| `space`         | Check or uncheck a TODO (the box turns green; it stays where it is)         |
-| `d`             | Delete (asks)                                                             |
-| `m`             | Move a TODO between the event and the global list                         |
-| `z` / `Z`       | Archive a checked TODO / every checked TODO in the panel (end of the day) |
-| `tab`           | Next panel: list, view, global Write (and in the event view: event, its Write, global) |
-| `esc`           | Back to the event                                                         |
-
-The selected item is marked with a `›`. A moved TODO keeps where it began
-("from Weekly sync"). The Write panel takes about 40% of the event view's width
-(34–60 columns), and grows up to twice that on a wide terminal once the event
-details have their room. With the global panel open too, both are visible
-together: press `W` in the event view. When a collapsed
-global panel changes (you moved something into it, or `clical write` did) its
-border flashes once; the settings screen can turn that off. The keys that work in
-every pane (`0`–`3`, `r`, `t`, `/`) work in the global panel too, except in the
-event view. Anything you type is text, so `q`, `?` and the rest don't act while you're adding or editing.
-The panels pick up changes made to the files elsewhere within half a minute.
-There is no archive view in the TUI yet; archived TODOs are listed and
-restored with `clical write archived` and `clical write unarchive`.
-
-The same, from the command line:
-
-    clical write add "water the plants"           # a global TODO
-    clical write add -e weekly "send the deck"    # on an event, by title or key
-    clical write add -e weekly --note "agenda: roadmap"
-    clical write                                  # the global list
-    clical write list -e weekly                   # one event's
-    clical write list --all
-    clical write done 3a7f                        # check (an ID, or the start of one)
-    clical write move 3a7f                        # to the global list; -e EVENT moves it to an event
-    clical write archive 3a7f                     # file a checked TODO away
-    clical write archived                         # list the archive
-    clical write unarchive 3a7f                   # back to the global list, checked
-
-`-e` takes part of an event's title (or its key) and looks two weeks back and
-two months ahead; if it matches several, add `--on 2026-10-05`. Notes belong
-to one occurrence of a recurring event, and keep following the event if its
-time changes. They are plain markdown in `~/.local/share/clical/write/`
-(`global.md`, `events/`, and `archive.jsonl`), readable only by you and not
-encrypted, so edit them in any editor, even while CLIcal is running. The
-settings file's `write_dir` moves them, e.g. into a synced folder.
-
-## Settings
-
-Optional, in `~/.config/clical/config.yaml`:
-
-    time_format: 24h      # or 12h
-    week_start: monday    # or sunday
-    sync_interval: 5m     # time between background syncs, e.g. 1h, or off
-
-`clical config` shows the file's path and the settings in use, and
-`clical config init` writes the file with every setting at its default.
-Changes apply the next time CLIcal starts; a misspelt setting or value
-stops it with an error naming it.
-
-The settings screen (`S`) changes these at once. Each setting is a row of
-choices with the active one in `[brackets]`; `enter` (or `l`) moves to the
-next, `h` to the previous, and `custom` asks for a number.
-
-- **Time format**: 24h or 12h
-- **Week starts on**: Monday or Sunday
-- **Sync interval**: 5m, 10m, 30m, off, or your own minutes
-- **Event pulse**: off or on
-- **Pulse starts**: 10m, 5m or 1m before the event, or your own seconds
-- **Pulse continues**: 10m, 5m or 1m after it has started, the whole event,
-  or your own minutes. For late arrivals.
-- **Write**: off or on (on by default). Off hides the notes and TODOs panels
-  and their keys in the TUI; the files are left alone and `clical write`
-  still works.
-- **Panel flash**: off or on
-
-The pulse makes an event stand out: its line pulses in the agenda, week and
-month, its title pulses in the event view (also if you leave that open and
-the time arrives), and the status line counts down to it, then up from its
-start, wherever you are in CLIcal. If CLIcal starts inside the lead time it
-pulses at once. Selecting the event, or pressing a key in its event view,
-ends its pulse. It steps between plain, bold and reversed in the accent color
-rather than fading, so it follows your terminal's theme, and it only runs
-while CLIcal is open.
-
-These are saved to `~/.config/clical/settings.yaml`, which overrides
-`config.yaml`, so a hand-written `config.yaml` with comments is never
-rewritten. All of the settings above are keys in either file (`time_format`,
-`week_start`, `sync_interval`, `pulse`, `pulse_lead`, `pulse_grace`), and
-`clical config` shows what is in use, including what the dialog saved.
-
-## Log
-
-Sync failures and recoveries, and calendar and account changes, are logged
-to `~/.local/state/clical/clical.log` (names only, never addresses or
-sign-ins). `clical logs` prints the end of it; `clical logs -f` keeps
-following it.
-
-## Layout
-
-    cmd/clical/                  CLI commands, terminal prompts, starts the TUI    ┐ front-ends
-    internal/ui/                 Bubble Tea v2 TUI: model, view, agenda rows, keys ┘
-    internal/app/                the seam: the only API front-ends call
-    internal/engine/             sync engine: provider → store                     ┐
-    internal/providers/ical/     iCal feed provider (primary)                      │
-    internal/providers/google/   Google accounts: sign-in, calendar API            │ core
-    internal/eventtext/          readable notes and links from event content       │
-    internal/store/              SQLite cache + sync tokens                        │
-    internal/secrets/            age-encrypted secret vault                        │
-    internal/config/             the settings file                                 │
-    internal/agenda/             pure day-grouping of events                       │
-    internal/domain/             provider-agnostic types                           ┘
-    internal/archtest/           test that enforces the layering
-
-How the layers fit, and where new code goes: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-Notes for coding agents: [`AGENTS.md`](AGENTS.md).
-
-## Status
-
-All planned milestones (M0–M11) are done: iCal and Google calendars,
-background syncing, the full-screen TUI with Agenda, Week and Month views,
-event details with links, filtering, help, renaming, settings and a log.
-Milestone table in
-[`docs/PLAN.md`](docs/PLAN.md).
+CLIcal is free to use, at home and at work, including when your employer is a
+company. You may fork it and change it. You may not sell it, charge for it, or
+make money from it in any other way. The terms are in
+[`LICENSE.md`](LICENSE.md) (PolyForm Noncommercial 1.0.0) and
+[`ADDITIONAL-PERMISSION.md`](ADDITIONAL-PERMISSION.md).
