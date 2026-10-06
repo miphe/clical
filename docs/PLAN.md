@@ -1152,24 +1152,31 @@ The main panel is split in three:
   archive day. A checked task that isn't archived yet is not counted. The
   bucket is the day in the record's own UTC offset (`Archived.Completed` keeps
   the offset it was checked in), as decided for M13.
-- **Heatmap shape:** weeks are columns, and the rows are always Sunday on top
-  to Saturday at the bottom, whatever `week_start` says, so the working days
-  (where the activity is) sit in the middle rows. The setting still decides
-  what a selected "week" is, so a Monday-first week spans two columns. A cell
-  is two columns wide; a blank column separates months (no month labels).
-  Weekday letters on the left (`S M T W T F S`). Today is the last cell; later
-  days are blank. It shows as many recent weeks as fit and scrolls back.
+- **Heatmap shape:** the rows are always Sunday on top to Saturday at the
+  bottom, whatever `week_start` says, so the working days (where the activity
+  is) sit in the middle rows. The setting still decides what a selected "week"
+  is, so a Monday-first week can span two columns. Each month is a block of
+  columns of its own with exactly its days: the first column starts on the
+  weekday of the 1st, the last ends on the last day (so 31 Dec is the last
+  glyph of December), and a blank column separates the months (no month
+  labels). A week that spans two months is drawn in both, each with its own
+  days. A cell is two columns wide; weekday letters on the left
+  (`S M T W T F S`); today is the last cell and later days are blank. It shows
+  as many recent columns as fit and scrolls back. `h`/`l` move 7 days, so
+  across a month boundary the cursor jumps over the gap.
 - **Empty days can be selected.** The cursor moves through every day, a year
   and a week back from today (or to the oldest task, if older), so the whole
   year can be walked with the arrow keys.
-- **Flat and one hue.** A day without tasks is a dot (`·`); a day with tasks
-  is a solid square in the accent color whose size grows with the count: `▪`
-  for 1–3, `■` for 4–6, `█` for 7 or more (fixed steps, so a day means the same
-  whatever else is in the archive). Size, not shade, carries the intensity, so
-  it reads on terminals that ignore faint text and under `NO_COLOR`; faint and
-  bold only echo it. No shade glyphs (`░▒▓`, which looked like a shadow), no
-  background colors. A selected day keeps its color and shows `▣` (a square
-  with a dot) in bold; no inverse video, no underline.
+- **Flat, and the hue is the intensity.** A day without tasks is a quiet dot
+  (`·`, the default color, dimmed). Every day with tasks is the same solid
+  square (`■`), and only its hue says how many were completed: cyan for 1–3,
+  blue for 4–6, magenta for 7 or more (fixed steps, so a day means the same
+  whatever else is in the archive). A legend sits in the panel's top edge. All
+  three are normal ANSI hues from `theme.go` and only color the glyph. No
+  shade glyphs (`░▒▓`, which looked like a shadow), sizes, backgrounds or
+  hex colors. Under `NO_COLOR` the three look alike. A selected day keeps its
+  hue and shows `▣` (a square with a dot) in bold, no inverse video or underline;
+  its style is still to be refined.
 - **Selection** is a range of days, always at least the cursor's day, and
   works like selecting in an OS list:
   - `j`/`k`/↓/↑ move a day (wrapping into the next or previous week),

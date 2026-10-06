@@ -45,13 +45,14 @@ const (
 	heatReach = 371
 )
 
-// A day with no tasks is a dot, and a day with tasks is a solid square that
-// grows with how many were completed: small, medium, full. Flat shapes, never
-// shade glyphs or a background color. A selected day is a square with a dot in
-// it.
-var heatGlyphs = [4]string{"·", "▪", "■", "█"}
-
-const heatSel = "▣"
+// A day with no tasks is a dot; a day with tasks is the same solid square
+// whatever the count, and only its hue says how many (see heatStyles). A
+// selected day is a square with a dot in it, in its own hue.
+const (
+	heatNone = "·"
+	heatDone = "■"
+	heatSel  = "▣"
+)
 
 // heatState is the heatmap's data and where the user is in it.
 type heatState struct {
@@ -219,20 +220,46 @@ func (h heatState) span(start time.Weekday) (lo, hi domain.CivilDate) {
 	return a, b
 }
 
-// heatCol is one week's column.
-type heatCol struct {
-	start domain.CivilDate
-	gap   bool // a blank column goes before it: a new month starts here
+// A month is a block of columns of its own, so each month has exactly its
+// days: the first column starts on the weekday of the 1st, the last ends on
+// the last day, and a blank column separates it from the next month. A week
+// that spans two months is drawn in both, each with its own days.
+
+// colStart is the first day of the column that holds d: the Sunday of d's
+// week, or the 1st of d's month when that comes later.
+func colStart(d domain.CivilDate) domain.CivilDate {
+	return maxDay(weekFloor(d, heatStart), domain.NewCivilDate(d.Year, d.Month, 1))
 }
 
-// heatColumns lays out week columns from left, as many as fit in width
-// columns, and none after last. A blank column separates months, in place of
-// month labels.
-func heatColumns(left, last domain.CivilDate, width int) []heatCol {
+// colEnd is the last day of the column that starts on s: the Saturday, or the
+// month's last day when that comes first.
+func colEnd(s domain.CivilDate) domain.CivilDate {
+	return minDay(weekFloor(s, heatStart).AddDays(6), monthEnd(s))
+}
+
+// heatCol is one column: the days from start to end, down from the row of
+// start's weekday.
+type heatCol struct {
+	start, end domain.CivilDate
+	gap        bool // a blank column goes before it: a new month starts here
+}
+
+// day is the day in a row (0 is Sunday), if the column has one there.
+func (c heatCol) day(row int) (domain.CivilDate, bool) {
+	first, last := int(c.start.Weekday()), int(c.end.Weekday())
+	if row < first || row > last {
+		return domain.CivilDate{}, false
+	}
+	return c.start.AddDays(row - first), true
+}
+
+// heatColumns lays out columns from the one holding left, as many as fit in
+// width columns, and none for days after hi.
+func heatColumns(left, hi domain.CivilDate, width int) []heatCol {
 	var cols []heatCol
 	used := 0
-	for w := left; !last.Before(w); w = w.AddDays(7) {
-		gap := len(cols) > 0 && !sameMonth(w, cols[len(cols)-1].start)
+	for s := colStart(left); !hi.Before(s); s = colEnd(s).AddDays(1) {
+		gap := len(cols) > 0 && !sameMonth(s, cols[len(cols)-1].start)
 		need := heatCellW
 		if gap {
 			need++
@@ -240,18 +267,18 @@ func heatColumns(left, last domain.CivilDate, width int) []heatCol {
 		if used+need > width {
 			break
 		}
-		cols = append(cols, heatCol{start: w, gap: gap})
+		cols = append(cols, heatCol{start: s, end: colEnd(s), gap: gap})
 		used += need
 	}
 	return cols
 }
 
-// heatLeftFor is the first week to show so that the week last is the
-// rightmost one, with the window filled.
-func heatLeftFor(last domain.CivilDate, width int) domain.CivilDate {
-	left, used := last, heatCellW
+// heatLeftFor is the first column to show so that the one holding day is the
+// rightmost, with the window filled.
+func heatLeftFor(day domain.CivilDate, width int) domain.CivilDate {
+	left, used := colStart(day), heatCellW
 	for {
-		prev := left.AddDays(-7)
+		prev := colStart(left.AddDays(-1))
 		need := heatCellW
 		if !sameMonth(prev, left) {
 			need++
@@ -263,25 +290,24 @@ func heatLeftFor(last domain.CivilDate, width int) domain.CivilDate {
 	}
 }
 
-// viewLeft is the first visible week for a window width columns wide: the
-// stored one, moved just far enough to keep the cursor's week on screen, and
-// pinned to the newest week when the window reaches it.
+// viewLeft is the first visible column for a window width columns wide: the
+// stored one, moved just far enough to keep the cursor's column on screen, and
+// pinned to the newest column when the window reaches it.
 func (h heatState) viewLeft(width int, hi domain.CivilDate) domain.CivilDate {
-	last := weekFloor(hi, heatStart)
-	left := heatLeftFor(last, width)
+	left := heatLeftFor(hi, width)
 	if isSet(h.left) {
-		left = weekFloor(h.left, heatStart)
+		left = colStart(h.left)
 	}
-	cw := weekFloor(h.cursor, heatStart)
-	cols := heatColumns(left, last, width)
+	cc := colStart(h.cursor)
+	cols := heatColumns(left, hi, width)
 	switch {
-	case cw.Before(left):
-		left = cw
-	case len(cols) > 0 && cols[len(cols)-1].start.Before(cw):
-		left = heatLeftFor(cw, width)
+	case cc.Before(left):
+		left = cc
+	case len(cols) > 0 && cols[len(cols)-1].start.Before(cc):
+		left = heatLeftFor(cc, width)
 	}
-	if cols = heatColumns(left, last, width); len(cols) > 0 && cols[len(cols)-1].start == last {
-		left = heatLeftFor(last, width)
+	if cols = heatColumns(left, hi, width); len(cols) > 0 && cols[len(cols)-1].start == colStart(hi) {
+		left = heatLeftFor(hi, width)
 	}
 	return left
 }

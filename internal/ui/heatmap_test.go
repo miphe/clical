@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -45,78 +46,145 @@ func TestHeatLevels(t *testing.T) {
 	}
 }
 
-func TestHeatColumnsSeparateMonths(t *testing.T) {
-	last := cd(2026, 10, 4) // a Sunday: columns are Sunday-first weeks
-	left := cd(2026, 9, 13)
-	cols := heatColumns(left, last, 100)
-	var starts []string
-	var gaps []bool
+func TestMonthsAreBlocksWithExactDays(t *testing.T) {
+	hi := cd(2026, 12, 31)
+	cols := heatColumns(cd(2026, 1, 1), hi, 100000)
+
+	// Read down each column, left to right: every day of the year, once, in
+	// order, and nothing else.
+	want := cd(2026, 1, 1)
+	gaps := 0
 	for _, c := range cols {
-		starts = append(starts, c.start.String())
-		gaps = append(gaps, c.gap)
+		if c.gap {
+			gaps++
+		}
+		for row := 0; row < heatRows; row++ {
+			d, ok := c.day(row)
+			if !ok {
+				continue
+			}
+			if d != want {
+				t.Fatalf("column %v row %d holds %v, want %v", c.start, row, d, want)
+			}
+			if int(d.Weekday()) != row {
+				t.Fatalf("%v is in row %d, but is a %v", d, row, d.Weekday())
+			}
+			want = want.AddDays(1)
+		}
 	}
-	// 13, 20, 27 Sep; then 4 Oct starts October: a blank column before it.
-	if len(cols) != 4 || cols[3].start != last || starts[0] != "2026-09-13" {
-		t.Fatalf("columns = %v", starts)
+	if want != cd(2027, 1, 1) {
+		t.Errorf("the grid ends at %v, want the whole of 2026", want.AddDays(-1))
 	}
-	if want := []bool{false, false, false, true}; gaps[0] != want[0] || gaps[1] != want[1] || gaps[2] != want[2] || gaps[3] != want[3] {
-		t.Errorf("gaps = %v, want %v", gaps, want)
+	if gaps != 11 {
+		t.Errorf("%d gaps between months, want 11", gaps)
 	}
 
-	// Width counts the gap: 4 weeks and 1 gap need 9 columns, not 8.
-	if got := len(heatColumns(left, last, 8)); got != 3 {
-		t.Errorf("8 columns hold %d weeks, want 3", got)
+	// The last glyph of a month is its last day, and the next month starts
+	// after a gap, in its own column.
+	for i, c := range cols {
+		if i+1 < len(cols) && cols[i+1].gap {
+			if c.end != monthEnd(c.start) {
+				t.Errorf("a month ends at %v, but its last day is %v", c.end, monthEnd(c.start))
+			}
+			if cols[i+1].start.Day != 1 {
+				t.Errorf("the next month starts at %v, want its 1st", cols[i+1].start)
+			}
+		}
 	}
-	if got := len(heatColumns(left, last, 9)); got != 4 {
-		t.Errorf("9 columns hold %d weeks, want 4", got)
+
+	// October 2026 starts on a Thursday and ends on a Saturday; December
+	// ends on a Thursday, and January 2027 starts on a Friday.
+	byStart := map[domain.CivilDate]heatCol{}
+	for _, c := range heatColumns(cd(2026, 10, 1), cd(2027, 1, 31), 100000) {
+		byStart[c.start] = c
+	}
+	oct := byStart[cd(2026, 10, 1)]
+	if d, ok := oct.day(4); !ok || d != cd(2026, 10, 1) {
+		t.Errorf("1 Oct is not in the Thursday row: %v %v", d, ok)
+	}
+	if _, ok := oct.day(3); ok {
+		t.Error("a day above 1 Oct, which belongs to September")
+	}
+	if c := byStart[cd(2026, 10, 25)]; c.end != cd(2026, 10, 31) {
+		t.Errorf("last column of October ends %v", c.end)
+	}
+	dec := byStart[cd(2026, 12, 27)]
+	if d, ok := dec.day(4); !ok || d != cd(2026, 12, 31) {
+		t.Errorf("31 Dec is not the last glyph of December: %v %v", d, ok)
+	}
+	if _, ok := dec.day(5); ok {
+		t.Error("a day below 31 Dec, which belongs to January")
+	}
+	if jan := byStart[cd(2027, 1, 1)]; !jan.gap || jan.end != cd(2027, 1, 2) {
+		t.Errorf("January starts %+v", jan)
+	}
+}
+
+func TestHeatColumnsFitTheWidth(t *testing.T) {
+	left, hi := cd(2026, 9, 13), cd(2026, 10, 4)
+	// 13–19 Sep, 20–26, 27–30 (September's last), then a gap and 1–3 Oct, 4–10.
+	cols := heatColumns(left, hi, 100)
+	var starts []string
+	for _, c := range cols {
+		starts = append(starts, c.start.String())
+	}
+	if want := "2026-09-13 2026-09-20 2026-09-27 2026-10-01 2026-10-04"; strings.Join(starts, " ") != want {
+		t.Errorf("columns = %v, want %v", starts, want)
+	}
+	// Width counts the gap: five columns and one gap need 11.
+	if got := len(heatColumns(left, hi, 10)); got != 4 {
+		t.Errorf("10 columns hold %d, want 4", got)
+	}
+	if got := len(heatColumns(left, hi, 11)); got != 5 {
+		t.Errorf("11 columns hold %d, want 5", got)
 	}
 }
 
 func TestHeatLeftForFillsTheWindow(t *testing.T) {
-	last := cd(2026, 9, 27)
+	hi := cd(2026, 9, 29)
 	for _, width := range []int{2, 6, 21, 40, 119} {
-		left := heatLeftFor(last, width)
-		cols := heatColumns(left, last, width)
-		if len(cols) == 0 || cols[len(cols)-1].start != last {
-			t.Errorf("width %d: the newest week isn't the rightmost: %v", width, cols)
+		left := heatLeftFor(hi, width)
+		cols := heatColumns(left, hi, width)
+		if len(cols) == 0 || cols[len(cols)-1].start != colStart(hi) {
+			t.Errorf("width %d: the newest column isn't the rightmost: %v", width, cols)
 		}
-		// One more week to the left wouldn't fit.
-		more := heatColumns(left.AddDays(-7), last, width)
-		if len(more) > 0 && more[len(more)-1].start == last {
+		// One more column to the left wouldn't fit.
+		more := heatColumns(colStart(left.AddDays(-1)), hi, width)
+		if len(more) > 0 && more[len(more)-1].start == colStart(hi) {
 			t.Errorf("width %d: left isn't as far left as it can be", width)
 		}
 	}
 }
 
 func TestViewLeftKeepsTheCursorOnScreen(t *testing.T) {
-	today := cd(2026, 9, 29) // Tue; its Sunday-first week starts 27 Sep
+	today := cd(2026, 9, 29) // Tue; its column starts Sun 27 Sep
 	hi := today
 	width := 20
 	h := heatState{loaded: true, cursor: today}
 
 	left := h.viewLeft(width, hi)
-	if cols := heatColumns(left, weekFloor(hi, heatStart), width); cols[len(cols)-1].start != cd(2026, 9, 27) {
-		t.Fatal("not pinned to the newest week")
+	if cols := heatColumns(left, hi, width); cols[len(cols)-1].start != cd(2026, 9, 27) {
+		t.Fatal("not pinned to the newest column")
 	}
 
 	// Scroll back far: the window moves just enough, cursor at the left edge.
-	h.cursor = cd(2026, 3, 2) // its week starts Sun 1 Mar
+	h.cursor = cd(2026, 3, 2) // its column starts Sun 1 Mar
 	h.left = left
 	left2 := h.viewLeft(width, hi)
 	if left2 != cd(2026, 3, 1) {
-		t.Errorf("left = %v, want the cursor's week", left2)
+		t.Errorf("left = %v, want the cursor's column", left2)
 	}
 
 	// Moving forward again shows the cursor at the right edge, not the left.
 	h.left = left2
-	h.cursor = cd(2026, 6, 1) // week of Sun 31 May
+	h.cursor = cd(2026, 6, 1) // a Monday, in the column that starts on the 1st
 	left3 := h.viewLeft(width, hi)
-	cols := heatColumns(left3, weekFloor(hi, heatStart), width)
-	if cols[len(cols)-1].start != cd(2026, 5, 31) {
-		t.Errorf("cursor week isn't the rightmost: left %v", left3)
+	cols := heatColumns(left3, hi, width)
+	if cols[len(cols)-1].start != cd(2026, 6, 1) {
+		t.Errorf("cursor column isn't the rightmost: left %v", left3)
 	}
 
-	// Back at the newest week it pins again.
+	// Back at the newest column it pins again.
 	h.left = left3
 	h.cursor = today
 	if got := h.viewLeft(width, hi); got != left {

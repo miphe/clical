@@ -22,6 +22,7 @@ type frame struct {
 	focused bool
 	tabs    []tab  // top-left; a single tab is just a title
 	right   string // top-right, if there's room
+	legend  string // top-right, already styled; used instead of right
 	bottom  string // bottom-right, e.g. a list position "3 of 15"
 	flash   bool   // the border is lit for a moment
 }
@@ -43,7 +44,7 @@ func panel(width, height int, f frame, content []string) []string {
 	}
 
 	lines := make([]string, 0, height)
-	lines = append(lines, panelTop(inner, border, focused, tabs, right))
+	lines = append(lines, panelTop(inner, border, focused, tabs, right, f.legend))
 	for i := 0; i < innerH; i++ {
 		line := ""
 		if i < len(content) {
@@ -68,7 +69,7 @@ func panelBottom(inner int, border lipgloss.Style, label string) string {
 
 // panelTop renders "╭─ Title ─ Other ──── right ─╮" in exactly inner+2 cells,
 // dropping the right-hand text and then truncating titles when space runs out.
-func panelTop(inner int, border lipgloss.Style, focused bool, tabs []tab, right string) string {
+func panelTop(inner int, border lipgloss.Style, focused bool, tabs []tab, right, legend string) string {
 	var titles []string
 	for _, t := range tabs {
 		style := mutedStyle
@@ -84,7 +85,9 @@ func panelTop(inner int, border lipgloss.Style, focused bool, tabs []tab, right 
 	if len(titles) > 0 {
 		left = " " + strings.Join(titles, border.Render(" ─ ")) + " "
 	}
-	if right != "" {
+	if legend != "" {
+		right = " " + legend + " "
+	} else if right != "" {
 		right = " " + mutedStyle.Render(right) + " "
 	}
 

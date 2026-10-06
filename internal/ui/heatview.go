@@ -31,7 +31,7 @@ func (m Model) renderHeat(width, height int) []string {
 	h := m.heat
 	_, hi := h.bounds(m.today())
 	cellsW := width - heatLabelW
-	cols := heatColumns(h.viewLeft(cellsW, hi), weekFloor(hi, heatStart), cellsW)
+	cols := heatColumns(h.viewLeft(cellsW, hi), hi, cellsW)
 	selLo, selHi := h.span(m.weekStart)
 
 	lines := make([]string, 0, height)
@@ -42,7 +42,11 @@ func (m Model) renderHeat(width, height int) []string {
 			if c.gap {
 				b.WriteString(" ")
 			}
-			b.WriteString(m.heatCell(c.start.AddDays(r), hi, selLo, selHi))
+			if d, ok := c.day(r); ok {
+				b.WriteString(m.heatCell(d, hi, selLo, selHi))
+			} else {
+				b.WriteString(strings.Repeat(" ", heatCellW))
+			}
 		}
 		lines = append(lines, b.String())
 	}
@@ -52,7 +56,7 @@ func (m Model) renderHeat(width, height int) []string {
 	return padLines(lines, height, width)
 }
 
-// heatCell is one day, two columns wide. A selected day keeps its color and
+// heatCell is one day, two columns wide. A selected day keeps its hue and
 // shows a dot inside its square, in bold; the days after the last one are
 // blank.
 func (m Model) heatCell(d, hi, selLo, selHi domain.CivilDate) string {
@@ -60,10 +64,23 @@ func (m Model) heatCell(d, hi, selLo, selHi domain.CivilDate) string {
 		return strings.Repeat(" ", heatCellW)
 	}
 	level := heatLevel(len(m.heat.days[d]))
+	glyph := heatDone
+	if level == 0 {
+		glyph = heatNone
+	}
 	if !d.Before(selLo) && !selHi.Before(d) {
 		return heatStyles[level].Bold(true).Render(heatSel + " ")
 	}
-	return heatStyles[level].Render(heatGlyphs[level] + " ")
+	return heatStyles[level].Render(glyph + " ")
+}
+
+// heatLegend says what the hues mean, for the heatmap panel's top edge.
+func heatLegend() string {
+	key := func(level int, glyph, label string) string {
+		return heatStyles[level].Render(glyph) + mutedStyle.Render(" "+label)
+	}
+	return key(0, heatNone, "none") + mutedStyle.Render("  ") + key(1, heatDone, "1–3") +
+		mutedStyle.Render("  ") + key(2, heatDone, "4–6") + mutedStyle.Render("  ") + key(3, heatDone, "7+")
 }
 
 func plural(n int, one, many string) string {

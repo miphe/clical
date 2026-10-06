@@ -700,13 +700,13 @@ func TestFocusedPanelBorderIsHighlighted(t *testing.T) {
 func TestPanelTopFitsAndDegrades(t *testing.T) {
 	tabs := []tab{{label: "[1] Agenda", active: true}, {label: "[2] Week"}}
 	for _, w := range []int{100, 40, 26, 12, 5, 2} {
-		top := panelTop(w-2, borderStyle, true, tabs, "Week 40 · 28 Sep – 4 Oct 2026")
+		top := panelTop(w-2, borderStyle, true, tabs, "Week 40 · 28 Sep – 4 Oct 2026", "")
 		if got := ansi.StringWidth(top); got != w {
 			t.Errorf("width %d: top line is %d wide: %q", w, got, ansi.Strip(top))
 		}
 	}
 	// With room for the tabs but not the right-hand text, the text goes first.
-	top := ansi.Strip(panelTop(30, borderStyle, true, tabs, "Week 40 · 28 Sep – 4 Oct 2026"))
+	top := ansi.Strip(panelTop(30, borderStyle, true, tabs, "Week 40 · 28 Sep – 4 Oct 2026", ""))
 	if !strings.Contains(top, "[2] Week") || strings.Contains(top, "Week 40") {
 		t.Errorf("narrow top = %q, want tabs kept and right text dropped", top)
 	}

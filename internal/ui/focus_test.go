@@ -209,35 +209,43 @@ func TestHeatReloadsWhenTheArchiveChanges(t *testing.T) {
 	}
 }
 
-func TestHeatmapIsFlatAndOneHue(t *testing.T) {
+func TestHeatmapIsFlatAndOnlyTheHueDiffers(t *testing.T) {
 	m := heatModel(t, 130, 24)
 	heat := strings.Join(m.renderHeat(80, 12), "\n")
-	if strings.ContainsAny(ansi.Strip(heat), "░▒▓") {
-		t.Error("the heatmap uses shade glyphs; it should be flat squares of three sizes")
+	plain := ansi.Strip(heat)
+	// Every day with tasks is the same square; the rest are dots, and a
+	// selected day has a dot in its square.
+	if strings.ContainsAny(plain, "░▒▓▪█") {
+		t.Error("the heatmap has shade glyphs or squares of other sizes")
+	}
+	for _, r := range plain {
+		if !strings.ContainsRune("SMTWF ·■▣\n", r) {
+			t.Errorf("unexpected glyph %q in the heatmap", r)
+		}
 	}
 	var buf bytes.Buffer
 	w := &colorprofile.Writer{Forward: &buf, Profile: colorprofile.Env([]string{"TERM=xterm-256color"})}
 	if _, err := w.WriteString(heat); err != nil {
 		t.Fatal(err)
 	}
-	// The only hue is the accent (blue, 34); intensity is faint, plain, bold.
-	var blue, faint, bold bool
+	// Three hues and no other: cyan 1–3, blue 4–6, magenta 7+. (The dots and
+	// labels are the quiet default color.)
+	hues := map[int]bool{}
 	for _, params := range sgrParams(buf.String()) {
 		for _, p := range params {
 			switch {
-			case p == 34:
-				blue = true
-			case p == 2:
-				faint = true
-			case p == 1:
-				bold = true
+			case p == 36 || p == 34 || p == 35:
+				hues[p] = true
 			case (p >= 30 && p <= 37) || (p >= 90 && p <= 97):
-				t.Errorf("the heatmap uses color %d, want only the accent (34): %v", p, params)
+				t.Errorf("the heatmap uses color %d: %v", p, params)
 			}
 		}
 	}
-	if !blue || !faint || !bold {
-		t.Errorf("accent %v, faint %v, bold %v: want all three", blue, faint, bold)
+	if len(hues) != 3 {
+		t.Errorf("hues in use = %v, want cyan, blue and magenta", hues)
+	}
+	if !strings.Contains(ansi.Strip(strings.Join(m.renderFocus(130, 24, nil), "\n")), "none  ■ 1–3  ■ 4–6  ■ 7+") {
+		t.Error("no legend for the hues")
 	}
 }
 

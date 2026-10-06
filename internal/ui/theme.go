@@ -40,11 +40,10 @@ var (
 // thin "now" line, with the words beside them in the default color, except
 // errors, which are bold red to stand out.
 var (
-	colorAccent  = ansiBlue    // focus, the active tab, today, work in progress
-	colorSuccess = ansiGreen   // a finished sync
-	colorError   = ansiRed     // failures
-	colorHeat    = colorAccent // the heatmap's squares: never text
-	colorNow     = ansiRed     // the "now" line: red by calendar convention, not an error
+	colorAccent  = ansiBlue  // focus, the active tab, today, work in progress
+	colorSuccess = ansiGreen // a finished sync
+	colorError   = ansiRed   // failures
+	colorNow     = ansiRed   // the "now" line: red by calendar convention, not an error
 	// colorWarning is ANSI yellow. Nothing uses it yet: yellow text reads
 	// poorly on light backgrounds, so it's reserved for genuine warnings.
 	colorWarning = ansiYellow
@@ -60,14 +59,14 @@ var (
 	errorStyle   = lipgloss.NewStyle().Bold(true).Foreground(colorError)
 	nowStyle     = lipgloss.NewStyle().Foreground(colorNow)
 
-	// The heatmap is flat: one hue and solid glyphs. The size of the square
-	// carries the intensity, with faint and plain text for the smaller ones as
-	// a hint, so it reads on terminals that ignore faint, and under NO_COLOR.
+	// The heatmap is flat: every day with tasks is the same square, and the
+	// hue says how many (cyan 1–3, blue 4–6, magenta 7+). Days without are a
+	// quiet dot. Hues only color the glyph, never text.
 	heatStyles = [4]lipgloss.Style{
 		mutedStyle,
-		lipgloss.NewStyle().Foreground(colorHeat).Faint(true),
-		lipgloss.NewStyle().Foreground(colorHeat),
-		lipgloss.NewStyle().Foreground(colorHeat).Bold(true),
+		lipgloss.NewStyle().Foreground(ansiCyan),
+		lipgloss.NewStyle().Foreground(ansiBlue),
+		lipgloss.NewStyle().Foreground(ansiMagenta),
 	}
 
 	todayStyle         = accentStyle

@@ -82,7 +82,7 @@ func (m Model) renderFocus(width, height int, tabs []tab) []string {
 		}
 	}
 	heat := m.renderHeat(width-2, lay.heatH-2)
-	out = append(out, panel(width, lay.heatH, frame{focused: m.focus == focusHeat, tabs: heatTabs}, heat)...)
+	out = append(out, panel(width, lay.heatH, frame{focused: m.focus == focusHeat, tabs: heatTabs, legend: heatLegend()}, heat)...)
 	return padLines(out, height, width)
 }
 
