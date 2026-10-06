@@ -216,6 +216,21 @@ func TestMockNotesAndArchive(t *testing.T) {
 	if float64(weekday)/float64(weekdays) < 3*float64(weekend)/float64(weekends) {
 		t.Errorf("weekdays average %.1f tasks, weekends %.1f; want weekdays busier", float64(weekday)/float64(weekdays), float64(weekend)/float64(weekends))
 	}
+	// All three intensities of the heatmap: 1-3, 4-6 and 7 or more a day.
+	var low, mid, high int
+	for _, tasks := range days {
+		switch n := len(tasks); {
+		case n >= 7:
+			high++
+		case n >= 4:
+			mid++
+		default:
+			low++
+		}
+	}
+	if low < 20 || mid < 20 || high < 8 {
+		t.Errorf("days by intensity: %d low, %d mid, %d high", low, mid, high)
+	}
 	// The holiday: two weeks, four months ago, with nothing done.
 	away := domain.CivilDateFromTime(now.AddDate(0, 0, -126))
 	empty := 0

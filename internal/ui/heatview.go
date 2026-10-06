@@ -52,26 +52,18 @@ func (m Model) renderHeat(width, height int) []string {
 	return padLines(lines, height, width)
 }
 
-// heatCell is one day, two columns wide: a square or a dot. A selected day
-// keeps its color and intensity and shows a dot inside its square instead;
-// the cursor's day is also underlined. Days after the last one are blank.
+// heatCell is one day, two columns wide. A selected day keeps its color and
+// shows a dot inside its square, in bold; the days after the last one are
+// blank.
 func (m Model) heatCell(d, hi, selLo, selHi domain.CivilDate) string {
 	if hi.Before(d) {
 		return strings.Repeat(" ", heatCellW)
 	}
-	level := heatLevel(len(m.heat.days[d]), m.heat.cut)
-	glyph := heatDone
-	if level == 0 {
-		glyph = heatNone
-	}
-	style := heatStyles[level]
+	level := heatLevel(len(m.heat.days[d]))
 	if !d.Before(selLo) && !selHi.Before(d) {
-		glyph = heatSel
+		return heatStyles[level].Bold(true).Render(heatSel + " ")
 	}
-	if d == m.heat.cursor {
-		style = style.Underline(true)
-	}
-	return style.Render(glyph + " ")
+	return heatStyles[level].Render(heatGlyphs[level] + " ")
 }
 
 func plural(n int, one, many string) string {

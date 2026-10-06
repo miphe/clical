@@ -60,8 +60,9 @@ var (
 	errorStyle   = lipgloss.NewStyle().Bold(true).Foreground(colorError)
 	nowStyle     = lipgloss.NewStyle().Foreground(colorNow)
 
-	// The heatmap is flat: one hue, one glyph, and the intensity is faint,
-	// plain or bold, which also holds under NO_COLOR.
+	// The heatmap is flat: one hue and solid glyphs. The size of the square
+	// carries the intensity, with faint and plain text for the smaller ones as
+	// a hint, so it reads on terminals that ignore faint, and under NO_COLOR.
 	heatStyles = [4]lipgloss.Style{
 		mutedStyle,
 		lipgloss.NewStyle().Foreground(colorHeat).Faint(true),

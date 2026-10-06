@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"sort"
 	"time"
 
 	"github.com/miphe/clical/internal/domain"
@@ -46,21 +45,19 @@ const (
 	heatReach = 371
 )
 
-// A day with no tasks is a dot; a day with tasks is a flat square whose
-// intensity is a text attribute (faint, plain, bold), never a shade glyph or a
-// background color.
-const (
-	heatNone = "·"
-	heatDone = "■"
-	heatSel  = "▣" // a selected day: the square with a dot in it, in its own color
-)
+// A day with no tasks is a dot, and a day with tasks is a solid square that
+// grows with how many were completed: small, medium, full. Flat shapes, never
+// shade glyphs or a background color. A selected day is a square with a dot in
+// it.
+var heatGlyphs = [4]string{"·", "▪", "■", "█"}
+
+const heatSel = "▣"
 
 // heatState is the heatmap's data and where the user is in it.
 type heatState struct {
 	loaded bool
 	err    error
 	days   map[domain.CivilDate][]write.Archived
-	cut    [2]int           // task counts at the top of intensity steps 1 and 2
 	first  domain.CivilDate // the earliest and latest day with a task
 	last   domain.CivilDate
 	at     time.Time // when the data was read
@@ -102,7 +99,6 @@ func monthEnd(d domain.CivilDate) domain.CivilDate {
 // withData replaces the archive's contents, keeping the user's place.
 func (h heatState) withData(days map[domain.CivilDate][]write.Archived, at time.Time) heatState {
 	h.days, h.at, h.loaded, h.err = days, at, true, nil
-	h.cut = heatCutoffs(days)
 	h.first, h.last = domain.CivilDate{}, domain.CivilDate{}
 	for d := range days {
 		if !isSet(h.first) || d.Before(h.first) {
@@ -115,38 +111,20 @@ func (h heatState) withData(days map[domain.CivilDate][]write.Archived, at time.
 	return h
 }
 
-// heatCutoffs are the terciles of the busy days' task counts: a day is as
-// intense as the share of busy days it is busier than.
-func heatCutoffs(days map[domain.CivilDate][]write.Archived) [2]int {
-	var counts []int
-	for _, tasks := range days {
-		if len(tasks) > 0 {
-			counts = append(counts, len(tasks))
-		}
-	}
-	var cut [2]int
-	if len(counts) == 0 {
-		return cut
-	}
-	sort.Ints(counts)
-	for k := range cut {
-		cut[k] = counts[((k+1)*len(counts)+2)/3-1]
-	}
-	return cut
-}
-
-// heatLevel is a day's intensity step: 0 for none, then 1–3.
-func heatLevel(count int, cut [2]int) int {
-	if count <= 0 {
+// heatLevel is a day's intensity step, by how many tasks were completed: 0
+// for none, 1 for one to three, 2 for four to six, 3 for seven or more. The
+// steps are fixed, so a day means the same thing whatever else is in the
+// archive.
+func heatLevel(count int) int {
+	switch {
+	case count <= 0:
 		return 0
+	case count <= 3:
+		return 1
+	case count <= 6:
+		return 2
 	}
-	level := 1
-	for _, c := range cut {
-		if count > c {
-			level++
-		}
-	}
-	return level
+	return 3
 }
 
 // bounds are the first and last day the cursor can reach, empty days

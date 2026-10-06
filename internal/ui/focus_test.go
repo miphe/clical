@@ -212,8 +212,8 @@ func TestHeatReloadsWhenTheArchiveChanges(t *testing.T) {
 func TestHeatmapIsFlatAndOneHue(t *testing.T) {
 	m := heatModel(t, 130, 24)
 	heat := strings.Join(m.renderHeat(80, 12), "\n")
-	if strings.ContainsAny(ansi.Strip(heat), "░▒▓█") {
-		t.Error("the heatmap uses shade glyphs; it should be flat squares")
+	if strings.ContainsAny(ansi.Strip(heat), "░▒▓") {
+		t.Error("the heatmap uses shade glyphs; it should be flat squares of three sizes")
 	}
 	var buf bytes.Buffer
 	w := &colorprofile.Writer{Forward: &buf, Profile: colorprofile.Env([]string{"TERM=xterm-256color"})}
@@ -365,9 +365,13 @@ func TestSelectedDaysKeepTheirColor(t *testing.T) {
 			}
 		}
 	}
-	// The cursor's day is the underlined one.
-	if !strings.Contains(buf.String(), ";4m") && !strings.Contains(buf.String(), "[4m") {
-		t.Error("no underline for the cursor")
+	// No underline either: the dot in the square is the mark, in bold.
+	for _, params := range sgrParams(buf.String()) {
+		for _, p := range params {
+			if p == 4 {
+				t.Errorf("a selected day is underlined: %v", params)
+			}
+		}
 	}
 }
 

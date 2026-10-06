@@ -38,28 +38,10 @@ func TestWeekFloor(t *testing.T) {
 }
 
 func TestHeatLevels(t *testing.T) {
-	// Busy days 1,1,2,3,5,8 tasks: tercile tops at 1 and 3.
-	days := daysWith(map[domain.CivilDate]int{
-		cd(2026, 1, 1): 1, cd(2026, 1, 2): 1, cd(2026, 1, 3): 2,
-		cd(2026, 1, 4): 3, cd(2026, 1, 5): 5, cd(2026, 1, 6): 8,
-		cd(2026, 1, 7): 0, // not busy: not counted
-	})
-	cut := heatCutoffs(days)
-	if cut != [2]int{1, 3} {
-		t.Fatalf("cut = %v", cut)
-	}
-	for count, want := range map[int]int{0: 0, 1: 1, 2: 2, 3: 2, 5: 3, 8: 3} {
-		if got := heatLevel(count, cut); got != want {
+	for count, want := range map[int]int{-1: 0, 0: 0, 1: 1, 3: 1, 4: 2, 6: 2, 7: 3, 8: 3, 40: 3} {
+		if got := heatLevel(count); got != want {
 			t.Errorf("level(%d) = %d, want %d", count, got, want)
 		}
-	}
-	if got := heatCutoffs(nil); got != [2]int{} {
-		t.Errorf("no days: %v", got)
-	}
-	// All days equal: the faintest step, whatever the count.
-	same := heatCutoffs(daysWith(map[domain.CivilDate]int{cd(2026, 1, 1): 3, cd(2026, 1, 2): 3}))
-	if got := heatLevel(3, same); got != 1 {
-		t.Errorf("equal days: level %d, want 1", got)
 	}
 }
 

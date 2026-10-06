@@ -1162,12 +1162,14 @@ The main panel is split in three:
 - **Empty days can be selected.** The cursor moves through every day, a year
   and a week back from today (or to the oldest task, if older), so the whole
   year can be walked with the arrow keys.
-- **Flat and one hue.** A day with tasks is a solid square (`■`), a day
-  without is a dot, and the only color is the accent. Intensity is a text
-  attribute (faint, plain, bold), not shade glyphs or backgrounds, so it holds
-  under `NO_COLOR`. Three steps, from the terciles of the busy days' task
-  counts. A selected day keeps its color and intensity and shows `▣` (a square
-  with a dot) instead; the cursor's day is also underlined. No inverse video. (Four shade glyphs, `░▒▓█`, were tried and looked like a shadow.)
+- **Flat and one hue.** A day without tasks is a dot (`·`); a day with tasks
+  is a solid square in the accent color whose size grows with the count: `▪`
+  for 1–3, `■` for 4–6, `█` for 7 or more (fixed steps, so a day means the same
+  whatever else is in the archive). Size, not shade, carries the intensity, so
+  it reads on terminals that ignore faint text and under `NO_COLOR`; faint and
+  bold only echo it. No shade glyphs (`░▒▓`, which looked like a shadow), no
+  background colors. A selected day keeps its color and shows `▣` (a square
+  with a dot) in bold; no inverse video, no underline.
 - **Selection** is a range of days, always at least the cursor's day, and
   works like selecting in an OS list:
   - `j`/`k`/↓/↑ move a day (wrapping into the next or previous week),

@@ -227,7 +227,7 @@ func (s *seeder) pace(daysAgo int, week *rand.Rand) float64 {
 	case daysAgo >= 120 && daysAgo <= 133:
 		return 0 // away
 	case daysAgo >= 40 && daysAgo <= 46:
-		return f * 2.4 // the crunch before a launch
+		return f * 3.4 // the crunch before a launch
 	case daysAgo >= 160 && daysAgo <= 176:
 		return 0.25 * f // the holidays
 	case daysAgo >= 8 && daysAgo <= 14:
@@ -248,6 +248,8 @@ func (s *seeder) archive() error {
 		n := min(s.poisson(weekdayRate[day.Weekday()]*s.pace(ago, week)), 14)
 		if wd := day.Weekday(); wd >= time.Monday && wd <= time.Friday && s.rng.IntN(100) < 10 {
 			n = 0 // an off day: meetings all day, or out
+		} else if wd := day.Weekday(); wd >= time.Monday && wd <= time.Friday && n > 0 && s.rng.IntN(100) < 6 {
+			n += 4 + s.rng.IntN(4) // a big day: a lot got finished at once
 		}
 		for k := 0; k < n; k++ {
 			hour, span := 8, 10
