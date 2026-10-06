@@ -43,7 +43,8 @@ multi-account merge → config/themes → in-process background polling.
 | M11 | Dead iCal feeds fixed from the TUI, log file and `clical logs` | Done |
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
 | M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
-| — | Release pipeline: GoReleaser, GitHub releases, PolyForm Noncommercial license | `.goreleaser.yaml`, `LICENSE.md` | v0.0.1 pending |
+| — | Release pipeline: GoReleaser, GitHub releases, PolyForm Noncommercial license | `.goreleaser.yaml`, `LICENSE.md` | Done (v0.0.1) |
+| M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | Planned |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -932,7 +933,7 @@ Under `$XDG_DATA_HOME/clical/write/` (or `write_dir`):
   calendar list (a thin strip when collapsed), still reachable in the event
   view, where it starts collapsed. Narrow terminals start it collapsed.
 - **Keys** (all new; `1 2 3` stay views). Keys act within the focused panel:
-  `w` focuses Write (the event's in the event view, else the global one),
+  `w` focuses the event's Write panel (event view only),
   `W` collapses or expands the global panel. Inside Write: `j k` move,
   `a` add a TODO, `A` add a note (inline input, no popup; `?` and other keys
   are text while typing), `e` edit, `space` check or uncheck, `x` delete
@@ -989,8 +990,8 @@ while the TUI is open (mtime check above).
   TODOs; opened it is a quarter of the width, 28–40 columns, and when that
   would leave the main pane under 40 columns (the event view under 60) it
   stays a strip.
-- Keys, as planned, with these choices: `w` focuses the event's panel (global
-  when no event is open), `W` opens and focuses the global panel and collapses
+- Keys, as planned, with these choices: `w` focuses the event's panel (only in the
+  event view; it does nothing elsewhere), `W` opens and focuses the global panel and collapses
   it again; `e`/`enter` edit, `space` checks, `d` deletes (asks), `m` moves,
   `z` archives. Adding stays open for the next item.
 - `Z` archives every checked TODO in the focused panel; `tab` cycles the
@@ -1124,6 +1125,99 @@ do both).
 | M11 | Revoked-feed flow in the TUI, `clical logs`, cross-compile check | `internal/ui/feedurl.go`, `internal/app/log.go`, `cmd/clical/logs.go` | Done |
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
 | M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
+
+## Focus view and completion heatmap — M14 (planned)
+
+A fourth main view on `4`, a dashboard for "what's next" and "what did I do".
+The calendar list stays on the left and the global Write panel on the right.
+The main panel is split in three:
+
+    ┌ calendars ┐┌ agenda ─┐┌ completed tasks ─────────┐┌ Write ┐
+    │           ││ next    ││ of the selected days     ││ global│
+    │           │└─────────┘├──────────────────────────┤│       │
+    │           │ heatmap: one cell per day, full width││       │
+    └───────────┘└────────────────────────────────────┘└───────┘
+
+### Decisions
+
+- **The agenda is the existing agenda, slimmer.** Its state (`rows`, `sel`,
+  `offset`, the loaded window, the filter, the pulse) lives on `Model`, and
+  `renderAgenda`/`renderRow` already take a width and height. The slim panel
+  calls them with a smaller rectangle (the calendar list's width, 26), so it
+  moves, opens events (`enter`), filters and pulses exactly like `1`. The one
+  change: `agendaHeight()` (scroll clamp) becomes view-dependent. Pressing
+  `4` jumps to today, like `t`, so it answers "what's next". The event view
+  opened from it returns here.
+- **Only archived tasks count**, bucketed by their *completion* day, not the
+  archive day. A checked task that isn't archived yet is not counted. The
+  bucket is the day in the record's own UTC offset (`Archived.Completed` keeps
+  the offset it was checked in), as decided for M13.
+- **Heatmap shape:** weeks are columns, weekdays rows, starting on
+  `week_start`. A cell is two columns wide; a blank column separates months
+  (no month labels). Weekday letters on the left (`M T W T F S S`, in the
+  `week_start` order). Today is the last cell; later days are blank. It shows
+  as many recent weeks as fit and scrolls back without a limit (to the
+  earliest task).
+- **Intensity without background colors:** one glyph per level
+  (`·` none, then `░ ▒ ▓ █`), colored with one ANSI hue from `theme.go`
+  (green, glyphs only). Levels are the quartiles of the non-zero days in the
+  archive, like GitHub. Under `NO_COLOR` the glyphs still differ.
+- **Selection** is a range of days, always at least the cursor's day, and
+  works like selecting in an OS list:
+  - `j`/`k`/↓/↑ move a day (wrapping into the next or previous week),
+    `h`/`l`/←/→ move a week. `t` goes to today.
+  - A plain move selects the cursor's day alone. Holding `shift` while moving
+    (shift+arrows, or `H J K L` where the terminal doesn't report shift)
+    extends the selection from where it started. `esc` shrinks it back to the
+    cursor.
+  - `space` cycles the unit: day → week → month. In week or month, the
+    selection snaps to whole weeks or months and moves by that unit. This is
+    "what did I do in week 23" in a few keys.
+  - There is no "enter": the tasks panel **always shows the selection**.
+    `pgup`/`pgdn` scroll it from the heatmap; `tab` moves focus into it for
+    `j`/`k`, and `esc` comes back.
+- **Tasks panel:** read-only. A header with the selection ("Week 23 ·
+  1–7 Jun 2026 · 14 tasks"), then days newest first, tasks within a day by
+  completion time (oldest first): time, text, and "from Weekly sync" when it has an origin.
+  Text goes through `domain.SafeText`. Empty states: "No tasks completed on
+  these days" and, with an empty archive, a hint to press `z` in a Write
+  panel. Unarchive from here is out of scope.
+- **Narrow terminals:** first the calendar list collapses (as it already does
+  below `narrowWidth`). If the main panel is still too narrow for the agenda
+  beside the tasks, the three stack: agenda on top, tasks, heatmap at the
+  bottom. The global Write panel is never dropped. Too short for the stack:
+  the main panel says so and points at `1`–`3`.
+- **Focus order** (`tab`): calendar list, agenda, heatmap, tasks, global
+  Write. `4` focuses the heatmap.
+
+### Where the code goes
+
+- `internal/write`: `CompletionsByDay([]Archived) map[domain.CivilDate][]Archived`
+  (pure, table tests with offsets, midnight and DST). The existing
+  `Store.Archived()` reads the file.
+- `internal/app`: `WriteArchived()`; `ui.WriteSource` gains it.
+- `internal/ui`:
+  - `heatmap.go`: pure grid math (week columns, month gaps, quartile levels,
+    selection and unit arithmetic), unit-tested without a terminal.
+  - `focus.go`: view-4 layout (wide and stacked), focus, keys.
+  - `focusview.go`: rendering the three panels. `theme.go`: the heat roles.
+  - The archive loads in a `tea.Cmd` when the view opens, after `z`/`Z`, and on
+    the existing file-change tick. `Update` stays pure.
+- `archtest` needs no change: `ui` already imports `write`.
+
+### Steps (a commit each, review in between)
+
+| Step | What |
+|---|---|
+| M14a | `CompletionsByDay`, `app.WriteArchived`, tests |
+| M14b | Heatmap grid, levels, selection and keys, golden snapshots |
+| M14c | Tasks panel |
+| M14d | `4`, slim agenda reuse, wide and stacked layouts, focus order |
+| M14e | `?` help and footer, README (the `4` view only), this plan's status |
+
+Verification: the usual checks, golden diffs reviewed, `TestNoColorKeepsStatesVisible`
+extended, and the built binary driven with `scripts/tui_screens.py` against a
+temp `XDG_DATA_HOME` holding a seeded `archive.jsonl`.
 
 ## Verification
 
