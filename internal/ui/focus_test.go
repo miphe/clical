@@ -321,19 +321,27 @@ func TestDayLabelsHaveTheirSquaresColor(t *testing.T) {
 		t.Fatalf("no %q in:\n%s", text, buf.String())
 		return ""
 	}
-	// The name's own style, in the color of its square: bold accent blue for
-	// 1–3 and 4–6 (not faint, which would be hard to read), bold in the
-	// terminal's own color for 7+.
-	if low := label(m, "Sun 20 Sep 2026"); !strings.Contains(low, "\x1b[1;34mSun 20 Sep 2026") {
-		t.Errorf("1–3 tasks: the label should be bold accent blue: %q", low)
-	}
-	m = keys(t, m, "j")
-	if mid := label(m, "Mon 21 Sep 2026"); !strings.Contains(mid, "\x1b[1;34mMon 21 Sep 2026") {
-		t.Errorf("4–6 tasks: the label should be bold accent blue: %q", mid)
-	}
-	m = keys(t, m, "j")
-	if high := label(m, "Tue 22 Sep 2026"); !strings.Contains(high, "\x1b[1mTue 22 Sep 2026") {
-		t.Errorf("7+ tasks: the label should be bold in the terminal's own color: %q", high)
+	// The name is bold in the text color. Before it comes a square in exactly the
+	// style of the day's square in the heatmap: faint blue for 1–3, blue for
+	// 4–6, bold in the terminal's own color for 7+.
+	for _, c := range []struct {
+		day, mark string
+		keys      []string
+	}{
+		{"Sun 20 Sep 2026", "\x1b[2;34m■", nil},
+		{"Mon 21 Sep 2026", "\x1b[34m■", []string{"j"}},
+		{"Tue 22 Sep 2026", "\x1b[1m■", []string{"j"}},
+	} {
+		m = keys(t, m, c.keys...)
+		line := label(m, c.day)
+		if !strings.Contains(line, c.mark+"\x1b[m \x1b[1m"+c.day) {
+			t.Errorf("%s: want the square %q, then the bold name: %q", c.day, c.mark, line)
+		}
+		// The same style as the heatmap's square for that day.
+		cell := heatStyles[heatLevel(len(m.heat.days[m.heat.cursor]))].Render(heatDone)
+		if !strings.Contains(line, cell) {
+			t.Errorf("%s: the square isn't styled like the heatmap's: %q vs %q", c.day, line, cell)
+		}
 	}
 }
 

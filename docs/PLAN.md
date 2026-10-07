@@ -1180,8 +1180,9 @@ The main panel is split in three:
   backgrounds or hex. The cells of a month's block that aren't a day (above
   the 1st, below the last day) are the same quiet dot, so each month is a
   square block; they can't be reached. Months are separated by a one-column
-  blank. A day in the tasks panel is named in bold, in the color of its square
-  (not faint). A selected day keeps its color and shows `▣` (a square with a
+  blank. A day in the tasks panel is named in bold in the text color, after a `■` in
+  exactly the style of that day's square in the heatmap (faint for 1–3 too):
+  the glyph needs no reading and says how busy the day was. A selected day keeps its color and shows `▣` (a square with a
   dot) in bold; its style is still to be refined.
 - **Selection** is a range of days, always at least the cursor's day, and
   works like selecting in an OS list:
