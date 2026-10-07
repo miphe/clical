@@ -228,14 +228,16 @@ func TestHeatmapIsFlatOneHueInThreeStrengths(t *testing.T) {
 	if _, err := w.WriteString(heat); err != nil {
 		t.Fatal(err)
 	}
-	// One hue, the accent (blue, 34), plain and bold; the busiest days are the
+	// One hue, the accent (blue, 34), faint and plain; the busiest days are the
 	// terminal's own text color in bold, with no color code at all.
-	var blue, bold bool
+	var blue, faint, bold bool
 	for _, params := range sgrParams(buf.String()) {
 		for _, p := range params {
 			switch {
 			case p == 34:
 				blue = true
+			case p == 2:
+				faint = true
 			case p == 1:
 				bold = true
 			case (p >= 30 && p <= 37) || (p >= 90 && p <= 97):
@@ -243,25 +245,44 @@ func TestHeatmapIsFlatOneHueInThreeStrengths(t *testing.T) {
 			}
 		}
 	}
-	if !blue || !bold {
-		t.Errorf("blue %v, bold %v: want both", blue, bold)
+	if !blue || !faint || !bold {
+		t.Errorf("blue %v, faint %v, bold %v: want all three", blue, faint, bold)
 	}
 	if !strings.Contains(ansi.Strip(strings.Join(m.renderFocus(130, 24, nil), "\n")), "none  ■ 1–3  ■ 4–6  ■ 7+") {
 		t.Error("no legend")
 	}
 }
 
-func TestHeatmapFillsBetweenMonthsWithDots(t *testing.T) {
+func TestMonthBlocksAreSquareAndSeparatedByOneColumn(t *testing.T) {
 	m := heatModel(t, 130, 24)
 	lines := m.renderHeat(m.mainWidth()-2, heatRows)
-	// Inside the grid there are no two blanks in a row: months are separated
-	// by dots, not by empty space. (Only the days after today are blank, at
-	// the end of the last column.)
 	for _, l := range lines {
 		body := strings.TrimRight(ansi.Strip(l), " ")
-		if strings.Contains(body, "  ") {
-			t.Errorf("empty space inside the grid: %q", body)
+		// A blank column is just between months, and it is narrow: a cell's
+		// own trailing space and the gap, never three blanks in a row.
+		if strings.Contains(body, "   ") {
+			t.Errorf("a wide gap inside the grid: %q", body)
 		}
+	}
+	// Every row has a block's dots where its month has no day, so the blocks are
+	// square: the same number of cells in every row of a month's block.
+	cols := heatColumns(domain.NewCivilDate(2026, 8, 1), domain.NewCivilDate(2026, 9, 29), 1000)
+	var aug []heatCol
+	for _, c := range cols {
+		if c.start.Month == 8 {
+			aug = append(aug, c)
+		}
+	}
+	filled := 0
+	for _, c := range aug {
+		for row := 0; row < heatRows; row++ {
+			if _, ok := c.day(row); !ok {
+				filled++
+			}
+		}
+	}
+	if want := len(aug)*heatRows - 31; filled != want {
+		t.Errorf("August's block has %d filler cells, want %d", filled, want)
 	}
 	// The filler can't be reached: walking through every day never lands on it.
 	d := domain.NewCivilDate(2026, 9, 29)
@@ -300,28 +321,18 @@ func TestDayLabelsHaveTheirSquaresColor(t *testing.T) {
 		t.Fatalf("no %q in:\n%s", text, buf.String())
 		return ""
 	}
-	has := func(line string, code int) bool {
-		for _, params := range sgrParams(line) {
-			for _, p := range params {
-				if p == code {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	low := label(m, "Sun 20 Sep 2026")
-	if !has(low, 34) || has(low, 1) {
-		t.Errorf("1–3 tasks: the label should be plain accent blue: %q", low)
+	// The name's own style, in the color of its square: bold accent blue for
+	// 1–3 and 4–6 (not faint, which would be hard to read), bold in the
+	// terminal's own color for 7+.
+	if low := label(m, "Sun 20 Sep 2026"); !strings.Contains(low, "\x1b[1;34mSun 20 Sep 2026") {
+		t.Errorf("1–3 tasks: the label should be bold accent blue: %q", low)
 	}
 	m = keys(t, m, "j")
-	mid := label(m, "Mon 21 Sep 2026")
-	if !has(mid, 34) || !has(mid, 1) {
+	if mid := label(m, "Mon 21 Sep 2026"); !strings.Contains(mid, "\x1b[1;34mMon 21 Sep 2026") {
 		t.Errorf("4–6 tasks: the label should be bold accent blue: %q", mid)
 	}
 	m = keys(t, m, "j")
-	high := label(m, "Tue 22 Sep 2026")
-	if has(high, 34) || !has(high, 1) {
+	if high := label(m, "Tue 22 Sep 2026"); !strings.Contains(high, "\x1b[1mTue 22 Sep 2026") {
 		t.Errorf("7+ tasks: the label should be bold in the terminal's own color: %q", high)
 	}
 }

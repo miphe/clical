@@ -40,7 +40,7 @@ func (m Model) renderHeat(width, height int) []string {
 		b.WriteString(mutedStyle.Render(weekdayLetter(time.Weekday(r)) + " "))
 		for _, c := range cols {
 			if c.gap {
-				b.WriteString(heatFiller)
+				b.WriteString(strings.Repeat(" ", heatGapW))
 			}
 			if d, ok := c.day(r); ok {
 				b.WriteString(m.heatCell(d, hi, selLo, selHi))
@@ -56,7 +56,8 @@ func (m Model) renderHeat(width, height int) []string {
 	return padLines(lines, height, width)
 }
 
-// heatFiller fills what isn't a day between and around the months.
+// heatFiller fills the cells of a month's block that aren't a day, so the
+// block is square.
 var heatFiller = heatFillStyle.Render(heatNone + " ")
 
 // heatCell is one day, two columns wide. A selected day keeps its color and

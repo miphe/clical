@@ -195,8 +195,10 @@ func (m Model) heatTaskLines(width int) ([]string, string) {
 		if len(lines) > 0 {
 			lines = append(lines, "")
 		}
-		// The day is named in the color of its square in the heatmap.
-		lines = append(lines, fit(heatStyles[heatLevel(len(tasks))].Render(d.In(m.loc).Format("Mon 2 Jan 2006")), width))
+		// The day is named in bold, in the color of its square in the heatmap
+		// (not faint: a faint name would be hard to read).
+		label := heatStyles[heatLevel(len(tasks))].Faint(false).Bold(true)
+		lines = append(lines, fit(label.Render(d.In(m.loc).Format("Mon 2 Jan 2006")), width))
 		for _, a := range tasks {
 			line := "  " + mutedStyle.Render(fit(m.clock.Time(a.Completed), timeW)) + "  " + domain.SafeText(oneLine(a.Text))
 			if from := domain.SafeText(oneLine(a.Origin.Title)); from != "" {

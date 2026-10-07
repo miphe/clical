@@ -60,15 +60,16 @@ var (
 	nowStyle     = lipgloss.NewStyle().Foreground(colorNow)
 
 	// The heatmap is flat: every day with tasks is the same square, in one hue.
-	// The busier the day the stronger it is: the accent, the accent in bold
-	// (brighter on most terminals), then the terminal's own text color in bold,
-	// which is near-white on a dark theme and near-black on a light one, so it
-	// always stands out where a literal white would vanish. Days without tasks
-	// are a quiet dot, and the filler around the months is the same dot.
+	// The busier the day the stronger it is: the accent faint, the accent, then
+	// the terminal's own text color in bold, which is near-white on a dark
+	// theme and near-black on a light one, so it always stands out where a
+	// literal white would vanish. (Bold doesn't brighten the accent on every
+	// terminal, so it isn't used to tell the first two apart.) Days without
+	// tasks are a quiet dot, and so is the filler that squares a month's block.
 	heatStyles = [4]lipgloss.Style{
 		mutedStyle,
+		lipgloss.NewStyle().Foreground(colorAccent).Faint(true),
 		lipgloss.NewStyle().Foreground(colorAccent),
-		lipgloss.NewStyle().Foreground(colorAccent).Bold(true),
 		lipgloss.NewStyle().Bold(true),
 	}
 	heatFillStyle = mutedStyle

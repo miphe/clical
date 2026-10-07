@@ -31,6 +31,7 @@ const (
 
 const (
 	heatCellW  = 2 // columns per day
+	heatGapW   = 1 // the blank column between months
 	heatLabelW = 2 // the weekday letter and a space
 	heatRows   = 7
 
@@ -222,11 +223,10 @@ func (h heatState) span(start time.Weekday) (lo, hi domain.CivilDate) {
 
 // A month is a block of columns of its own, so each month has exactly its
 // days: the first column starts on the weekday of the 1st, the last ends on
-// the last day, and a column of filler separates it from the next month. A week
-// that spans two months is drawn in both, each with its own days. The cells
-// that aren't a day (the filler column, and the rows above the 1st and below
-// the last day) are dots, so the grid reads as one surface; they can't be
-// reached.
+// the last day, and a blank column separates it from the next month. A week
+// that spans two months is drawn in both, each with its own days. The cells of
+// a block that aren't a day (the rows above the 1st and below the last day)
+// are dots, so each month is a square block; they can't be reached.
 
 // colStart is the first day of the column that holds d: the Sunday of d's
 // week, or the 1st of d's month when that comes later.
@@ -244,7 +244,7 @@ func colEnd(s domain.CivilDate) domain.CivilDate {
 // start's weekday.
 type heatCol struct {
 	start, end domain.CivilDate
-	gap        bool // a filler column goes before it: a new month starts here
+	gap        bool // a blank column goes before it: a new month starts here
 }
 
 // day is the day in a row (0 is Sunday), if the column has one there.
@@ -265,7 +265,7 @@ func heatColumns(left, hi domain.CivilDate, width int) []heatCol {
 		gap := len(cols) > 0 && !sameMonth(s, cols[len(cols)-1].start)
 		need := heatCellW
 		if gap {
-			need += heatCellW // the filler column is as wide as a day's
+			need += heatGapW
 		}
 		if used+need > width {
 			break
@@ -284,7 +284,7 @@ func heatLeftFor(day domain.CivilDate, width int) domain.CivilDate {
 		prev := colStart(left.AddDays(-1))
 		need := heatCellW
 		if !sameMonth(prev, left) {
-			need += heatCellW
+			need += heatGapW
 		}
 		if used+need > width {
 			return left
