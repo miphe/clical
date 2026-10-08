@@ -720,3 +720,48 @@ func TestSyncTodayAndFilterWorkFromTheGlobalPanel(t *testing.T) {
 		t.Errorf("input = %q", m.globalWrite.input.Value())
 	}
 }
+
+func TestWrapInputKeepsEveryRuneOnSomeLine(t *testing.T) {
+	for _, in := range []string{"", "short", "a fairly long line of words that must wrap", "unbreakablewordthatislongerthanthewidth", "trailing space  "} {
+		rs := []rune(in)
+		segs := wrapInput(rs, 10)
+		at := 0
+		for _, sg := range segs {
+			if sg[0] != at || sg[1]-sg[0] > 10 {
+				t.Errorf("%q: bad line %v in %v", in, sg, segs)
+			}
+			at = sg[1]
+		}
+		if at != len(rs) {
+			t.Errorf("%q: lines end at %d of %d", in, at, len(rs))
+		}
+	}
+}
+
+func TestTypingALongItemWrapsInsteadOfClipping(t *testing.T) {
+	m, _ := writeModel(t, 130, 34)
+	m = keys(t, m, "W", "a")
+	text := "this is a rather long todo that cannot possibly fit on one line of the panel"
+	m = typed(t, m, text)
+	s := screen(m)
+	flat := strings.Join(strings.Fields(strings.NewReplacer("│", " ", "╭", " ", "╮", " ", "╰", " ", "╯", " ").Replace(s)), " ")
+	// Every word is on screen, from the first to the last.
+	for _, w := range strings.Fields(text) {
+		if !strings.Contains(flat, w) {
+			t.Fatalf("%q is not on screen:\n%s", w, s)
+		}
+	}
+	if strings.Count(s, "›") < 1 {
+		t.Errorf("no prompt:\n%s", s)
+	}
+	for _, l := range strings.Split(s, "\n") {
+		if ansi.StringWidth(l) > 130 {
+			t.Errorf("line wider than the window: %q", l)
+		}
+	}
+	// And it still adds the whole text.
+	m = keys(t, m, "enter")
+	if !strings.Contains(strings.Join(strings.Fields(screen(m)), " "), "possibly") {
+		t.Errorf("item missing after enter")
+	}
+}

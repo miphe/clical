@@ -167,8 +167,10 @@ func (m Model) renderWritePanel(which writeWhich, width, height int) []string {
 	}
 
 	listH := innerH
+	var input []string
 	if p.mode == wInsert {
-		listH--
+		input = p.inputLines(inner, innerH-1)
+		listH -= len(input)
 	}
 	if p.note != "" {
 		listH-- // room for what the last key couldn't do
@@ -201,17 +203,87 @@ func (m Model) renderWritePanel(which writeWhich, width, height int) []string {
 	if p.note != "" {
 		lines = append(lines, " "+accentStyle.Render(fit(p.note, inner-2)))
 	}
-	if p.mode == wInsert {
-		in := *p.input
-		in.SetWidth(max(inner-4, 4))
-		lines = append(lines, " "+accentStyle.Render("› ")+in.View())
-	}
+	lines = append(lines, input...)
 
 	if len(rows) > 1 {
 		bottom = fmt.Sprintf("%d of %d", min(p.sel+1, len(rows)), len(rows))
 	}
 	f.bottom = bottom
 	return panel(width, height, f, lines)
+}
+
+// inputWidth is how many columns of an item being typed fit on a line: the
+// panel less the margin and the prompt, and one for the cursor at the end.
+func inputWidth(inner int) int { return max(inner-4, 3) }
+
+// wrapInput breaks what is being typed into lines of at most width columns,
+// at spaces where it can and in the middle of a word where it must. It
+// returns each line's [start, end) in rs. The lines are contiguous, so every
+// position, the end included, is on one of them.
+func wrapInput(rs []rune, width int) [][2]int {
+	segs := [][2]int{}
+	for start := 0; start < len(rs) || len(segs) == 0; {
+		w, end, brk := 0, start, -1
+		for end < len(rs) {
+			rw := ansi.StringWidth(string(rs[end]))
+			if w+rw > width {
+				break
+			}
+			w += rw
+			end++
+			if rs[end-1] == ' ' {
+				brk = end
+			}
+		}
+		if end < len(rs) && brk > start {
+			end = brk
+		}
+		if end == start && start < len(rs) {
+			end++
+		}
+		segs = append(segs, [2]int{start, end})
+		start = end
+	}
+	return segs
+}
+
+// inputLines is the text being typed, all of it, broken into rows like the
+// items are and with the cursor drawn where it is. When there are more rows
+// than max, the ones around the cursor are shown.
+func (p writePanel) inputLines(inner, maxRows int) []string {
+	rs := []rune(p.input.Value())
+	pos := min(max(p.input.Position(), 0), len(rs))
+	segs := wrapInput(rs, inputWidth(inner))
+	cur := len(segs) - 1
+	for i, sg := range segs {
+		if sg[0] <= pos && pos < sg[1] {
+			cur = i
+			break
+		}
+	}
+	end := len(segs)
+	if n := max(maxRows, 1); end > n {
+		end = max(cur+1, n)
+		segs = segs[end-n : end]
+		cur -= end - n
+	}
+	out := make([]string, len(segs))
+	for i, sg := range segs {
+		prefix := "   "
+		if sg[0] == 0 {
+			prefix = " " + accentStyle.Render("› ")
+		}
+		text := string(rs[sg[0]:sg[1]])
+		if i == cur {
+			rest, ch := "", " "
+			if pos < len(rs) && pos < sg[1] {
+				ch, rest = string(rs[pos]), string(rs[pos+1:sg[1]])
+			}
+			text = string(rs[sg[0]:pos]) + selectedStyle.Render(ch) + rest
+		}
+		out[i] = prefix + text
+	}
+	return out
 }
 
 // writeLine is line k of an item's text. The selected item is marked with a

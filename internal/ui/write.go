@@ -461,6 +461,7 @@ func (m Model) writeInsertKey(which writeWhich, msg tea.KeyPressMsg) (tea.Model,
 	}
 	var cmd tea.Cmd
 	*p.input, cmd = p.input.Update(msg)
+	m.clampWrite(which)
 	return m, cmd
 }
 
@@ -490,6 +491,8 @@ func (m Model) writePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 	p := m.focusedPanel()
 	var cmd tea.Cmd
 	*p.input, cmd = p.input.Update(msg)
+	m.clampWrite(writeEvent)
+	m.clampWrite(writeGlobal)
 	return m, cmd
 }
 
@@ -498,8 +501,11 @@ func (m *Model) clampWrite(which writeWhich) {
 	p := m.panel(which)
 	rows := p.rows()
 	p.sel = min(max(p.sel, 0), max(len(rows)-1, 0))
-	_, h := m.writeInner(which)
-	w, _ := m.writeInner(which)
+	w, h := m.writeInner(which)
+	if p.mode == wInsert {
+		h -= len(p.inputLines(w, h-1)) // what's being typed takes the bottom
+		h = max(h, 1)
+	}
 	top, bottom := p.blockSpan(p.sel, w)
 	switch {
 	case top < p.offset:
