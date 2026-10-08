@@ -378,3 +378,29 @@ func TestOriginSurvivesTheFileForEveryDirection(t *testing.T) {
 		}
 	}
 }
+
+func TestMoveItem(t *testing.T) {
+	mk := func() List {
+		return List{Items: []Item{{Text: "a"}, {Text: "b"}, {Text: "c"}}}
+	}
+	order := func(l List) string {
+		s := ""
+		for _, it := range l.Items {
+			s += it.Text
+		}
+		return s
+	}
+	for _, c := range []struct {
+		from, to int
+		want     string
+	}{{0, 1, "bac"}, {0, 2, "bca"}, {2, 0, "cab"}, {1, 1, "abc"}} {
+		l := mk()
+		if err := l.MoveItem(c.from, c.to); err != nil || order(l) != c.want {
+			t.Errorf("%d→%d: %s, %v; want %s", c.from, c.to, order(l), err, c.want)
+		}
+	}
+	l := mk()
+	if err := l.MoveItem(0, 3); err != ErrNotFound {
+		t.Errorf("out of range: %v", err)
+	}
+}

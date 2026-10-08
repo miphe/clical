@@ -212,6 +212,19 @@ func (l *List) DeleteAt(i int) error {
 	return nil
 }
 
+// MoveItem moves the item at position from so that it ends up at position to,
+// the items in between shifting by one.
+func (l *List) MoveItem(from, to int) error {
+	n := len(l.Items)
+	if from < 0 || from >= n || to < 0 || to >= n {
+		return ErrNotFound
+	}
+	it := l.Items[from]
+	l.Items = append(l.Items[:from], l.Items[from+1:]...)
+	l.Items = append(l.Items[:to], append([]Item{it}, l.Items[to:]...)...)
+	return nil
+}
+
 // take removes and returns a TODO.
 func (l *List) take(id string) (Item, error) {
 	i, err := l.find(id)

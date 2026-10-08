@@ -28,12 +28,25 @@ func (m Model) globalWidth(avail, rest int) int {
 	if !m.globalOpen {
 		return stripW
 	}
-	w := min(max(avail/4, 28), 40)
+	w := min(max(avail/2, 56), 80)
 	w = min(w, avail-rest)
 	if w < 20 {
 		return stripW
 	}
 	return w
+}
+
+// equalWrites is the width each of the two Write panels gets in the event
+// view when the global one is open: they share what the details leave, which
+// is half the screen, within the room the details need. ok is false when
+// there's no room for that, and the usual layout applies.
+func (m Model) equalWrites() (each int, ok bool) {
+	if !m.writeOn || !m.globalOpen || m.detail == nil {
+		return 0, false
+	}
+	details := min(max(m.width/2, eventMinWidth), detailRoom)
+	each = min((m.width-details)/2, 80)
+	return each, each >= 28
 }
 
 // globalRect is the global panel's size.
@@ -43,6 +56,9 @@ func (m Model) globalRect() (w, h int) {
 		return 0, h
 	}
 	if m.detail != nil {
+		if each, ok := m.equalWrites(); ok {
+			return each, h
+		}
 		return m.globalWidth(m.width, eventMinWidth), h
 	}
 	side := sidebarInner + 2
@@ -68,6 +84,9 @@ func (m Model) eventLayout() eventLayout {
 	}
 	gw, _ := m.globalRect()
 	rest, h := m.width-gw, m.bodyHeight()
+	if each, ok := m.equalWrites(); ok {
+		return eventLayout{detailW: m.width - 2*each, detailH: h, writeW: each, writeH: h}
+	}
 	if rest >= splitMinWidth {
 		// The Write panel's usual share, and once the details have the room
 		// they can use (their text is at most 76 columns), up to twice that.

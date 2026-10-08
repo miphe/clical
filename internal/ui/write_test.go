@@ -721,6 +721,61 @@ func TestSyncTodayAndFilterWorkFromTheGlobalPanel(t *testing.T) {
 	}
 }
 
+func TestTwoWritePanelsInTheEventViewAreEqual(t *testing.T) {
+	for _, w := range []int{120, 130, 180, 300} {
+		m, _ := writeModel(t, w, 34)
+		m, _ = openEvent(t, m)
+		m = keys(t, m, "W")
+		l := m.eventLayout()
+		gw, _ := m.globalRect()
+		if l.writeW != gw || l.detailW+l.writeW+gw != w {
+			t.Errorf("at %d: event write %d, global %d, details %d", w, l.writeW, gw, l.detailW)
+		}
+	}
+}
+
+func TestGlobalPanelAimsForUpTo80Columns(t *testing.T) {
+	for w, want := range map[int]int{120: 54, 180: 77, 300: 80} {
+		m, _ := writeModel(t, w, 34)
+		m = keys(t, m, "W")
+		if gw, _ := m.globalRect(); gw != want {
+			t.Errorf("at %d: global panel %d, want %d", w, gw, want)
+		}
+	}
+}
+
+func TestAltJAndKReorderItems(t *testing.T) {
+	for _, down := range []string{"alt+j", "alt+down"} {
+		m, src := writeModel(t, 130, 34)
+		m, scope := openEvent(t, m)
+		m = keys(t, m, "w")
+		for _, text := range []string{"one", "two", "three"} {
+			m = keys(t, m, "a")
+			m = typed(t, m, text)
+			m = keys(t, m, "enter", "esc")
+		}
+		order := func() string {
+			var s []string
+			for _, it := range listOf(t, src, scope) {
+				s = append(s, it.Text)
+			}
+			return strings.Join(s, ",")
+		}
+		m = keys(t, m, "g", down)
+		if got := order(); got != "two,one,three" {
+			t.Fatalf("%s: order %s", down, got)
+		}
+		m = keys(t, m, down, down) // the third press is at the end: nothing
+		if got := order(); got != "two,three,one" || m.eventWrite.sel != 2 {
+			t.Fatalf("%s: order %s, selected %d", down, got, m.eventWrite.sel)
+		}
+		m = keys(t, m, "alt+k", "alt+up")
+		if got := order(); got != "one,two,three" || m.eventWrite.sel != 0 {
+			t.Fatalf("up: order %s, selected %d", got, m.eventWrite.sel)
+		}
+	}
+}
+
 func TestWrapInputKeepsEveryRuneOnSomeLine(t *testing.T) {
 	for _, in := range []string{"", "short", "a fairly long line of words that must wrap", "unbreakablewordthatislongerthanthewidth", "trailing space  "} {
 		rs := []rune(in)

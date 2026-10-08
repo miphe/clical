@@ -107,6 +107,7 @@ func helpSections() []helpSection {
 			{"space", "Check or uncheck a TODO"},
 			{"d", "Delete (asks first)"},
 			{"m", "Move a TODO: event ↔ global (global → the open event)"},
+			{"alt+j / alt+k", "Move the item down / up (also alt+↓ / alt+↑)"},
 			{"z", "Archive a checked TODO"},
 			{"Z", "Archive every checked TODO in the panel (end of the day)"},
 			{"tab", "Next panel (list, view, global Write)"},

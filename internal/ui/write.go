@@ -316,6 +316,10 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		p.sel = 0
 	case "G", "end":
 		p.sel = max(len(rows)-1, 0)
+	case "alt+j", "alt+down":
+		return m.moveItem(which, +1)
+	case "alt+k", "alt+up":
+		return m.moveItem(which, -1)
 	case "a":
 		return m.startInsert(which, "", "", false, -1)
 	case "A":
@@ -385,6 +389,28 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	m.clampWrite(which)
 	return m, nil
+}
+
+// moveItem moves the selected TODO or note one place up or down among what's
+// shown, and the selection goes with it. It does nothing at either end. It
+// asks for the item by position, but only moves it if it is still the same
+// one by the time the list is changed.
+func (m Model) moveItem(which writeWhich, dir int) (tea.Model, tea.Cmd) {
+	p := m.panel(which)
+	rows := p.rows()
+	item, at, have := p.current()
+	if !have || p.sel+dir < 0 || p.sel+dir >= len(rows) {
+		return m, nil
+	}
+	to := rows[p.sel+dir]
+	p.sel += dir
+	m.clampWrite(which)
+	return m, m.updateList(*p, func(l *write.List) error {
+		if at >= len(l.Items) || l.Items[at].ID != item.ID || l.Items[at].Text != item.Text {
+			return write.ErrNotFound
+		}
+		return l.MoveItem(at, to)
+	})
 }
 
 // moveSelected sends a TODO to the other list: an event's to the global one,

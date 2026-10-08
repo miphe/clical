@@ -1,30 +1,30 @@
-╭─ Event ────────────────────────────────────────────────────────────────────────────────╮╭─ Write ─────────── global ─╮
-│ Dentist                                                                                ││ Nothing yet.               │
-│ Tue 29 Sep 2026 · 15:00–16:00 (1h)                                                     ││ a adds a TODO, A a note.   │
-│ ● Personal · Main                                                                      ││                            │
-│                                                                                        ││                            │
-│ Location  Main St 1                                                                    ││                            │
-│                                                                                        ││                            │
-│ Description                                                                            ││                            │
-│ Bring the insurance card. Park in the back, the front lot is closed for                ││                            │
-│ repairs until November.                                                                ││                            │
-│                                                                                        ││                            │
-│                                                                                        ││                            │
-│                                                                                        ││                            │
-│                                                                                        ││                            │
-│                                                                                        ││                            │
-│                                                                                        ││                            │
-│                                                                                        ││                            │
-│                                                                                        ││                            │
-╰────────────────────────────────────────────────────────────────────────────────────────╯│                            │
-╭─ Write ─────────────────────────────────────────────────────────────────── this event ─╮│                            │
-│  [x] send the deck                                                                     ││                            │
-│  [ ] book a room for the offsite so everyone fits comfortably around the table         ││                            │
-│      Agenda: roadmap                                                                   ││                            │
-│                                                                                        ││                            │
-│                                                                                        ││                            │
-│                                                                                        ││                            │
-│                                                                                        ││                            │
-╰─────────────────────────────────────────────────────────────────────────────── 1 of 3 ─╯╰────────────────────────────╯
- j/k move · a TODO · A note · space check · e edit · d delete · m move · z archive · Z archive all · esc back · ? help  
+╭─ Event ──────────────────────────────────────────────────╮╭─ Write ─────── this event ─╮╭─ Write ─────────── global ─╮
+│ Dentist                                                  ││  [x] send the deck         ││ Nothing yet.               │
+│ Tue 29 Sep 2026 · 15:00–16:00 (1h)                       ││  [ ] book a room for the   ││ a adds a TODO, A a note.   │
+│ ● Personal · Main                                        ││      offsite so everyone   ││                            │
+│                                                          ││      fits comfortably      ││                            │
+│ Location  Main St 1                                      ││      around the table      ││                            │
+│                                                          ││      Agenda: roadmap       ││                            │
+│ Description                                              ││                            ││                            │
+│ Bring the insurance card. Park in the back, the front    ││                            ││                            │
+│ lot is closed for repairs until November.                ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+│                                                          ││                            ││                            │
+╰──────────────────────────────────────────────────────────╯╰─────────────────── 1 of 3 ─╯╰────────────────────────────╯
+ j/k move · a TODO · A note · space check · e edit · d delete · m move · alt+j/k reorder · z archive · esc back · ? help
  ◦ Idle        Tue 29 Sep 14:30                                                                            Synced 14:29 
