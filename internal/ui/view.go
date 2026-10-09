@@ -384,6 +384,9 @@ func (m Model) footerHints() []footHint {
 		if m.focusedPanel().mode == wConfirm {
 			return []footHint{h("y", "delete", prioMust), h("any key", "keep", prioMust)}
 		}
+		if m.focusedPanel().editing() {
+			return []footHint{h("enter", "save", prioMust), h("esc", "cancel", prioMust)}
+		}
 		return []footHint{h("enter", "add", prioMust), h("esc", "done", prioMust)}
 	case m.focusedPanel() != nil:
 		return []footHint{h("j/k", "move", prioMid), h("a", "TODO", prioHigh), h("A", "note", prioHigh), h("space", "check", prioHigh),

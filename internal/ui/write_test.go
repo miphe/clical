@@ -820,3 +820,17 @@ func TestTypingALongItemWrapsInsteadOfClipping(t *testing.T) {
 		t.Errorf("item missing after enter")
 	}
 }
+
+func TestEnterIsLabeledAddWhenCreatingAndSaveWhenEditing(t *testing.T) {
+	m, _ := writeModel(t, 130, 34)
+	m = keys(t, m, "W", "a")
+	m = typed(t, m, "first")
+	m = keys(t, m, "enter")
+	if s := screen(m); !strings.Contains(s, "enter add") {
+		t.Errorf("adding: want 'enter add':\n%s", s)
+	}
+	m = keys(t, m, "esc", "e")
+	if s := screen(m); !strings.Contains(s, "enter save") || strings.Contains(s, "enter add") {
+		t.Errorf("editing: want 'enter save':\n%s", s)
+	}
+}
