@@ -67,6 +67,7 @@ type heatState struct {
 	cursor, anchor domain.CivilDate // the selection is anchor..cursor
 	unit           heatUnit
 	left           domain.CivilDate // first visible week
+	pinned         bool             // the window ends at the newest column, and follows it as days pass
 	scroll         int              // first visible line of the tasks list
 }
 
@@ -298,7 +299,7 @@ func heatLeftFor(day domain.CivilDate, width int) domain.CivilDate {
 // pinned to the newest column when the window reaches it.
 func (h heatState) viewLeft(width int, hi domain.CivilDate) domain.CivilDate {
 	left := heatLeftFor(hi, width)
-	if isSet(h.left) {
+	if isSet(h.left) && !h.pinned {
 		left = colStart(h.left)
 	}
 	cc := colStart(h.cursor)

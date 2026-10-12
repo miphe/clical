@@ -96,7 +96,12 @@ func (m Model) fitFocusView() Model {
 // heatFit scrolls the heatmap so the cursor is in view.
 func (m Model) heatFit() Model {
 	_, hi := m.heat.bounds(m.today())
-	m.heat.left = m.heat.viewLeft(m.heatCellsWidth(), hi)
+	w := m.heatCellsWidth()
+	m.heat.left = m.heat.viewLeft(w, hi)
+	// Showing the newest column? Then keep doing so when a new day (or week,
+	// or month) begins while the app is open.
+	cols := heatColumns(m.heat.left, hi, w)
+	m.heat.pinned = len(cols) > 0 && cols[len(cols)-1].start == colStart(hi)
 	return m
 }
 

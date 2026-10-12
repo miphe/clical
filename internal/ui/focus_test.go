@@ -672,3 +672,30 @@ func TestFocusDropsPanelsWhenShort(t *testing.T) {
 		t.Errorf("tab went to %v", m.focus)
 	}
 }
+
+func TestHeatFollowsTheClockWhenLeftOpenForDays(t *testing.T) {
+	m, src := writeModel(t, 100, 24)
+	seedArchive(t, src, []write.Archived{done("a", "one", 2026, 9, 29, 9)})
+	m = keys(t, m, "4")
+	// Three days later a task is completed and archived.
+	later := m.now.AddDate(0, 0, 3)
+	seedArchive(t, src, []write.Archived{done("a", "one", 2026, 9, 29, 9), done("b", "fresh", 2026, 10, 2, 11)})
+	m, cmd := send(t, m, tickMsg(later))
+	m, _ = run(t, m, cmd)
+	today := m.today()
+	if today != domain.NewCivilDate(2026, 10, 2) {
+		t.Fatalf("today = %v", today)
+	}
+	_, hi := m.heat.bounds(today)
+	cols := heatColumns(m.heat.left, hi, m.heatCellsWidth())
+	if len(cols) == 0 || cols[len(cols)-1].start != colStart(today) {
+		t.Errorf("the newest column isn't in view: left %v, last %v", m.heat.left, cols)
+	}
+	if len(m.heat.days[today]) != 1 {
+		t.Errorf("the new day's task is missing: %v", m.heat.days)
+	}
+	m = keys(t, m, "t")
+	if s := screen(m); !strings.Contains(s, "11:00  fresh") {
+		t.Errorf("t should land on the new day and list its task:\n%s", s)
+	}
+}
