@@ -189,6 +189,10 @@ as a test user, and sign-ins expire after 7 days (publishing to "In
 production" removes both; the unverified-app warning is expected). A
 company that blocks unconfigured third-party apps can trust the client ID
 in its Admin console.
+User-facing steps: [`GOOGLE.md`](GOOGLE.md). A shared built-in client (so users
+need no project of their own) was considered and is not done: it would need
+the maintainer's Cloud project, an unverified app capped at 100 users, and
+Google verification beyond that.
 
 **Provider** (`internal/providers/google`):
 - Calls the Calendar REST API directly (`users/me/calendarList`,

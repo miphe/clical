@@ -14,8 +14,9 @@ tar -xzf clical_*_darwin_arm64.tar.gz   # or linux_amd64, and so on
 sudo mv clical /usr/local/bin/
 ```
 
-If macOS refuses to open it because it was downloaded in a browser, run
-`xattr -d com.apple.quarantine /usr/local/bin/clical`.
+The binary isn't signed by Apple yet, so if macOS refuses to open it (it was
+downloaded in a browser), run
+`xattr -d com.apple.quarantine /usr/local/bin/clical` once.
 
 ## Use
 
@@ -29,9 +30,16 @@ addresses. Press `a` to add a calendar, and `?` to see all keys.
 - **iCal link:** in Google Calendar, open **Settings**, choose the calendar,
   and copy **Secret address in iCal format** from **Integrate calendar**.
   Treat it like a password.
-- **Google account:** create a Desktop OAuth client in the
-  [Google Cloud Console](https://console.cloud.google.com/) with the Google
-  Calendar API enabled, then enter its client ID and secret in CLIcal.
+- **Google account:** you need your own Google OAuth client (a few minutes in
+  the Google Cloud Console), which you enter once in CLIcal. Follow
+  [`docs/GOOGLE.md`](docs/GOOGLE.md). Prefer the iCal link when you can.
+
+**Your data:** feed addresses, the OAuth client and sign-in tokens are kept
+only in an encrypted vault on your machine. CLIcal talks only to your calendar
+feeds and Google, and to no other server. It does keep a local copy of your
+events (a SQLite file) and your notes (plain files) in its data directory,
+`~/Library/Application Support/clical` on macOS and `~/.local/share/clical` on
+Linux, readable only by you but not encrypted.
 
 ## Development
 
@@ -41,8 +49,12 @@ You need Go 1.27 or newer.
 git clone https://github.com/miphe/clical.git
 cd clical
 go run ./cmd/clical        # run from source
+go install ./cmd/clical    # or install the binary into $(go env GOPATH)/bin
 go test ./...              # run the tests
+go run ./cmd/clical --mock # try it on made-up data; nothing real is read or saved
 ```
+
+Google accounts and iCal links work the same as for the binary, see above.
 
 To keep your real calendars untouched while developing, point
 `XDG_DATA_HOME` at a temporary directory, for example
