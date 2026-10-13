@@ -389,7 +389,7 @@ func (m Model) footerHints() []footHint {
 		}
 		return []footHint{h("enter", "add", prioMust), h("esc", "done", prioMust)}
 	case m.focusedPanel() != nil:
-		return []footHint{h("j/k", "move", prioMid), h("a", "TODO", prioHigh), h("A", "note", prioHigh), h("space", "check", prioHigh),
+		return []footHint{h("j/k", "move", prioMid), h("a", "task", prioHigh), h("A", "note", prioHigh), h("space", "check", prioHigh),
 			h("e", "edit", prioMid), h("d", "delete", prioMid), h("m", "move", prioMid), h("alt+j/k", "reorder", prioLow), h("z", "archive", prioMid), h("Z", "archive all", prioLow),
 			h("esc", "back", prioMust), help}
 	case m.settings != nil && m.settings.input != nil:

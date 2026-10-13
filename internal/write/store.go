@@ -18,7 +18,7 @@ import (
 //
 //	global.md          the global list
 //	events/<hash>.md   one file per event occurrence
-//	archive.jsonl      archived TODOs, appended as they are filed
+//	archive.jsonl      archived tasks, appended as they are filed
 //
 // The hash is of the event's calendar and key. Keys come from calendar feeds,
 // so they are never used as file names. The files are meant to be read and
@@ -40,7 +40,7 @@ func Open(dir string) (*Store, error) {
 // Dir is the directory the files are in.
 func (s *Store) Dir() string { return s.dir }
 
-// NewID makes the ID of a new TODO.
+// NewID makes the ID of a new task.
 func NewID() string {
 	var b [4]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -173,7 +173,7 @@ func (s *Store) All() ([]Entry, error) {
 	return append(out, events...), nil
 }
 
-// Find locates a TODO by ID or unique prefix across every list.
+// Find locates a task by ID or unique prefix across every list.
 func (s *Store) Find(id string) (Entry, Item, error) {
 	all, err := s.All()
 	if err != nil {
@@ -203,7 +203,7 @@ func (s *Store) Find(id string) (Entry, Item, error) {
 	return hit, item, nil
 }
 
-// Move takes a TODO to another scope. It's added there before it's removed
+// Move takes a task to another scope. It's added there before it's removed
 // here, so a failure in between leaves a copy rather than losing it.
 func (s *Store) Move(id string, to Ref, toHdr *Header) error {
 	src, item, err := s.Find(id)
@@ -222,7 +222,7 @@ func (s *Store) Move(id string, to Ref, toHdr *Header) error {
 	return s.Update(src.Scope, nil, func(l *List) error { return l.Delete(item.ID) })
 }
 
-// Archive files a checked TODO away. It's appended to the archive before it's
+// Archive files a checked task away. It's appended to the archive before it's
 // removed from its list, for the same reason as Move.
 func (s *Store) Archive(id string, now time.Time) (Archived, error) {
 	src, item, err := s.Find(id)
@@ -278,7 +278,7 @@ func (s *Store) Archived() ([]Archived, error) {
 	return out, nil
 }
 
-// Unarchive restores an archived TODO, checked, to the global list, then
+// Unarchive restores an archived task, checked, to the global list, then
 // takes it out of the archive.
 func (s *Store) Unarchive(id string) (Archived, error) {
 	all, err := s.Archived()

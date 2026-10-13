@@ -28,10 +28,10 @@ func TestAddSetsOriginOnce(t *testing.T) {
 	g := List{}
 	g.AddTodo("water plants", "bbbb2222")
 	if !g.Items[0].Origin.IsZero() {
-		t.Error("a global TODO has an origin")
+		t.Error("a global task has an origin")
 	}
 	if _, err := g.AddTodo("   ", "x"); !errors.Is(err, ErrEmpty) {
-		t.Errorf("empty TODO: %v", err)
+		t.Errorf("empty task: %v", err)
 	}
 }
 
@@ -80,7 +80,7 @@ func TestArchiveNeedsCheckedAndKeepsProvenance(t *testing.T) {
 	l := eventList(meeting)
 	l.AddTodo("a", "11111111")
 	if _, err := l.Archive("11111111", t0); !errors.Is(err, ErrNotDone) {
-		t.Fatalf("archiving an unchecked TODO: %v", err)
+		t.Fatalf("archiving an unchecked task: %v", err)
 	}
 	l.Check("11111111", t0)
 	l.Items[0].Last = other
@@ -134,7 +134,7 @@ func TestRoundTripKeepsEverything(t *testing.T) {
 	}
 	todo := got.Items[1]
 	if !todo.Done || !todo.Completed.Equal(t0) || !todo.Origin.Same(meeting) || todo.ID != "a1b2c3d4" {
-		t.Errorf("checked TODO = %+v", todo)
+		t.Errorf("checked task = %+v", todo)
 	}
 	if _, off := todo.Completed.Zone(); off != 3*3600 {
 		t.Errorf("completion lost its offset: %d", off)
@@ -163,12 +163,12 @@ func TestHandWrittenFilesSurvive(t *testing.T) {
 		t.Fatalf("todos = %+v", todos)
 	}
 	if todos[0].ID == "" || todos[0].ID != Parse([]byte(src)).Items[5].ID {
-		t.Error("a hand-written TODO's ID isn't the same on every read")
+		t.Error("a hand-written task's ID isn't the same on every read")
 	}
 	// Identical lines get different IDs.
 	two := Parse([]byte("- [ ] same\n- [ ] same\n"))
 	if two.Items[0].ID == two.Items[1].ID {
-		t.Error("two identical TODOs share an ID")
+		t.Error("two identical tasks share an ID")
 	}
 }
 
@@ -261,7 +261,7 @@ func TestStoreMoveArchiveUnarchive(t *testing.T) {
 	}
 	g, _ = s.Get(Ref{})
 	if len(g.Items) != 1 {
-		t.Errorf("archived TODO still in the global list: %+v", g.Items)
+		t.Errorf("archived task still in the global list: %+v", g.Items)
 	}
 	arch, _ := s.Archived()
 	if len(arch) != 1 || !arch[0].Origin.Same(meeting) || !arch[0].Completed.Equal(t0) {
@@ -374,7 +374,7 @@ func TestOriginSurvivesTheFileForEveryDirection(t *testing.T) {
 	data, _ := os.ReadFile(s.path(other))
 	for _, line := range strings.Split(string(data), "\n") {
 		if strings.Contains(line, "home") && strings.Contains(line, `"from"`) {
-			t.Errorf("a TODO in its own list repeats its origin: %s", line)
+			t.Errorf("a task in its own list repeats its origin: %s", line)
 		}
 	}
 }

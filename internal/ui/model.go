@@ -251,7 +251,7 @@ type Settings struct {
 	PulseLead  time.Duration
 	PulseGrace time.Duration // after the start; -1 for the whole event
 	PanelFlash bool          // a collapsed panel flashes when its content changes
-	Write      bool          // notes and TODOs at all
+	Write      bool          // notes and tasks at all
 	Save       func(Prefs) error
 }
 

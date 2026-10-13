@@ -170,7 +170,7 @@ func (m Model) renderWritePanel(which writeWhich, width, height int) []string {
 	bottom := ""
 	switch p.mode {
 	case wInsert:
-		kind := "TODO"
+		kind := "task"
 		if p.addNote || p.editAt >= 0 {
 			kind = "note"
 		}
@@ -208,7 +208,7 @@ func (m Model) renderWritePanel(which writeWhich, width, height int) []string {
 		}
 	}
 	if len(rows) == 0 && p.loaded {
-		lines = []string{mutedStyle.Render(" Nothing yet."), mutedStyle.Render(" a adds a TODO, A a note.")}
+		lines = []string{mutedStyle.Render(" Nothing yet."), mutedStyle.Render(" a adds a task, A a note.")}
 	}
 	if p.offset < len(lines) {
 		lines = lines[p.offset:]
@@ -306,7 +306,7 @@ func (p writePanel) inputLines(inner, maxRows int) []string {
 }
 
 // writeLine is line k of an item's text. The selected item is marked with a
-// chevron in the margin; a finished TODO has its box checked, in the success
+// chevron in the margin; a finished task has its box checked, in the success
 // color, and is otherwise like the rest.
 func writeLine(it write.Item, k int, text string, selected bool, inner int) string {
 	marker, box := " ", "    "
@@ -323,7 +323,7 @@ func writeLine(it write.Item, k int, text string, selected bool, inner int) stri
 }
 
 // renderGlobalPanel is the global panel: expanded, or a strip that says
-// "Write" down its side with the number of open TODOs under it.
+// "Write" down its side with the number of open tasks under it.
 func (m Model) renderGlobalPanel(width, height int) []string {
 	if width <= 0 {
 		return make([]string, height)

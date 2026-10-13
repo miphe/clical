@@ -19,7 +19,7 @@ type CLI struct {
 	Accounts  AccountsCmd      `cmd:"" help:"Manage accounts, the groups calendars are listed under."`
 	Config    ConfigCmd        `cmd:"" help:"Show or create the settings file."`
 	Logs      LogsCmd          `cmd:"" help:"Print the end of the log: sync failures and calendar changes."`
-	Write     WriteCmd         `cmd:"" help:"Notes and TODOs, global or on an event."`
+	Write     WriteCmd         `cmd:"" help:"Notes and tasks, global or on an event."`
 }
 
 func main() {

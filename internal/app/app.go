@@ -38,7 +38,7 @@ type Paths struct {
 	Vault string // directory of age-encrypted secrets
 	DB    string // SQLite cache
 	Log   string // log file; "" for none
-	Write string // notes and TODOs, see internal/write
+	Write string // notes and tasks, see internal/write
 }
 
 // DefaultPaths is $XDG_DATA_HOME/clical (~/.local/share/clical), with the log

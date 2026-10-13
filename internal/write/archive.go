@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// The archive is a JSON Lines file: one archived TODO per line, appended as
+// The archive is a JSON Lines file: one archived task per line, appended as
 // they are filed. Plain text, easy to read by hand and for a heatmap to read
 // later. A line that isn't a record is kept as it is.
 

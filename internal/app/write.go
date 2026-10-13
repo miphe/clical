@@ -10,7 +10,7 @@ import (
 	"github.com/miphe/clical/internal/write"
 )
 
-// Write is the user's notes and TODOs (internal/write). They need no
+// Write is the user's notes and tasks (internal/write). They need no
 // secrets, so they work while the vault is locked, and live in files of
 // their own rather than the cache, which can be rebuilt from the calendars.
 
@@ -99,7 +99,7 @@ func matchEvent(events []domain.Event, text string) (domain.Event, error) {
 }
 
 // The rest are what a front-end that keeps a Write list on screen needs: read
-// a list, change one, move or archive a TODO. They are the Store's methods,
+// a list, change one, move or archive a task. They are the Store's methods,
 // reached through here so front-ends don't open the files themselves.
 
 // WriteList reads a scope's list; the zero Ref is the global one.
@@ -120,7 +120,7 @@ func (a *App) WriteUpdate(scope write.Ref, hdr *write.Header, fn func(*write.Lis
 	return st.Update(scope, hdr, fn)
 }
 
-// WriteMove takes a TODO to another scope, see write.Store.Move.
+// WriteMove takes a task to another scope, see write.Store.Move.
 func (a *App) WriteMove(id string, to write.Ref, hdr *write.Header) error {
 	st, err := a.Write()
 	if err != nil {
@@ -129,7 +129,7 @@ func (a *App) WriteMove(id string, to write.Ref, hdr *write.Header) error {
 	return st.Move(id, to, hdr)
 }
 
-// WriteArchive files a checked TODO away, see write.Store.Archive.
+// WriteArchive files a checked task away, see write.Store.Archive.
 func (a *App) WriteArchive(id string, now time.Time) error {
 	st, err := a.Write()
 	if err != nil {
@@ -139,7 +139,7 @@ func (a *App) WriteArchive(id string, now time.Time) error {
 	return err
 }
 
-// WriteArchived lists the archived TODOs, oldest first, see
+// WriteArchived lists the archived tasks, oldest first, see
 // write.Store.Archived.
 func (a *App) WriteArchived() ([]write.Archived, error) {
 	st, err := a.Write()

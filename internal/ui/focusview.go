@@ -177,7 +177,7 @@ func (m Model) heatTaskLines(width int) ([]string, string) {
 	case !m.heat.loaded:
 		return nil, "Loading…"
 	case len(m.heat.days) == 0:
-		return nil, "No archived tasks yet. Check a TODO in a Write panel and press z to archive it."
+		return nil, "No archived tasks yet. Check a task in a Write panel and press z to archive it."
 	}
 	// A time is "09:30" or "9:30 AM": give every row the longest one's room.
 	timeW := 0

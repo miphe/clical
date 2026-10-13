@@ -185,7 +185,7 @@ func TestInsertModeShowsInTheTitleAndFooter(t *testing.T) {
 	m, _ = openEvent(t, m)
 	m = keys(t, m, "w", "a")
 	s := screen(m)
-	if !strings.Contains(s, "INSERT TODO") || !strings.Contains(s, "enter add") {
+	if !strings.Contains(s, "INSERT task") || !strings.Contains(s, "enter add") {
 		t.Errorf("no mode label:\n%s", s)
 	}
 }
@@ -199,14 +199,14 @@ func TestCheckArchiveNeedsCheckedFirst(t *testing.T) {
 
 	m = keys(t, m, "z")
 	if !strings.Contains(screen(m), "Check it first") || len(listOf(t, src, scope)) != 1 {
-		t.Errorf("archived an unchecked TODO:\n%s", screen(m))
+		t.Errorf("archived an unchecked task:\n%s", screen(m))
 	}
 	m = keys(t, m, "space")
 	if items := listOf(t, src, scope); !items[0].Done || items[0].Completed.IsZero() {
 		t.Fatalf("not checked: %+v", items)
 	}
 	if !strings.Contains(screen(m), "[x] file the report") {
-		t.Errorf("checked TODO isn't shown:\n%s", screen(m))
+		t.Errorf("checked task isn't shown:\n%s", screen(m))
 	}
 	m = keys(t, m, "space")
 	if items := listOf(t, src, scope); items[0].Done || !items[0].Completed.IsZero() {
@@ -214,7 +214,7 @@ func TestCheckArchiveNeedsCheckedFirst(t *testing.T) {
 	}
 	m = keys(t, m, "space", "z")
 	if len(listOf(t, src, scope)) != 0 {
-		t.Error("the archived TODO is still listed")
+		t.Error("the archived task is still listed")
 	}
 	if arch, _ := src.st.Archived(); len(arch) != 1 || arch[0].Text != "file the report" || !arch[0].Origin.Same(scope) {
 		t.Errorf("archive = %+v", arch)
@@ -227,11 +227,11 @@ func TestNotesCantBeCheckedOrMoved(t *testing.T) {
 	m = keys(t, m, "w", "A")
 	m = typed(t, m, "just a note")
 	m = keys(t, m, "enter", "esc", "space")
-	if !strings.Contains(screen(m), "Only a TODO can be checked") {
+	if !strings.Contains(screen(m), "Only a task can be checked") {
 		t.Errorf("no hint:\n%s", screen(m))
 	}
 	m = keys(t, m, "m")
-	if !strings.Contains(screen(m), "Only a TODO can be moved") {
+	if !strings.Contains(screen(m), "Only a task can be moved") {
 		t.Errorf("no hint for move:\n%s", screen(m))
 	}
 }
@@ -303,7 +303,7 @@ func TestMoveToGlobalFlashesTheCollapsedPanel(t *testing.T) {
 		t.Errorf("flash %v, open %v; want a flash and still collapsed", m.globalFlash, m.globalOpen)
 	}
 	if !strings.Contains(screen(m), "1") {
-		t.Error("the strip doesn't count the open TODO")
+		t.Error("the strip doesn't count the open task")
 	}
 	m, _ = send(t, m, writeFlashEndMsg{seq: m.flashSeq})
 	if m.globalFlash {
@@ -494,7 +494,7 @@ func TestSelectionIsAChevronAndDoneIsAChecked(t *testing.T) {
 		t.Fatalf("rows missing:\n%s", screen(m))
 	}
 	if strings.Contains(checked, "\x1b[9m") || strings.Contains(open, "\x1b[9m") {
-		t.Error("a TODO is struck through")
+		t.Error("a task is struck through")
 	}
 	if strings.Contains(checked, "\x1b[7m") || strings.Contains(open, "\x1b[7m") {
 		t.Error("the selected row is highlighted as a whole")

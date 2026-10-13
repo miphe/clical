@@ -1,6 +1,6 @@
 ╭─ Event ──────────────────────────────────────────────────╮╭─ Write ─────── this event ─╮╭─ Write ─────────── global ─╮
 │ Dentist                                                  ││  [x] send the deck         ││ Nothing yet.               │
-│ Tue 29 Sep 2026 · 15:00–16:00 (1h)                       ││  [ ] book a room for the   ││ a adds a TODO, A a note.   │
+│ Tue 29 Sep 2026 · 15:00–16:00 (1h)                       ││  [ ] book a room for the   ││ a adds a task, A a note.   │
 │ ● Personal · Main                                        ││      offsite so everyone   ││                            │
 │                                                          ││      fits comfortably      ││                            │
 │ Location  Main St 1                                      ││      around the table      ││                            │
@@ -26,5 +26,5 @@
 │                                                          ││                            ││                            │
 │                                                          ││                            ││                            │
 ╰──────────────────────────────────────────────────────────╯╰─────────────────── 1 of 3 ─╯╰────────────────────────────╯
- j/k move · a TODO · A note · space check · e edit · d delete · m move · alt+j/k reorder · z archive · esc back · ? help
+ j/k move · a task · A note · space check · e edit · d delete · m move · alt+j/k reorder · z archive · esc back · ? help
  ◦ Idle        Tue 29 Sep 14:30                                                                            Synced 14:29 

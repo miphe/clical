@@ -12,9 +12,9 @@ import (
 	"github.com/miphe/clical/internal/domain"
 )
 
-// The markdown form. A TODO is a task-list line, `- [ ] text` or
+// The markdown form. A task is a task-list line, `- [ ] text` or
 // `- [x] text`; every other line is a note, kept exactly as it is, so a file
-// edited by hand loses nothing. A TODO's bookkeeping rides in a trailing
+// edited by hand loses nothing. A task's bookkeeping rides in a trailing
 // comment that markdown hides:
 //
 //	- [x] Send the deck <!--{"id":"a1b2c3d4","done":"2026-10-05T12:00:00+03:00"}-->
@@ -172,15 +172,15 @@ func Format(l List) []byte {
 	return []byte(b.String())
 }
 
-// metaFor is what a TODO's comment says. The origin is left out when it is
-// the list the TODO is in, which is the usual case and keeps lines short.
+// metaFor is what a task's comment says. The origin is left out when it is
+// the list the task is in, which is the usual case and keeps lines short.
 func metaFor(it Item, scope Ref) meta {
 	var m meta
 	if it.Done && !it.Completed.IsZero() {
 		m.Done = it.Completed.Format(time.RFC3339)
 	}
 	if !it.Origin.Same(scope) {
-		o := it.Origin // for a TODO that began in the global list, this is {}
+		o := it.Origin // for a task that began in the global list, this is {}
 		m.Origin = &o
 	}
 	if !it.Last.IsZero() {

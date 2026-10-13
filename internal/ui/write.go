@@ -12,7 +12,7 @@ import (
 	"github.com/miphe/clical/internal/write"
 )
 
-// Write is the notes-and-TODOs surface: a panel for the open event's own
+// Write is the notes-and-tasks surface: a panel for the open event's own
 // list, in the event view, and a global one beside the main view. This file
 // is the state, the commands and the keys; writeview.go draws it and lays out
 // the event view. Update stays pure: lists are read and changed by
@@ -45,7 +45,7 @@ type writeMode int
 
 const (
 	wNormal  writeMode = iota
-	wInsert            // typing a TODO or note
+	wInsert            // typing a task or note
 	wConfirm           // asking before a delete
 )
 
@@ -61,9 +61,9 @@ type writePanel struct {
 
 	mode    writeMode
 	input   *textinput.Model
-	editID  string // the TODO being edited; "" when adding or editing a note
+	editID  string // the task being edited; "" when adding or editing a note
 	editAt  int    // the note being edited, by position; -1 when not
-	addNote bool   // adding a note rather than a TODO
+	addNote bool   // adding a note rather than a task
 	note    string // a hint after a key that couldn't do anything
 }
 
@@ -80,7 +80,7 @@ type (
 
 const panelFlashDuration = 700 * time.Millisecond
 
-// rows are the positions in the list of what's shown: TODOs and notes with
+// rows are the positions in the list of what's shown: tasks and notes with
 // text.
 func (p writePanel) rows() []int {
 	var out []int
@@ -334,7 +334,7 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.startInsert(which, item.Text, "", true, at)
 	case "space", "x":
 		if !have || !item.Todo {
-			p.note = "Only a TODO can be checked"
+			p.note = "Only a task can be checked"
 			break
 		}
 		if s == "x" {
@@ -377,7 +377,7 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		})
 	case "z":
 		if !have || !item.Todo {
-			p.note = "Only a TODO can be archived"
+			p.note = "Only a task can be archived"
 			break
 		}
 		if !item.Done {
@@ -391,7 +391,7 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// moveItem moves the selected TODO or note one place up or down among what's
+// moveItem moves the selected task or note one place up or down among what's
 // shown, and the selection goes with it. It does nothing at either end. It
 // asks for the item by position, but only moves it if it is still the same
 // one by the time the list is changed.
@@ -413,13 +413,13 @@ func (m Model) moveItem(which writeWhich, dir int) (tea.Model, tea.Cmd) {
 	})
 }
 
-// moveSelected sends a TODO to the other list: an event's to the global one,
+// moveSelected sends a task to the other list: an event's to the global one,
 // a global one to the open event.
 func (m Model) moveSelected(which writeWhich) (tea.Model, tea.Cmd) {
 	p := m.panel(which)
 	item, _, have := p.current()
 	if !have || !item.Todo {
-		p.note = "Only a TODO can be moved"
+		p.note = "Only a task can be moved"
 		return m, nil
 	}
 	var to write.Ref

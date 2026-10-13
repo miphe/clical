@@ -169,7 +169,7 @@ func (m Model) settingRows() []settingRow {
 			unit: time.Minute, min: 0, max: 1440, custom: customGrace,
 			apply:  func(m *Model, c int) tea.Cmd { m.pulse.grace = graces[c]; return nil },
 			applyN: func(m *Model, n int) tea.Cmd { m.pulse.grace = time.Duration(n) * time.Minute; return nil }},
-		{label: "Write", hint: "Notes and TODOs, on events and globally; off hides it all (the files stay)",
+		{label: "Write", hint: "Notes and tasks, on events and globally; off hides it all (the files stay)",
 			choices: []string{"off", "on"}, current: writeOn,
 			apply: func(m *Model, c int) tea.Cmd { return m.setWrite(c == 1) }},
 		{label: "Panel flash", hint: "A collapsed panel's border flashes once when its content changes",

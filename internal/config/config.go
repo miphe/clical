@@ -33,12 +33,12 @@ type Config struct {
 	// PulseGrace is how long the pulse goes on after the event has started,
 	// or GraceWholeEvent for as long as the event lasts.
 	PulseGrace time.Duration
-	// WriteDir is where notes and TODOs are kept; "" for the default, in the
+	// WriteDir is where notes and tasks are kept; "" for the default, in the
 	// data directory.
 	WriteDir string
 	// PanelFlash makes a collapsed panel flash once when its content changes.
 	PanelFlash bool
-	// Write turns notes and TODOs on in the TUI.
+	// Write turns notes and tasks on in the TUI.
 	Write bool
 }
 
@@ -90,7 +90,7 @@ pulse_lead: 5m
 # 0s for none, or event for as long as the event lasts.
 pulse_grace: 1m
 
-# Notes and TODOs in the TUI (the Write panels and their keys): true or false.
+# Notes and tasks in the TUI (the Write panels and their keys): true or false.
 # Turning it off hides them; the files are left alone, and "clical write"
 # still works.
 write: true
@@ -99,7 +99,7 @@ write: true
 # changes: true or false.
 panel_flash: true
 
-# Where notes and TODOs are kept, as plain markdown files; e.g. ~/notes/clical
+# Where notes and tasks are kept, as plain markdown files; e.g. ~/notes/clical
 # to keep them in a synced folder. Move existing files there yourself.
 # Default: the data directory (~/.local/share/clical/write).
 # write_dir: ~/notes/clical

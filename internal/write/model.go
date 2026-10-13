@@ -1,4 +1,4 @@
-// Package write is clical's notes and TODOs, kept in two scopes: one event
+// Package write is clical's notes and tasks, kept in two scopes: one event
 // occurrence, or global. This file is the pure model: items, lists and the
 // rules for checking, moving and archiving them. format.go reads and writes
 // the markdown form, archive.go the archive's, and store.go the files. It
@@ -17,8 +17,8 @@ var (
 	ErrEmpty     = errors.New("write: nothing to write")
 	ErrNotFound  = errors.New("write: no such item")
 	ErrAmbiguous = errors.New("write: more than one item starts with that")
-	ErrNotTodo   = errors.New("write: not a TODO")
-	ErrNotDone   = errors.New("write: only a checked TODO can be archived")
+	ErrNotTodo   = errors.New("write: not a task")
+	ErrNotDone   = errors.New("write: only a checked task can be archived")
 	ErrChanged   = errors.New("write: the file changed while it was being updated")
 	ErrSameScope = errors.New("write: already there")
 )
@@ -44,20 +44,20 @@ func RefFor(e domain.Event) Ref {
 	return Ref{Calendar: e.CalendarID, Key: e.Identity(), Title: e.Title}
 }
 
-// Item is one line of a Write list: a note, or a TODO.
+// Item is one line of a Write list: a note, or a task.
 type Item struct {
-	// ID names a TODO; notes have none.
+	// ID names a task; notes have none.
 	ID   string
 	Todo bool
 	Text string
 
-	// Done and Completed are for TODOs. Completed is the latest moment the
-	// TODO was checked, with the offset of the zone it was checked in, and is
+	// Done and Completed are for tasks. Completed is the latest moment the
+	// task was checked, with the offset of the zone it was checked in, and is
 	// zero when it isn't done.
 	Done      bool
 	Completed time.Time
 
-	// Origin is where the TODO was created, and never changes: the zero Ref
+	// Origin is where the task was created, and never changes: the zero Ref
 	// for global. Last is the most recent event it was in, or zero if it has
 	// never been in one.
 	Origin, Last Ref
@@ -109,7 +109,7 @@ func (l *List) AddNote(text string) error {
 	return nil
 }
 
-// AddTodo appends an unchecked TODO created here.
+// AddTodo appends an unchecked task created here.
 func (l *List) AddTodo(text, id string) (Item, error) {
 	t, err := cleanText(text)
 	if err != nil {
@@ -120,7 +120,7 @@ func (l *List) AddTodo(text, id string) (Item, error) {
 	return it, nil
 }
 
-// find locates a TODO by ID or by a prefix of it that no other TODO shares.
+// find locates a task by ID or by a prefix of it that no other task shares.
 func (l List) find(id string) (int, error) {
 	if id == "" {
 		return 0, ErrNotFound
@@ -146,10 +146,10 @@ func (l List) find(id string) (int, error) {
 	return found, nil
 }
 
-// Index is where the TODO with that ID (or unique prefix) is in Items.
+// Index is where the task with that ID (or unique prefix) is in Items.
 func (l List) Index(id string) (int, error) { return l.find(id) }
 
-// Check marks a TODO done at now. Checking one that is already done moves its
+// Check marks a task done at now. Checking one that is already done moves its
 // completion time to now.
 func (l *List) Check(id string, now time.Time) error {
 	i, err := l.find(id)
@@ -160,7 +160,7 @@ func (l *List) Check(id string, now time.Time) error {
 	return nil
 }
 
-// Uncheck reopens a TODO and forgets when it was completed.
+// Uncheck reopens a task and forgets when it was completed.
 func (l *List) Uncheck(id string) error {
 	i, err := l.find(id)
 	if err != nil {
@@ -170,7 +170,7 @@ func (l *List) Uncheck(id string) error {
 	return nil
 }
 
-// Edit changes a TODO's text.
+// Edit changes a task's text.
 func (l *List) Edit(id, text string) error {
 	i, err := l.find(id)
 	if err != nil {
@@ -184,7 +184,7 @@ func (l *List) Edit(id, text string) error {
 	return nil
 }
 
-// Delete removes a TODO for good.
+// Delete removes a task for good.
 func (l *List) Delete(id string) error {
 	_, err := l.take(id)
 	return err
@@ -225,7 +225,7 @@ func (l *List) MoveItem(from, to int) error {
 	return nil
 }
 
-// take removes and returns a TODO.
+// take removes and returns a task.
 func (l *List) take(id string) (Item, error) {
 	i, err := l.find(id)
 	if err != nil {
@@ -236,7 +236,7 @@ func (l *List) take(id string) (Item, error) {
 	return it, nil
 }
 
-// Receive appends a TODO that came from elsewhere. Arriving in an event's
+// Receive appends a task that came from elsewhere. Arriving in an event's
 // list makes that event its last event; its origin stays as it was.
 func (l *List) Receive(it Item) {
 	it.derived = false
@@ -246,7 +246,7 @@ func (l *List) Receive(it Item) {
 	l.Items = append(l.Items, it)
 }
 
-// Move takes the TODO out of from and appends it to to.
+// Move takes the task out of from and appends it to to.
 func Move(from, to *List, id string) error {
 	if from.Scope().Same(to.Scope()) {
 		return ErrSameScope
@@ -259,7 +259,7 @@ func Move(from, to *List, id string) error {
 	return nil
 }
 
-// Archived is a completed TODO filed away. It keeps what a timeline needs:
+// Archived is a completed task filed away. It keeps what a timeline needs:
 // when the work was last completed, and where it came from.
 type Archived struct {
 	ID        string    `json:"id"`
@@ -270,7 +270,7 @@ type Archived struct {
 	Last      Ref       `json:"last,omitempty"`
 }
 
-// Archive takes a checked TODO out of l and returns its archived form.
+// Archive takes a checked task out of l and returns its archived form.
 func (l *List) Archive(id string, now time.Time) (Archived, error) {
 	i, err := l.find(id)
 	if err != nil {
@@ -288,7 +288,7 @@ func (l *List) Archive(id string, now time.Time) (Archived, error) {
 	return Archived{ID: it.ID, Text: it.Text, Completed: completed, Archived: now, Origin: it.Origin, Last: it.Last}, nil
 }
 
-// Restore is the TODO an archived one becomes when unarchived: checked, as it
+// Restore is the task an archived one becomes when unarchived: checked, as it
 // was completed, with its provenance intact. It goes to the global list,
 // always there, whatever became of its event.
 func Restore(a Archived) Item {

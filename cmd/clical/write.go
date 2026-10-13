@@ -14,20 +14,20 @@ import (
 	"github.com/miphe/clical/internal/write"
 )
 
-// WriteCmd is the command-line side of Write: notes and TODOs, either global
+// WriteCmd is the command-line side of Write: notes and tasks, either global
 // or attached to one event. The files are plain markdown and safe to edit by
 // hand; clical write also works while the TUI is open. It needs no passphrase
 // or network.
 type WriteCmd struct {
-	List      WriteListCmd      `cmd:"" default:"1" help:"List TODOs and notes: global ones, or one event's, or all."`
-	Add       WriteAddCmd       `cmd:"" help:"Add a TODO (or --note), globally or to an event."`
-	Done      WriteDoneCmd      `cmd:"" help:"Check a TODO."`
-	Undo      WriteUndoCmd      `cmd:"" help:"Uncheck a TODO."`
-	Rm        WriteRmCmd        `cmd:"" help:"Delete a TODO."`
-	Move      WriteMoveCmd      `cmd:"" help:"Move a TODO to an event, or to the global list."`
-	Archive   WriteArchiveCmd   `cmd:"" help:"File a checked TODO away in the archive."`
+	List      WriteListCmd      `cmd:"" default:"1" help:"List tasks and notes: global ones, or one event's, or all."`
+	Add       WriteAddCmd       `cmd:"" help:"Add a task (or --note), globally or to an event."`
+	Done      WriteDoneCmd      `cmd:"" help:"Check a task."`
+	Undo      WriteUndoCmd      `cmd:"" help:"Uncheck a task."`
+	Rm        WriteRmCmd        `cmd:"" help:"Delete a task."`
+	Move      WriteMoveCmd      `cmd:"" help:"Move a task to an event, or to the global list."`
+	Archive   WriteArchiveCmd   `cmd:"" help:"File a checked task away in the archive."`
 	Archived  WriteArchivedCmd  `cmd:"" help:"List the archive."`
-	Unarchive WriteUnarchiveCmd `cmd:"" help:"Restore an archived TODO to the global list, checked."`
+	Unarchive WriteUnarchiveCmd `cmd:"" help:"Restore an archived task to the global list, checked."`
 	Path      WritePathCmd      `cmd:"" help:"Print where the files are."`
 }
 
@@ -111,9 +111,9 @@ func openWrite() (*app.App, *write.Store, error) {
 func idError(err error, id string) error {
 	switch {
 	case errors.Is(err, write.ErrNotFound):
-		return fmt.Errorf("no TODO %q; see 'clical write list --all'", id)
+		return fmt.Errorf("no task %q; see 'clical write list --all'", id)
 	case errors.Is(err, write.ErrAmbiguous):
-		return fmt.Errorf("%q starts more than one TODO; type more of it", id)
+		return fmt.Errorf("%q starts more than one task; type more of it", id)
 	}
 	return err
 }
@@ -207,7 +207,7 @@ func heading(e write.Entry) string {
 	return h
 }
 
-// itemLine is one item: a TODO with its ID and, if it didn't start here,
+// itemLine is one item: a task with its ID and, if it didn't start here,
 // where it came from; a note indented under no checkbox.
 func itemLine(it write.Item, scope write.Ref) string {
 	text := domain.SafeText(it.Text)
@@ -245,11 +245,11 @@ func refName(r write.Ref) string {
 	return domain.SafeText(r.Title)
 }
 
-// WriteAddCmd adds a TODO or a note.
+// WriteAddCmd adds a task or a note.
 type WriteAddCmd struct {
 	eventFlags
 	Text []string `arg:"" name:"text" help:"What to write."`
-	Note bool     `help:"Add a plain note instead of a TODO."`
+	Note bool     `help:"Add a plain note instead of a task."`
 }
 
 func (c *WriteAddCmd) Run() error {
@@ -290,12 +290,12 @@ func (c *WriteAddCmd) Run() error {
 	return nil
 }
 
-// todoID is the ID, or a start of it, of a TODO in any list.
+// todoID is the ID, or a start of it, of a task in any list.
 type todoID struct {
-	ID string `arg:"" help:"A TODO's ID, or the start of it (see 'write list')."`
+	ID string `arg:"" help:"A task's ID, or the start of it (see 'write list')."`
 }
 
-// change finds the TODO and applies fn to the list it is in.
+// change finds the task and applies fn to the list it is in.
 func (c todoID) change(fn func(l *write.List, id string) error) (write.Item, error) {
 	a, st, err := openWrite()
 	if err != nil {
@@ -309,7 +309,7 @@ func (c todoID) change(fn func(l *write.List, id string) error) (write.Item, err
 	return item, st.Update(src.Scope, nil, func(l *write.List) error { return fn(l, item.ID) })
 }
 
-// WriteDoneCmd checks a TODO.
+// WriteDoneCmd checks a task.
 type WriteDoneCmd struct{ todoID }
 
 func (c *WriteDoneCmd) Run() error {
@@ -321,7 +321,7 @@ func (c *WriteDoneCmd) Run() error {
 	return nil
 }
 
-// WriteUndoCmd unchecks a TODO.
+// WriteUndoCmd unchecks a task.
 type WriteUndoCmd struct{ todoID }
 
 func (c *WriteUndoCmd) Run() error {
@@ -333,7 +333,7 @@ func (c *WriteUndoCmd) Run() error {
 	return nil
 }
 
-// WriteRmCmd deletes a TODO.
+// WriteRmCmd deletes a task.
 type WriteRmCmd struct{ todoID }
 
 func (c *WriteRmCmd) Run() error {
@@ -345,7 +345,7 @@ func (c *WriteRmCmd) Run() error {
 	return nil
 }
 
-// WriteMoveCmd moves a TODO between scopes.
+// WriteMoveCmd moves a task between scopes.
 type WriteMoveCmd struct {
 	todoID
 	eventFlags
@@ -379,7 +379,7 @@ func (c *WriteMoveCmd) Run() error {
 	return nil
 }
 
-// WriteArchiveCmd archives a checked TODO.
+// WriteArchiveCmd archives a checked task.
 type WriteArchiveCmd struct{ todoID }
 
 func (c *WriteArchiveCmd) Run() error {
@@ -426,7 +426,7 @@ func (c *WriteArchivedCmd) Run() error {
 	return nil
 }
 
-// WriteUnarchiveCmd restores an archived TODO.
+// WriteUnarchiveCmd restores an archived task.
 type WriteUnarchiveCmd struct{ todoID }
 
 func (c *WriteUnarchiveCmd) Run() error {

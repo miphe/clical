@@ -42,7 +42,7 @@ multi-account merge → config/themes → in-process background polling.
 | M9 | Settings file: 12/24-hour clock, week start, sync interval | Done |
 | M11 | Dead iCal feeds fixed from the TUI, log file and `clical logs` | Done |
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
-| M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
+| M13 | Write: notes and tasks in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
 | — | Release pipeline: GoReleaser, GitHub releases, PolyForm Noncommercial license | `.goreleaser.yaml`, `LICENSE.md` | Done (v0.0.1) |
 | M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | Done (v0.0.2 candidate) |
 
@@ -837,17 +837,17 @@ renders correctly.
 are clean; the dialog toggles and persists across restarts in the real binary
 (checked with `scripts/tui_screens.py`); README, help and this section updated.
 
-## Write: notes and TODOs — M13 (M13a–c done, M13d deferred)
+## Write: notes and tasks — M13 (M13a–c done, M13d deferred)
 
 A note and task surface in two scopes: **event** (one occurrence of one
-event) and **global**. Every panel for it is titled "Write". Completed TODOs
+event) and **global**. Every panel for it is titled "Write". Completed tasks
 are archived to a pool that a later heatmap will read. The feature's
 definition lives with the requester; this section is how it is built here,
 and where it departs from that definition.
 
 ### Decisions
 
-- **Notes belong to a single occurrence**, not to a series. A TODO carries its
+- **Notes belong to a single occurrence**, not to a series. A task carries its
   origin when moved to global, so nothing is lost by the choice.
 - **Separate from the cache.** The SQLite cache can be rebuilt (a full resync
   deletes events); notes can't. They live in their own files, in a new core
@@ -891,9 +891,9 @@ Under `$XDG_DATA_HOME/clical/write/` (or `write_dir`):
 
     global.md              the global list
     events/<hash>.md       one file per event occurrence, snapshot in a header
-    archive.jsonl          archived TODOs, append-only
+    archive.jsonl          archived tasks, append-only
 
-- Active lists are markdown task lists. A TODO is `- [ ] text` or
+- Active lists are markdown task lists. A task is `- [ ] text` or
   `- [x] text`; any other line is a note. Provenance rides in a trailing
   `<!-- id:k3f9 origin:<scope> last:<key> done:<RFC3339> -->` comment, so a
   file reads cleanly in any editor.
@@ -905,7 +905,7 @@ Under `$XDG_DATA_HOME/clical/write/` (or `write_dir`):
   event. Both store `(calendar ID, Key)` with the snapshot's title.
 - **Completion time** is the latest check, RFC 3339 *with* the UTC offset (a
   heatmap buckets by the local day the user was in); unchecking clears it.
-- The archive is JSONL, one record per TODO: text, completed, archived,
+- The archive is JSONL, one record per task: text, completed, archived,
   origin, last event, with titles. Plain text, append-friendly, easy for a
   heatmap to read.
 - Writes are atomic (temp file + rename, like the vault) and re-check the
@@ -939,14 +939,14 @@ Under `$XDG_DATA_HOME/clical/write/` (or `write_dir`):
 - **Keys** (all new; `1 2 3` stay views). Keys act within the focused panel:
   `w` focuses the event's Write panel (event view only),
   `W` collapses or expands the global panel. Inside Write: `j k` move,
-  `a` add a TODO, `A` add a note (inline input, no popup; `?` and other keys
+  `a` add a task, `A` add a note (inline input, no popup; `?` and other keys
   are text while typing), `e` edit, `space` check or uncheck, `x` delete
   (asks), `m` move to the other scope (global → the open event only while an
-  event is open), `z` archive a checked TODO. A mode label in the panel title
+  event is open), `z` archive a checked task. A mode label in the panel title
   shows INSERT while typing.
-- **Checked TODOs stay in place** (struck through) until archived; no
+- **Checked tasks stay in place** (struck through) until archived; no
   reordering.
-- **Origin** shows on each TODO that was moved ("from Weekly sync"), from the
+- **Origin** shows on each task that was moved ("from Weekly sync"), from the
   snapshot when the event is gone.
 - **Flash:** a collapsed panel whose content changes flashes its border once
   (about 600 ms, reversed). Reuse the flash and frame-tick code from
@@ -959,10 +959,10 @@ Under `$XDG_DATA_HOME/clical/write/` (or `write_dir`):
 ### CLI: `clical write`
 
     clical write [list] [-e EVENT] [--on DATE] [--all]  # global by default
-    clical write add TEXT... [--note] [-e EVENT]        # a TODO, or a note
+    clical write add TEXT... [--note] [-e EVENT]        # a task, or a note
     clical write done|undo|rm ID                        # check, uncheck, delete
     clical write move ID [-e EVENT]                     # to an event; to global without -e
-    clical write archive ID                             # file a checked TODO away
+    clical write archive ID                             # file a checked task away
     clical write archived                               # list the archive
     clical write unarchive ID                           # restore, checked, to global
     clical write path                                   # where the files are
@@ -991,14 +991,14 @@ while the TUI is open (mtime check above).
 - The event view puts the details and the Write panel side by side from 100
   columns, else Write under the details (a third of the height, 5–12 rows).
   The global panel is a 3-column strip showing "Write" and the number of open
-  TODOs; opened it is a quarter of the width, 28–40 columns, and when that
+  tasks; opened it is a quarter of the width, 28–40 columns, and when that
   would leave the main pane under 40 columns (the event view under 60) it
   stays a strip.
 - Keys, as planned, with these choices: `w` focuses the event's panel (only in the
   event view; it does nothing elsewhere), `W` opens and focuses the global panel and collapses
   it again; `e`/`enter` edit, `space` checks, `d` deletes (asks), `m` moves,
   `z` archives. Adding stays open for the next item.
-- `Z` archives every checked TODO in the focused panel; `tab` cycles the
+- `Z` archives every checked task in the focused panel; `tab` cycles the
   panels (list, view, global Write; in the event view: details, the event's
   Write, global Write), skipping a collapsed strip.
 - A "Write" setting (`write`, on by default) switches the whole feature off in
@@ -1128,7 +1128,7 @@ do both).
 | M10 | In-process polling every 5 min, one schedule for all calendars | `internal/ui/model.go` | Done |
 | M11 | Revoked-feed flow in the TUI, `clical logs`, cross-compile check | `internal/ui/feedurl.go`, `internal/app/log.go`, `cmd/clical/logs.go` | Done |
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
-| M13 | Write: notes and TODOs in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
+| M13 | Write: notes and tasks in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
 
 ## Focus view and completion heatmap — M14 (done)
 

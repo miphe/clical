@@ -1,5 +1,5 @@
 // Package mock is a made-up world for developing and trying clical without
-// touching anything real: calendars, events, notes, TODOs and a year and a half
+// touching anything real: calendars, events, notes, tasks and a year and a half
 // of completed tasks, all generated from the clock and a fixed seed. Nothing
 // is read from or written to the user's data, config, vault or log, and the
 // network is never used. It is meant for `clical --mock`, where a screen that
