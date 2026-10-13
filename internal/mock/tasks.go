@@ -238,6 +238,48 @@ func (s *seeder) pace(daysAgo int, week *rand.Rand) float64 {
 	return f
 }
 
+// noteChance is the chance in a hundred that a day has an archived note: a
+// quiet day more often than a busy one, since an off day is the kind of thing
+// worth a line (and some days have nothing but the note).
+func noteChance(tasks int) int {
+	if tasks == 0 {
+		return 22
+	}
+	return 9
+}
+
+var archivedNotes = []string{
+	"Team offsite: walked the old town, dinner at the harbor. Good for morale.",
+	"Today the team was off on teambuilding.",
+	"Out sick, back tomorrow.",
+	"Decided to move the launch one week; the migration needs the extra time.",
+	"Dentist in the morning, worked from home after.",
+	"Quiet day. Reviewed the roadmap and wrote down three open questions for Monday.",
+	"Customer call went well. They want the export before the next release.",
+	"Public holiday.",
+	"Hackathon half-day: prototyped the offline mode, demo on Thursday.",
+	"Parental leave handover meeting; notes are in the shared doc.",
+	"Fixed the flaky deploy at last: it was the cache key, not the runner.",
+	"Interviewed two candidates for the platform role, both strong.",
+	"Train cancelled, spent the morning on the phone with the vendor.",
+	"Spent the day pairing on the billing bug; root cause found, fix is small.",
+}
+
+// archivedNote is a note filed away in the evening of day, from the global
+// list or, now and then, from a meeting's.
+func (s *seeder) archivedNote(day time.Time, ago int, today time.Time) write.Archived {
+	at := day.Add(16*time.Hour + time.Duration(s.rng.IntN(150))*time.Minute)
+	if ago == 0 {
+		at = day.Add(8*time.Hour + time.Duration(s.rng.Int64N(int64(max(today.Sub(day)-8*time.Hour, time.Minute)))))
+	}
+	rec := write.Archived{ID: s.id(), Text: archivedNotes[s.rng.IntN(len(archivedNotes))], Archived: at, Note: true}
+	if s.rng.IntN(100) < 30 {
+		r := recurring[s.rng.IntN(len(recurring))]
+		rec.Origin = write.Ref{Calendar: calWork, Key: r.series + "/" + domain.CivilDateFromTime(at).String(), Title: r.title}
+	}
+	return rec
+}
+
 func (s *seeder) archive() error {
 	var recs []write.Archived
 	today := s.now.In(s.loc)
@@ -250,6 +292,9 @@ func (s *seeder) archive() error {
 			n = 0 // an off day: meetings all day, or out
 		} else if wd := day.Weekday(); wd >= time.Monday && wd <= time.Friday && n > 0 && s.rng.IntN(100) < 6 {
 			n += 4 + s.rng.IntN(4) // a big day: a lot got finished at once
+		}
+		if s.rng.IntN(100) < noteChance(n) {
+			recs = append(recs, s.archivedNote(day, ago, today))
 		}
 		for k := 0; k < n; k++ {
 			hour, span := 8, 10

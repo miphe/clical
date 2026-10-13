@@ -197,19 +197,34 @@ func TestMockNotesAndArchive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(archive) < 600 {
+	archivedNotes := 0
+	for _, a := range archive {
+		if a.Note {
+			archivedNotes++
+		}
+	}
+	if archivedNotes < 40 || archivedNotes > 150 {
+		t.Errorf("%d archived notes; want a few dozen across the year", archivedNotes)
+	}
+	if len(archive)-archivedNotes < 600 {
 		t.Fatalf("%d archived tasks; want a year and a half of them", len(archive))
 	}
-	days := write.CompletionsByDay(archive)
+	days := write.ArchiveByDay(archive)
 	// Average per calendar day, empty days included.
 	var weekday, weekend, weekdays, weekends int
-	first := domain.CivilDateFromTime(archive[0].Completed)
+	var first domain.CivilDate
+	for _, a := range archive {
+		if !a.Note {
+			first = domain.CivilDateFromTime(a.Completed)
+			break
+		}
+	}
 	for d := first; !domain.CivilDateFromTime(now).Before(d); d = d.AddDays(1) {
 		if wd := d.Weekday(); wd == time.Saturday || wd == time.Sunday {
-			weekend += len(days[d])
+			weekend += len(days[d].Tasks)
 			weekends++
 		} else {
-			weekday += len(days[d])
+			weekday += len(days[d].Tasks)
 			weekdays++
 		}
 	}
@@ -218,8 +233,8 @@ func TestMockNotesAndArchive(t *testing.T) {
 	}
 	// All three intensities of the heatmap: 1-3, 4-6 and 7 or more a day.
 	var low, mid, high int
-	for _, tasks := range days {
-		switch n := len(tasks); {
+	for _, day := range days {
+		switch n := len(day.Tasks); {
 		case n >= 7:
 			high++
 		case n >= 4:
@@ -235,7 +250,7 @@ func TestMockNotesAndArchive(t *testing.T) {
 	away := domain.CivilDateFromTime(now.AddDate(0, 0, -126))
 	empty := 0
 	for i := -7; i <= 7; i++ {
-		if len(days[away.AddDays(i)]) == 0 {
+		if len(days[away.AddDays(i)].Tasks) == 0 {
 			empty++
 		}
 	}

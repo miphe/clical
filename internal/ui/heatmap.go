@@ -48,19 +48,24 @@ const (
 
 // A day with no tasks is a dot; a day with tasks is the same solid square
 // whatever the count, and only its color says how many (see heatStyles). A
-// selected day is a square with a dot in it, in its own color.
+// selected day is a square with a dot in it, in its own color. A day with
+// notes but no tasks is a hollow dot: notes aren't activity, so it keeps the
+// quietest color, but it isn't empty.
 const (
 	heatNone = "·"
-	heatDone = "■"
-	heatSel  = "▣"
+	heatNote = "∘"
+	// heatNoteMark leads a note in the day's list.
+	heatNoteMark = "¶"
+	heatDone     = "■"
+	heatSel      = "▣"
 )
 
 // heatState is the heatmap's data and where the user is in it.
 type heatState struct {
 	loaded bool
 	err    error
-	days   map[domain.CivilDate][]write.Archived
-	first  domain.CivilDate // the earliest and latest day with a task
+	days   map[domain.CivilDate]write.DayArchive
+	first  domain.CivilDate // the earliest and latest day with a task or a note
 	last   domain.CivilDate
 	at     time.Time // when the data was read
 
@@ -100,7 +105,7 @@ func monthEnd(d domain.CivilDate) domain.CivilDate {
 }
 
 // withData replaces the archive's contents, keeping the user's place.
-func (h heatState) withData(days map[domain.CivilDate][]write.Archived, at time.Time) heatState {
+func (h heatState) withData(days map[domain.CivilDate]write.DayArchive, at time.Time) heatState {
 	h.days, h.at, h.loaded, h.err = days, at, true, nil
 	h.first, h.last = domain.CivilDate{}, domain.CivilDate{}
 	for d := range days {

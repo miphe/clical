@@ -222,6 +222,38 @@ func (s *Store) Move(id string, to Ref, toHdr *Header) error {
 	return s.Update(src.Scope, nil, func(l *List) error { return l.Delete(item.ID) })
 }
 
+// MoveNote takes the note at position at in one scope's list to another's,
+// where it is appended. Notes have no ID, so it is found by position, and
+// text is what the caller saw there: if the item at that position is something
+// else by now, nothing is moved. Like Move, it is added before it is removed.
+func (s *Store) MoveNote(from Ref, at int, text string, to Ref, toHdr *Header) error {
+	if from.Same(to) {
+		return ErrSameScope
+	}
+	isIt := func(l List) bool {
+		return at >= 0 && at < len(l.Items) && !l.Items[at].Todo && l.Items[at].Text == text
+	}
+	l, err := s.Get(from)
+	if err != nil {
+		return err
+	}
+	if !isIt(l) {
+		return ErrNotFound
+	}
+	if err := s.Update(to, toHdr, func(l *List) error {
+		l.Items = append(l.Items, Item{Text: text})
+		return nil
+	}); err != nil {
+		return err
+	}
+	return s.Update(from, nil, func(l *List) error {
+		if !isIt(*l) {
+			return ErrNotFound
+		}
+		return l.DeleteAt(at)
+	})
+}
+
 // Archive files a checked task away. It's appended to the archive before it's
 // removed from its list, for the same reason as Move.
 func (s *Store) Archive(id string, now time.Time) (Archived, error) {
@@ -240,6 +272,35 @@ func (s *Store) Archive(id string, now time.Time) (Archived, error) {
 	return rec, s.Update(src.Scope, nil, func(l *List) error {
 		_, err := l.Archive(item.ID, now)
 		return err
+	})
+}
+
+// ArchiveNote files away the note at position at in a scope's list. text is
+// what the caller saw there: if the item at that position is something else by
+// now, the list changed under it and nothing is archived. Like Archive, the
+// note is appended to the archive before it's removed.
+func (s *Store) ArchiveNote(scope Ref, at int, text string, now time.Time) (Archived, error) {
+	l, err := s.Get(scope)
+	if err != nil {
+		return Archived{}, err
+	}
+	if at < 0 || at >= len(l.Items) || l.Items[at].Todo || l.Items[at].Text != text {
+		return Archived{}, ErrNotFound
+	}
+	probe := l
+	probe.Items = append([]Item(nil), l.Items...)
+	rec, err := probe.ArchiveNoteAt(at, now)
+	if err != nil {
+		return Archived{}, err
+	}
+	if err := s.appendArchive(rec); err != nil {
+		return Archived{}, err
+	}
+	return rec, s.Update(scope, nil, func(l *List) error {
+		if at >= len(l.Items) || l.Items[at].Todo || l.Items[at].Text != text {
+			return ErrNotFound
+		}
+		return l.DeleteAt(at)
 	})
 }
 
@@ -278,8 +339,8 @@ func (s *Store) Archived() ([]Archived, error) {
 	return out, nil
 }
 
-// Unarchive restores an archived task, checked, to the global list, then
-// takes it out of the archive.
+// Unarchive restores an archived task, checked, or a note to the global list,
+// then takes it out of the archive.
 func (s *Store) Unarchive(id string) (Archived, error) {
 	all, err := s.Archived()
 	if err != nil {

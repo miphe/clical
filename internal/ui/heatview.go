@@ -67,10 +67,14 @@ func (m Model) heatCell(d, hi, selLo, selHi domain.CivilDate) string {
 	if hi.Before(d) {
 		return strings.Repeat(" ", heatCellW)
 	}
-	level := heatLevel(len(m.heat.days[d]))
+	day := m.heat.days[d]
+	level := heatLevel(len(day.Tasks))
 	glyph := heatDone
 	if level == 0 {
 		glyph = heatNone
+		if len(day.Notes) > 0 {
+			glyph = heatNote
+		}
 	}
 	if !d.Before(selLo) && !selHi.Before(d) {
 		return heatStyles[level].Bold(true).Render(heatSel + " ")
@@ -83,7 +87,7 @@ func heatLegend() string {
 	key := func(level int, glyph, label string) string {
 		return heatStyles[level].Render(glyph) + mutedStyle.Render(" "+label)
 	}
-	return key(0, heatNone, "none") + mutedStyle.Render("  ") + key(1, heatDone, "1–3") +
+	return key(0, heatNone, "none") + mutedStyle.Render("  ") + key(0, heatNote, "note") + mutedStyle.Render("  ") + key(1, heatDone, "1–3") +
 		mutedStyle.Render("  ") + key(2, heatDone, "4–6") + mutedStyle.Render("  ") + key(3, heatDone, "7+")
 }
 

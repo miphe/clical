@@ -12,7 +12,7 @@ import (
 // and the heatmap's keys.
 
 type heatLoadedMsg struct {
-	days map[domain.CivilDate][]write.Archived
+	days map[domain.CivilDate]write.DayArchive
 	err  error
 }
 
@@ -28,7 +28,7 @@ func (m Model) loadHeat() tea.Cmd {
 	}
 	return func() tea.Msg {
 		list, err := w.WriteArchived()
-		return heatLoadedMsg{days: write.CompletionsByDay(list), err: err}
+		return heatLoadedMsg{days: write.ArchiveByDay(list), err: err}
 	}
 }
 

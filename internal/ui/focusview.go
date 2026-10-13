@@ -139,36 +139,49 @@ func (m Model) renderTasks(width, height int, tabs []tab) []string {
 	return panel(width, height, frame{focused: m.focus == focusTasks, tabs: tabs, bottom: bottom}, content)
 }
 
-// heatHeader names a selection of several days and how much was done in it.
+// heatHeader names a selection of several days and how much was done in it:
+// the tasks completed and the notes archived.
 func (m Model) heatHeader(lo, hi domain.CivilDate) string {
 	title := boldStyle.Render(m.heatTitle(lo, hi))
 	if !m.heat.loaded || m.heat.err != nil || len(m.heat.days) == 0 {
 		return title
 	}
-	tasks, busy := m.heatTally(lo, hi)
-	switch {
-	case tasks == 0:
-		return title
-	case busy > 1:
-		return title + mutedStyle.Render(fmt.Sprintf("  ·  %d %s on %d days", tasks, plural(tasks, "task", "tasks"), busy))
+	tasks, notes, busy := m.heatTally(lo, hi)
+	var parts []string
+	if tasks > 0 {
+		parts = append(parts, fmt.Sprintf("%d %s", tasks, plural(tasks, "task", "tasks")))
 	}
-	return title + mutedStyle.Render(fmt.Sprintf("  ·  %d %s", tasks, plural(tasks, "task", "tasks")))
+	if notes > 0 {
+		parts = append(parts, fmt.Sprintf("%d %s", notes, plural(notes, "note", "notes")))
+	}
+	if len(parts) == 0 {
+		return title
+	}
+	tally := strings.Join(parts, ", ")
+	if busy > 1 {
+		tally += fmt.Sprintf(" on %d days", busy)
+	}
+	return title + mutedStyle.Render("  ·  "+tally)
 }
 
-// heatTally counts the tasks completed from lo to hi, and the days they fell on.
-func (m Model) heatTally(lo, hi domain.CivilDate) (tasks, busy int) {
+// heatTally counts the tasks completed and the notes archived from lo to hi,
+// and the days that have either.
+func (m Model) heatTally(lo, hi domain.CivilDate) (tasks, notes, busy int) {
 	for d := lo; !hi.Before(d); d = d.AddDays(1) {
-		if n := len(m.heat.days[d]); n > 0 {
-			tasks += n
+		day := m.heat.days[d]
+		if len(day.Tasks)+len(day.Notes) > 0 {
+			tasks += len(day.Tasks)
+			notes += len(day.Notes)
 			busy++
 		}
 	}
-	return tasks, busy
+	return tasks, notes, busy
 }
 
-// heatTaskLines lays out the selected days' tasks, oldest first so the newest
-// is last: a day's header, then its tasks. It returns a message instead when
-// there is nothing to list.
+// heatTaskLines lays out the selected days' tasks and notes, oldest first so
+// the newest is last. Each day is a header, its tasks, and then, set off by a
+// blank row, its notes: each a paragraph in full, wrapped, after a ¶. It
+// returns a message instead when there is nothing to list.
 func (m Model) heatTaskLines(width int) ([]string, string) {
 	lo, hi := m.heat.span(m.weekStart)
 	switch {
@@ -177,19 +190,19 @@ func (m Model) heatTaskLines(width int) ([]string, string) {
 	case !m.heat.loaded:
 		return nil, "Loading…"
 	case len(m.heat.days) == 0:
-		return nil, "No archived tasks yet. Check a task in a Write panel and press z to archive it."
+		return nil, "Nothing archived yet. Check a task in a Write panel and press z to archive it; z archives a note too."
 	}
 	// A time is "09:30" or "9:30 AM": give every row the longest one's room.
 	timeW := 0
 	for d := lo; !hi.Before(d); d = d.AddDays(1) {
-		for _, a := range m.heat.days[d] {
+		for _, a := range m.heat.days[d].Tasks {
 			timeW = max(timeW, ansi.StringWidth(m.clock.Time(a.Completed)))
 		}
 	}
 	var lines []string
 	for d := lo; !hi.Before(d); d = d.AddDays(1) {
-		tasks := m.heat.days[d]
-		if len(tasks) == 0 {
+		day := m.heat.days[d]
+		if len(day.Tasks)+len(day.Notes) == 0 {
 			continue
 		}
 		if len(lines) > 0 {
@@ -197,22 +210,41 @@ func (m Model) heatTaskLines(width int) ([]string, string) {
 		}
 		// The day is named in bold in the text color, after a square in exactly
 		// the style of its square in the heatmap, faint for 1–3 included: a
-		// glyph needs no reading, and it says how busy the day was.
-		mark := heatStyles[heatLevel(len(tasks))].Render(heatDone)
+		// glyph needs no reading, and it says how busy the day was. A day with
+		// only notes has its hollow dot.
+		mark := heatStyles[heatLevel(len(day.Tasks))].Render(heatDone)
+		if len(day.Tasks) == 0 {
+			mark = heatStyles[0].Render(heatNote)
+		}
 		lines = append(lines, fit(mark+" "+boldStyle.Render(d.In(m.loc).Format("Mon 2 Jan 2006")), width))
-		for _, a := range tasks {
+		for _, a := range day.Tasks {
 			line := "  " + mutedStyle.Render(fit(m.clock.Time(a.Completed), timeW)) + "  " + domain.SafeText(oneLine(a.Text))
 			if from := domain.SafeText(oneLine(a.Origin.Title)); from != "" {
 				line += mutedStyle.Render("  · from " + from)
 			}
 			lines = append(lines, fit(line, width))
 		}
+		if len(day.Tasks) > 0 && len(day.Notes) > 0 {
+			lines = append(lines, "")
+		}
+		for _, a := range day.Notes {
+			for k, l := range wrapped(domain.SafeText(oneLine(a.Text)), width-4) {
+				lead := "    "
+				if k == 0 {
+					lead = "  " + mutedStyle.Render(heatNoteMark) + " "
+				}
+				lines = append(lines, fit(lead+l, width))
+			}
+			if from := domain.SafeText(oneLine(a.Origin.Title)); from != "" {
+				lines = append(lines, fit("    "+mutedStyle.Render("from "+from), width))
+			}
+		}
 	}
 	if len(lines) == 0 {
 		if lo == hi {
-			return nil, "No tasks completed on " + lo.In(m.loc).Format("Mon 2 Jan 2006") + "."
+			return nil, "Nothing archived on " + lo.In(m.loc).Format("Mon 2 Jan 2006") + "."
 		}
-		return nil, "No tasks completed on these days."
+		return nil, "Nothing archived on these days."
 	}
 	return lines, ""
 }

@@ -129,6 +129,15 @@ func (a *App) WriteMove(id string, to write.Ref, hdr *write.Header) error {
 	return st.Move(id, to, hdr)
 }
 
+// WriteMoveNote takes a note to another scope, see write.Store.MoveNote.
+func (a *App) WriteMoveNote(from write.Ref, at int, text string, to write.Ref, hdr *write.Header) error {
+	st, err := a.Write()
+	if err != nil {
+		return err
+	}
+	return st.MoveNote(from, at, text, to, hdr)
+}
+
 // WriteArchive files a checked task away, see write.Store.Archive.
 func (a *App) WriteArchive(id string, now time.Time) error {
 	st, err := a.Write()
@@ -139,7 +148,18 @@ func (a *App) WriteArchive(id string, now time.Time) error {
 	return err
 }
 
-// WriteArchived lists the archived tasks, oldest first, see
+// WriteArchiveNote files away the note at position at in a scope's list, see
+// write.Store.ArchiveNote.
+func (a *App) WriteArchiveNote(scope write.Ref, at int, text string, now time.Time) error {
+	st, err := a.Write()
+	if err != nil {
+		return err
+	}
+	_, err = st.ArchiveNote(scope, at, text, now)
+	return err
+}
+
+// WriteArchived lists the archived tasks and notes, oldest first, see
 // write.Store.Archived.
 func (a *App) WriteArchived() ([]write.Archived, error) {
 	st, err := a.Write()

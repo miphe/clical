@@ -76,7 +76,7 @@ func TestFocusViewWithNoArchive(t *testing.T) {
 	m, _ := writeModel(t, 100, 24)
 	m = keys(t, m, "4")
 	s := screen(m)
-	if !strings.Contains(s, "[4] Focus") || !strings.Contains(s, "No archived tasks yet") {
+	if !strings.Contains(s, "[4] Focus") || !strings.Contains(s, "Nothing archived yet") {
 		t.Errorf("empty archive:\n%s", s)
 	}
 	// Empty days can be walked through: a week back and a day up.
@@ -104,7 +104,7 @@ func TestHeatCountsTasksOnTheirCompletionDay(t *testing.T) {
 		t.Errorf("the 20th:\n%s", s)
 	}
 	m = keys(t, m, "j") // Mon 21: archive day of two of them, no completions
-	if s := screen(m); !strings.Contains(s, "No tasks completed on Mon 21 Sep 2026.") || strings.Contains(s, "three") {
+	if s := screen(m); !strings.Contains(s, "Nothing archived on Mon 21 Sep 2026.") || strings.Contains(s, "three") {
 		t.Errorf("the 21st:\n%s", s)
 	}
 }
@@ -248,7 +248,7 @@ func TestHeatmapIsFlatOneHueInThreeStrengths(t *testing.T) {
 	if !blue || !faint || !bold {
 		t.Errorf("blue %v, faint %v, bold %v: want all three", blue, faint, bold)
 	}
-	if !strings.Contains(ansi.Strip(strings.Join(m.renderFocus(130, 24, nil), "\n")), "none  ■ 1–3  ■ 4–6  ■ 7+") {
+	if !strings.Contains(ansi.Strip(strings.Join(m.renderFocus(130, 24, nil), "\n")), "none  ∘ note  ■ 1–3  ■ 4–6  ■ 7+") {
 		t.Error("no legend")
 	}
 }
@@ -338,7 +338,7 @@ func TestDayLabelsHaveTheirSquaresColor(t *testing.T) {
 			t.Errorf("%s: want the square %q, then the bold name: %q", c.day, c.mark, line)
 		}
 		// The same style as the heatmap's square for that day.
-		cell := heatStyles[heatLevel(len(m.heat.days[m.heat.cursor]))].Render(heatDone)
+		cell := heatStyles[heatLevel(len(m.heat.days[m.heat.cursor].Tasks))].Render(heatDone)
 		if !strings.Contains(line, cell) {
 			t.Errorf("%s: the square isn't styled like the heatmap's: %q vs %q", c.day, line, cell)
 		}
@@ -691,11 +691,95 @@ func TestHeatFollowsTheClockWhenLeftOpenForDays(t *testing.T) {
 	if len(cols) == 0 || cols[len(cols)-1].start != colStart(today) {
 		t.Errorf("the newest column isn't in view: left %v, last %v", m.heat.left, cols)
 	}
-	if len(m.heat.days[today]) != 1 {
+	if len(m.heat.days[today].Tasks) != 1 {
 		t.Errorf("the new day's task is missing: %v", m.heat.days)
 	}
 	m = keys(t, m, "t")
 	if s := screen(m); !strings.Contains(s, "11:00  fresh") {
 		t.Errorf("t should land on the new day and list its task:\n%s", s)
+	}
+}
+
+// archivedNote is a note filed away on a day, at an hour.
+func archivedNote(id, text string, y int, mo time.Month, d, hour int, from write.Ref) write.Archived {
+	return write.Archived{ID: id, Text: text, Archived: time.Date(y, mo, d, hour, 0, 0, 0, loc), Origin: from, Note: true}
+}
+
+func TestNotesFollowTheTasksOfTheirDay(t *testing.T) {
+	m, src := writeModel(t, 120, 34)
+	seedArchive(t, src, []write.Archived{
+		archivedNote("n1", "the team went bowling", 2026, 9, 28, 17, write.Ref{}),
+		done("a", "first task", 2026, 9, 28, 9),
+		archivedNote("n2", "decided to move the launch", 2026, 9, 28, 18, write.Ref{Calendar: "c", Key: "k", Title: "Planning"}),
+		done("b", "second task", 2026, 9, 28, 14),
+	})
+	m = keys(t, m, "4", "k") // Mon 28 Sep
+	s := ansi.Strip(screen(m))
+	at := func(text string) int { return strings.Index(s, text) }
+	first, second, n1, n2 := at("first task"), at("second task"), at("¶ the team went bowling"), at("¶ decided to move the launch")
+	if first < 0 || second < 0 || n1 < 0 || n2 < 0 {
+		t.Fatalf("something is missing:\n%s", s)
+	}
+	if !(first < second && second < n1 && n1 < n2) {
+		t.Errorf("want the tasks, then the notes, oldest first:\n%s", s)
+	}
+	// A blank row sets the notes off from the tasks.
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		if strings.Contains(l, "second task") {
+			if next := lines[i+1]; strings.Trim(next, "│╭╮╰╯─ ") != "" && !strings.Contains(next, "││") {
+				t.Errorf("no blank row after the tasks: %q", next)
+			}
+			break
+		}
+	}
+	if !strings.Contains(s, "from Planning") {
+		t.Errorf("a note's origin is missing:\n%s", s)
+	}
+	if !strings.Contains(s, "2 tasks") && !strings.Contains(s, "Mon 28 Sep") {
+		t.Errorf("no day:\n%s", s)
+	}
+}
+
+func TestNotesDoNotCountAsActivity(t *testing.T) {
+	m, src := writeModel(t, 120, 34)
+	seedArchive(t, src, []write.Archived{
+		archivedNote("n1", "one", 2026, 9, 28, 17, write.Ref{}),
+		archivedNote("n2", "two", 2026, 9, 28, 18, write.Ref{}),
+		archivedNote("n3", "three", 2026, 9, 28, 19, write.Ref{}),
+		archivedNote("n4", "four", 2026, 9, 28, 20, write.Ref{}),
+		archivedNote("n5", "five", 2026, 9, 27, 20, write.Ref{}),
+		done("a", "a task", 2026, 9, 27, 9),
+	})
+	m = keys(t, m, "4")
+	d28, d27 := domain.NewCivilDate(2026, 9, 28), domain.NewCivilDate(2026, 9, 27)
+	if got := m.heatCell(d28, m.today(), m.today(), m.today()); !strings.Contains(got, heatNote) || strings.Contains(got, heatDone) {
+		t.Errorf("a notes-only day should be the hollow dot at level 0, got %q", got)
+	}
+	if got := m.heatCell(d27, m.today(), m.today(), m.today()); !strings.Contains(got, heatDone) {
+		t.Errorf("a day with a task keeps its square, got %q", got)
+	}
+	if lvl := heatLevel(len(m.heat.days[d28].Tasks)); lvl != 0 {
+		t.Errorf("four notes made level %d", lvl)
+	}
+	// Selecting the notes-only day lists its notes under a hollow dot.
+	m = keys(t, m, "k")
+	s := ansi.Strip(screen(m))
+	if !strings.Contains(s, "¶ four") || !strings.Contains(s, "∘ Mon 28 Sep 2026") {
+		t.Errorf("the notes-only day:\n%s", s)
+	}
+}
+
+func TestLongNoteWrapsInFull(t *testing.T) {
+	m, src := writeModel(t, 100, 34)
+	text := "today the whole team was away on a teambuilding day, which went on well past dinner and ended with a long walk home"
+	seedArchive(t, src, []write.Archived{archivedNote("n", text, 2026, 9, 28, 17, write.Ref{})})
+	m = keys(t, m, "4", "k")
+	s := ansi.Strip(screen(m))
+	flat := strings.Join(strings.Fields(strings.NewReplacer("│", " ", "¶", " ").Replace(s)), " ")
+	for _, w := range strings.Fields(text) {
+		if !strings.Contains(flat, w) {
+			t.Fatalf("%q is cut off:\n%s", w, s)
+		}
 	}
 }

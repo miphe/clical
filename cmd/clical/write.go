@@ -27,7 +27,7 @@ type WriteCmd struct {
 	Move      WriteMoveCmd      `cmd:"" help:"Move a task to an event, or to the global list."`
 	Archive   WriteArchiveCmd   `cmd:"" help:"File a checked task away in the archive."`
 	Archived  WriteArchivedCmd  `cmd:"" help:"List the archive."`
-	Unarchive WriteUnarchiveCmd `cmd:"" help:"Restore an archived task to the global list, checked."`
+	Unarchive WriteUnarchiveCmd `cmd:"" help:"Restore an archived task (checked) or note to the global list."`
 	Path      WritePathCmd      `cmd:"" help:"Print where the files are."`
 }
 
@@ -417,7 +417,11 @@ func (c *WriteArchivedCmd) Run() error {
 		return nil
 	}
 	for _, it := range items {
-		line := fmt.Sprintf("%s  %s  %s", it.ID, it.Completed.Format("2006-01-02 15:04"), domain.SafeText(it.Text))
+		when := it.Completed.Format("2006-01-02 15:04")
+		if it.Note {
+			when = it.Archived.Format("2006-01-02 15:04") + " note"
+		}
+		line := fmt.Sprintf("%s  %s  %s", it.ID, when, domain.SafeText(it.Text))
 		if !it.Origin.IsZero() {
 			line += "  (from " + refName(it.Origin) + ")"
 		}
@@ -426,7 +430,7 @@ func (c *WriteArchivedCmd) Run() error {
 	return nil
 }
 
-// WriteUnarchiveCmd restores an archived task.
+// WriteUnarchiveCmd restores an archived task or note.
 type WriteUnarchiveCmd struct{ todoID }
 
 func (c *WriteUnarchiveCmd) Run() error {
@@ -438,6 +442,10 @@ func (c *WriteUnarchiveCmd) Run() error {
 	rec, err := st.Unarchive(c.ID)
 	if err != nil {
 		return idError(err, c.ID)
+	}
+	if rec.Note {
+		fmt.Printf("Restored note %s to the global list: %s\n", rec.ID, rec.Text)
+		return nil
 	}
 	fmt.Printf("Restored %s to the global list, checked: %s\n", rec.ID, rec.Text)
 	return nil

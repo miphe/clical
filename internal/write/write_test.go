@@ -404,3 +404,113 @@ func TestMoveItem(t *testing.T) {
 		t.Errorf("out of range: %v", err)
 	}
 }
+
+func TestArchiveNoteAt(t *testing.T) {
+	meeting := Ref{Calendar: "c", Key: "k", Title: "Weekly sync"}
+	l := List{Header: &Header{Event: meeting}}
+	l.AddNote("team building today")
+	l.AddTodo("task", "11111111")
+	now := time.Date(2026, 10, 5, 17, 0, 0, 0, time.UTC)
+	a, err := l.ArchiveNoteAt(0, now)
+	if err != nil || len(l.Items) != 1 || !l.Items[0].Todo {
+		t.Fatalf("ArchiveNoteAt = %+v, %v; items %+v", a, err, l.Items)
+	}
+	if !a.Note || a.ID == "" || a.Text != "team building today" || !a.Archived.Equal(now) || !a.Completed.IsZero() || !a.Origin.Same(meeting) {
+		t.Errorf("archived = %+v", a)
+	}
+	if _, err := l.ArchiveNoteAt(0, now); !errors.Is(err, ErrNotANote) {
+		t.Errorf("a task: %v", err)
+	}
+	if _, err := l.ArchiveNoteAt(5, now); !errors.Is(err, ErrNotFound) {
+		t.Errorf("out of range: %v", err)
+	}
+	if back := Restore(a); back.Todo || back.Text != a.Text || back.ID != "" {
+		t.Errorf("restored = %+v", back)
+	}
+}
+
+func TestStoreArchiveNoteAndUnarchive(t *testing.T) {
+	s := openStore(t)
+	hdr := &Header{Event: meeting, Calendar: "Work", Start: "2026-10-05T09:00:00Z"}
+	if err := s.Update(meeting, hdr, func(l *List) error {
+		l.AddNote("standing note")
+		l.AddNote("team building today")
+		_, err := l.AddTodo("task", "aaaa1111")
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 5, 17, 0, 0, 0, time.UTC)
+	// The list moved on since the panel drew it: nothing is archived.
+	if _, err := s.ArchiveNote(meeting, 1, "something else", now); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("stale text: %v", err)
+	}
+	if _, err := s.ArchiveNote(meeting, 2, "task", now); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("a task: %v", err)
+	}
+	if arch, _ := s.Archived(); len(arch) != 0 {
+		t.Fatalf("archive = %+v", arch)
+	}
+	rec, err := s.ArchiveNote(meeting, 1, "team building today", now)
+	if err != nil || !rec.Note || !rec.Origin.Same(meeting) || rec.Origin.Title != meeting.Title {
+		t.Fatalf("ArchiveNote = %+v, %v", rec, err)
+	}
+	l, _ := s.Get(meeting)
+	if len(l.Items) != 2 || l.Items[0].Text != "standing note" || !l.Items[1].Todo {
+		t.Errorf("list = %+v", l.Items)
+	}
+	if arch, _ := s.Archived(); len(arch) != 1 || !arch[0].Note || arch[0].ID != rec.ID {
+		t.Errorf("archive = %+v", arch)
+	}
+	// Unarchiving puts the note back in the global list, as a note.
+	if _, err := s.Unarchive(rec.ID); err != nil {
+		t.Fatal(err)
+	}
+	g, _ := s.Get(Ref{})
+	if len(g.Items) != 1 || g.Items[0].Todo || g.Items[0].Text != "team building today" {
+		t.Errorf("global = %+v", g.Items)
+	}
+	if arch, _ := s.Archived(); len(arch) != 0 {
+		t.Errorf("archive after unarchive = %+v", arch)
+	}
+}
+
+func TestStoreMoveNote(t *testing.T) {
+	s := openStore(t)
+	hdr := &Header{Event: meeting, Calendar: "Work", Start: "2026-10-05T09:00:00Z"}
+	if err := s.Update(meeting, hdr, func(l *List) error {
+		l.AddNote("first")
+		l.AddNote("second")
+		_, err := l.AddTodo("task", "aaaa1111")
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MoveNote(meeting, 1, "stale", Ref{}, nil); !errors.Is(err, ErrNotFound) {
+		t.Errorf("stale text: %v", err)
+	}
+	if err := s.MoveNote(meeting, 2, "task", Ref{}, nil); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a task: %v", err)
+	}
+	if err := s.MoveNote(meeting, 1, "second", meeting, hdr); !errors.Is(err, ErrSameScope) {
+		t.Errorf("same list: %v", err)
+	}
+	if err := s.MoveNote(meeting, 1, "second", Ref{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	ev, _ := s.Get(meeting)
+	if len(ev.Items) != 2 || ev.Items[0].Text != "first" || !ev.Items[1].Todo {
+		t.Errorf("event = %+v", ev.Items)
+	}
+	g, _ := s.Get(Ref{})
+	if len(g.Items) != 1 || g.Items[0].Todo || g.Items[0].Text != "second" {
+		t.Errorf("global = %+v", g.Items)
+	}
+	// Into an event's list too, which gets its header.
+	if err := s.MoveNote(Ref{}, 0, "second", meeting, hdr); err != nil {
+		t.Fatal(err)
+	}
+	if ev, _ = s.Get(meeting); len(ev.Items) != 3 || ev.Items[2].Text != "second" {
+		t.Errorf("event after = %+v", ev.Items)
+	}
+}

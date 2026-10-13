@@ -46,7 +46,7 @@ test ./...` if a package imports something its layer doesn't allow.
 | `internal/secrets`          | age-encrypted vault for feed URLs                                                                | —                                                                |
 | `internal/config`           | The settings files: clock, week start, sync, pulse                                             | —                                                                |
 | `internal/store`            | SQLite cache: accounts, calendars, events, sync tokens                                           | domain                                                           |
-| `internal/write`            | Notes and tasks the user keeps: markdown files per event and global, a JSONL archive. Not the cache: it can't be rebuilt | domain                                  |
+| `internal/write`            | Notes and tasks the user keeps: markdown files per event and global, a JSONL archive of completed tasks and archived notes. Not the cache: it can't be rebuilt | domain                                  |
 | `internal/providers/ical`   | Fetch, retry and parse iCal feeds                                                                | domain, eventtext                                                |
 | `internal/eventtext`        | Readable notes and a clean link list from an event's raw content (provider-neutral)              | domain                                                           |
 | `internal/providers/google` | Google Calendar API: sign-in, calendar list, event sync                                          | domain, eventtext                                                |

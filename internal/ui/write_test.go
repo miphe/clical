@@ -28,6 +28,15 @@ func (s storeSource) WriteArchive(id string, now time.Time) error {
 	return err
 }
 
+func (s storeSource) WriteArchiveNote(scope write.Ref, at int, text string, now time.Time) error {
+	_, err := s.st.ArchiveNote(scope, at, text, now)
+	return err
+}
+
+func (s storeSource) WriteMoveNote(from write.Ref, at int, text string, to write.Ref, hdr *write.Header) error {
+	return s.st.MoveNote(from, at, text, to, hdr)
+}
+
 func newStoreSource(t *testing.T) storeSource {
 	t.Helper()
 	st, err := write.Open(filepath.Join(t.TempDir(), "write"))
@@ -221,7 +230,7 @@ func TestCheckArchiveNeedsCheckedFirst(t *testing.T) {
 	}
 }
 
-func TestNotesCantBeCheckedOrMoved(t *testing.T) {
+func TestNotesCantBeChecked(t *testing.T) {
 	m, _ := writeModel(t, 130, 34)
 	m, _ = openEvent(t, m)
 	m = keys(t, m, "w", "A")
@@ -230,9 +239,33 @@ func TestNotesCantBeCheckedOrMoved(t *testing.T) {
 	if !strings.Contains(screen(m), "Only a task can be checked") {
 		t.Errorf("no hint:\n%s", screen(m))
 	}
-	m = keys(t, m, "m")
-	if !strings.Contains(screen(m), "Only a task can be moved") {
-		t.Errorf("no hint for move:\n%s", screen(m))
+}
+
+func TestNotesMoveBetweenTheEventAndTheGlobalList(t *testing.T) {
+	m, src := writeModel(t, 130, 34)
+	m, scope := openEvent(t, m)
+	m = keys(t, m, "w", "A")
+	m = typed(t, m, "a note for later")
+	m = keys(t, m, "enter", "esc")
+	m = keys(t, m, "a")
+	m = typed(t, m, "a task")
+	m = keys(t, m, "enter", "esc")
+	// The note is first; move it to the global list.
+	m = keys(t, m, "g", "m")
+	if ev := listOf(t, src, scope); len(ev) != 1 || ev[0].Text != "a task" {
+		t.Fatalf("event list = %+v", ev)
+	}
+	gl := listOf(t, src, write.Ref{})
+	if len(gl) != 1 || gl[0].Todo || gl[0].Text != "a note for later" {
+		t.Fatalf("global list = %+v", gl)
+	}
+	// And from the global panel back into the open event.
+	m = keys(t, m, "W", "g", "m")
+	if ev := listOf(t, src, scope); len(ev) != 2 || ev[1].Todo || ev[1].Text != "a note for later" {
+		t.Fatalf("event list after = %+v", ev)
+	}
+	if len(listOf(t, src, write.Ref{})) != 0 {
+		t.Error("still in the global list")
 	}
 }
 
@@ -832,5 +865,41 @@ func TestEnterIsLabeledAddWhenCreatingAndSaveWhenEditing(t *testing.T) {
 	m = keys(t, m, "esc", "e")
 	if s := screen(m); !strings.Contains(s, "enter save") || strings.Contains(s, "enter add") {
 		t.Errorf("editing: want 'enter save':\n%s", s)
+	}
+}
+
+func TestZArchivesANoteAndBigZLeavesNotes(t *testing.T) {
+	m, src := writeModel(t, 130, 34)
+	m, scope := openEvent(t, m)
+	m = keys(t, m, "w")
+	m = keys(t, m, "A")
+	m = typed(t, m, "the team went bowling")
+	m = keys(t, m, "enter", "esc")
+	m = keys(t, m, "a")
+	m = typed(t, m, "a task")
+	m = keys(t, m, "enter", "esc")
+	// Z sweeps checked tasks only: here that's nothing, and the note stays.
+	m = keys(t, m, "g", "Z")
+	if got := listOf(t, src, scope); len(got) != 2 {
+		t.Fatalf("after Z: %+v", got)
+	}
+	arch, _ := src.st.Archived()
+	if len(arch) != 0 {
+		t.Fatalf("Z archived %+v", arch)
+	}
+	// z on the note archives it, without checking anything first.
+	m = keys(t, m, "z")
+	left := listOf(t, src, scope)
+	if len(left) != 1 || left[0].Text != "a task" {
+		t.Fatalf("left in the panel: %+v", left)
+	}
+	arch, _ = src.st.Archived()
+	if len(arch) != 1 || !arch[0].Note || arch[0].Text != "the team went bowling" || !arch[0].Origin.Same(scope) {
+		t.Errorf("archive = %+v", arch)
+	}
+	// z on an unchecked task still says to check it first.
+	m = keys(t, m, "z")
+	if !strings.Contains(screen(m), "Check it first") {
+		t.Errorf("no hint:\n%s", screen(m))
 	}
 }

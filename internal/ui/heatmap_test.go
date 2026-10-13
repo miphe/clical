@@ -11,10 +11,10 @@ import (
 
 func cd(y, m, d int) domain.CivilDate { return domain.NewCivilDate(y, m, d) }
 
-func daysWith(counts map[domain.CivilDate]int) map[domain.CivilDate][]write.Archived {
-	out := map[domain.CivilDate][]write.Archived{}
+func daysWith(counts map[domain.CivilDate]int) map[domain.CivilDate]write.DayArchive {
+	out := map[domain.CivilDate]write.DayArchive{}
 	for d, n := range counts {
-		out[d] = make([]write.Archived, n)
+		out[d] = write.DayArchive{Tasks: make([]write.Archived, n)}
 	}
 	return out
 }

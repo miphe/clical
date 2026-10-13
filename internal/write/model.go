@@ -18,6 +18,7 @@ var (
 	ErrNotFound  = errors.New("write: no such item")
 	ErrAmbiguous = errors.New("write: more than one item starts with that")
 	ErrNotTodo   = errors.New("write: not a task")
+	ErrNotANote  = errors.New("write: not a note")
 	ErrNotDone   = errors.New("write: only a checked task can be archived")
 	ErrChanged   = errors.New("write: the file changed while it was being updated")
 	ErrSameScope = errors.New("write: already there")
@@ -259,8 +260,13 @@ func Move(from, to *List, id string) error {
 	return nil
 }
 
-// Archived is a completed task filed away. It keeps what a timeline needs:
-// when the work was last completed, and where it came from.
+// Archived is a completed task, or a note, filed away. It keeps what a
+// timeline needs: when the work was last completed, and where it came from.
+//
+// A note has no completion: it belongs to the day it was archived, its origin
+// is the list it was archived from (a note carries no history of its own), and
+// it gets an ID of its own, since the archive needs one. Completed is zero, so
+// an older clical that doesn't know notes skips the record.
 type Archived struct {
 	ID        string    `json:"id"`
 	Text      string    `json:"text"`
@@ -268,6 +274,30 @@ type Archived struct {
 	Archived  time.Time `json:"archived"`
 	Origin    Ref       `json:"origin,omitempty"`
 	Last      Ref       `json:"last,omitempty"`
+	Note      bool      `json:"note,omitempty"`
+}
+
+// Moment is when the record counts from: a task's completion, a note's
+// archiving.
+func (a Archived) Moment() time.Time {
+	if a.Note {
+		return a.Archived
+	}
+	return a.Completed
+}
+
+// ArchiveNoteAt takes the note at position i out of l and returns its
+// archived form. The item must be a note with text.
+func (l *List) ArchiveNoteAt(i int, now time.Time) (Archived, error) {
+	if i < 0 || i >= len(l.Items) {
+		return Archived{}, ErrNotFound
+	}
+	it := l.Items[i]
+	if it.Todo || strings.TrimSpace(it.Text) == "" {
+		return Archived{}, ErrNotANote
+	}
+	l.Items = append(l.Items[:i], l.Items[i+1:]...)
+	return Archived{ID: NewID(), Text: it.Text, Archived: now, Origin: l.Scope(), Note: true}, nil
 }
 
 // Archive takes a checked task out of l and returns its archived form.
@@ -288,9 +318,12 @@ func (l *List) Archive(id string, now time.Time) (Archived, error) {
 	return Archived{ID: it.ID, Text: it.Text, Completed: completed, Archived: now, Origin: it.Origin, Last: it.Last}, nil
 }
 
-// Restore is the task an archived one becomes when unarchived: checked, as it
-// was completed, with its provenance intact. It goes to the global list,
-// always there, whatever became of its event.
+// Restore is the item an archived one becomes when unarchived: a task checked,
+// as it was completed, with its provenance intact, or the note. It goes to the
+// global list, always there, whatever became of its event.
 func Restore(a Archived) Item {
+	if a.Note {
+		return Item{Text: a.Text}
+	}
 	return Item{ID: a.ID, Todo: true, Text: a.Text, Done: true, Completed: a.Completed, Origin: a.Origin, Last: a.Last}
 }

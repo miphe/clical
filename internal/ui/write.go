@@ -24,7 +24,9 @@ type WriteSource interface {
 	WriteList(scope write.Ref) (write.List, error)
 	WriteUpdate(scope write.Ref, hdr *write.Header, fn func(*write.List) error) error
 	WriteMove(id string, to write.Ref, hdr *write.Header) error
+	WriteMoveNote(from write.Ref, at int, text string, to write.Ref, hdr *write.Header) error
 	WriteArchive(id string, now time.Time) error
+	WriteArchiveNote(scope write.Ref, at int, text string, now time.Time) error
 	WriteArchived() ([]write.Archived, error)
 }
 
@@ -376,8 +378,11 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return nil
 		})
 	case "z":
-		if !have || !item.Todo {
-			p.note = "Only a task can be archived"
+		if have && !item.Todo {
+			scope, text, now := p.scope, item.Text, time.Now()
+			return m, m.writeOp(func(w WriteSource) error { return w.WriteArchiveNote(scope, at, text, now) })
+		}
+		if !have {
 			break
 		}
 		if !item.Done {
@@ -413,13 +418,12 @@ func (m Model) moveItem(which writeWhich, dir int) (tea.Model, tea.Cmd) {
 	})
 }
 
-// moveSelected sends a task to the other list: an event's to the global one,
-// a global one to the open event.
+// moveSelected sends a task or a note to the other list: an event's to the
+// global one, a global one to the open event.
 func (m Model) moveSelected(which writeWhich) (tea.Model, tea.Cmd) {
 	p := m.panel(which)
-	item, _, have := p.current()
-	if !have || !item.Todo {
-		p.note = "Only a task can be moved"
+	item, at, have := p.current()
+	if !have {
 		return m, nil
 	}
 	var to write.Ref
@@ -430,6 +434,10 @@ func (m Model) moveSelected(which writeWhich) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		to, hdr = m.eventWrite.scope, m.eventWrite.hdr
+	}
+	if !item.Todo {
+		from, text := p.scope, item.Text
+		return m, m.writeOp(func(w WriteSource) error { return w.WriteMoveNote(from, at, text, to, hdr) })
 	}
 	id := item.ID
 	return m, m.writeOp(func(w WriteSource) error { return w.WriteMove(id, to, hdr) })

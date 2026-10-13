@@ -44,7 +44,8 @@ multi-account merge → config/themes → in-process background polling.
 | M12 | Settings dialog (`S`), event pulse before start | `internal/ui/settings.go`, `internal/ui/pulse.go` | Done |
 | M13 | Write: notes and tasks in event and global scopes, archive, `clical write` | `internal/write/`, `internal/ui/write*.go`, `cmd/clical/write.go` | Done (M13d, the TUI archive view, is deferred) |
 | — | Release pipeline: GoReleaser, GitHub releases, PolyForm Noncommercial license | `.goreleaser.yaml`, `LICENSE.md` | Done (v0.0.1) |
-| M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | Done (v0.0.2 candidate) |
+| M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | Done (v0.0.2) |
+| M15 | Archivable notes, shown on their day in the Focus view | `internal/write/`, `internal/ui/focusview.go`, `internal/ui/heatview.go` | Done |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -1250,6 +1251,48 @@ The main panel is split in three:
 Verification: the usual checks, golden diffs reviewed, `TestNoColorKeepsStatesVisible`
 extended, and the built binary driven with `scripts/tui_screens.py` against a
 temp `XDG_DATA_HOME` holding a seeded `archive.jsonl`.
+
+## Archivable notes — M15 (done)
+
+A note can be filed in the archive instead of deleted, and shows up on its
+day in the Focus view. (`CompletionsByDay` above is now `ArchiveByDay`, which
+returns a `DayArchive{Tasks, Notes}` per day.)
+
+- **A note's day is the day it was archived.** A note has no completion, so
+  that is the only moment there is, taken in the record's own UTC offset like a
+  task's. The catch: archiving yesterday's note this morning files it under
+  today.
+- **The record**: the same `Archived` line with `"note":true`, a fresh ID
+  (the archive needs one), `Completed` zero, and **Origin = the list it was
+  archived from**. A note carries no history of its own in the markdown, and
+  giving it some would break "every other line is kept exactly as written", so
+  where it was first written is not known. A zero `Completed` also makes an
+  older clical skip the record, so downgrading is harmless.
+- **`z` archives the selected note**, with nothing to check first. `Z` (the end
+  of the day sweep) still archives checked tasks only: it must not swallow
+  standing notes. The panel asks the store by position and text
+  (`Store.ArchiveNote`), and nothing is archived if the list changed since it
+  was drawn; like tasks it is appended to the archive before it leaves the
+  list.
+- **Notes don't count as activity.** The level of a day still comes from its
+  completed tasks only. A day with notes and no tasks is a hollow dot (`∘`),
+  in the quietest style, so it can be told from an empty day; the legend says
+  so.
+- **The day's list**: the header, its tasks, then (after a blank row) its
+  notes. Each note is a paragraph: a muted `¶`, the whole text wrapped, and a
+  muted `from <event>` line when it isn't from the global list. In a selection
+  of several days each day has its own tasks, then its own notes. The header
+  counts both ("10 tasks, 3 notes on 3 days").
+- **Notes move like tasks:** `m` sends the selected note between an event's
+  list and the global one (`Store.MoveNote`, by position and text like the
+  archive, added to the target before it's removed). Only the TUI does this.
+- **Naming:** what the user writes is a *task* or a *note*; "TODO" is gone from
+  every label, hint, help line and doc. The code still says `Todo` (`Item.Todo`,
+  `AddTodo`), which is internal, and the markdown form is unchanged
+  (`- [ ] text`).
+- **`clical write unarchive`** puts a note back in the global list as a note
+  (never as a checked task); `clical write archived` marks notes. There's no
+  command to archive a note and no unarchive in the TUI.
 
 ## Verification
 
