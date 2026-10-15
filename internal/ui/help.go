@@ -105,6 +105,7 @@ func helpSections() []helpSection {
 			{"j k  g G", "Move"},
 			{"a  A", "Add a task, a note; enter adds the next"},
 			{"e  enter", "Edit"},
+			{"", "A task starts with [ ], a note with ¶."},
 			{"space", "Check or uncheck a task"},
 			{"d", "Delete (asks first)"},
 			{"m", "Move a task or note: event ↔ global (global → the open event)"},

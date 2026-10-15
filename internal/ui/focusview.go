@@ -231,7 +231,7 @@ func (m Model) heatTaskLines(width int) ([]string, string) {
 			for k, l := range wrapped(domain.SafeText(oneLine(a.Text)), width-4) {
 				lead := "    "
 				if k == 0 {
-					lead = "  " + mutedStyle.Render(heatNoteMark) + " "
+					lead = "  " + mutedStyle.Render(noteMark) + " "
 				}
 				lines = append(lines, fit(lead+l, width))
 			}

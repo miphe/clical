@@ -1286,6 +1286,11 @@ returns a `DayArchive{Tasks, Notes}` per day.)
 - **Notes move like tasks:** `m` sends the selected note between an event's
   list and the global one (`Store.MoveNote`, by position and text like the
   archive, added to the target before it's removed). Only the TUI does this.
+- **A note is marked in the Write panels too**: its first line starts with the
+  same muted `¶` where a task has `[ ]`. Without it a note under a task looked
+  like the task's wrapped second line. A marker was chosen over a blank row
+  before notes: tasks and notes are interleaved (and reordered with alt+j/k),
+  so a blank row would come and go, cost rows and disturb scrolling.
 - **Naming:** what the user writes is a *task* or a *note*; "TODO" is gone from
   every label, hint, help line and doc. The code still says `Todo` (`Item.Todo`,
   `AddTodo`), which is internal, and the markdown form is unchanged

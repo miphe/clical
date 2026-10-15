@@ -241,6 +241,45 @@ func TestNotesCantBeChecked(t *testing.T) {
 	}
 }
 
+func TestANoteIsMarkedSoItIsNotTakenForAWrappedTask(t *testing.T) {
+	m, _ := writeModel(t, 130, 34)
+	m, _ = openEvent(t, m)
+	m = keys(t, m, "w", "a")
+	m = typed(t, m, "a task long enough that it has to wrap onto a second line in the panel, for sure, yes")
+	m = keys(t, m, "enter", "esc", "A")
+	m = typed(t, m, "just a note")
+	m = keys(t, m, "enter", "esc")
+	var task, note, rest []string
+	for _, l := range strings.Split(screen(m), "\n") {
+		switch {
+		case strings.Contains(l, "[ ] a task long"):
+			task = append(task, l)
+		case strings.Contains(l, "just a note"):
+			note = append(note, l)
+		case strings.Contains(l, "second line in the panel"), strings.Contains(l, "for sure, yes"):
+			rest = append(rest, l)
+		}
+	}
+	if len(note) == 0 || !strings.Contains(note[0], "¶ ") || strings.Contains(note[0], "[ ]") {
+		t.Errorf("the note isn't marked: %q", note)
+	}
+	if len(task) == 0 || strings.Contains(task[0], "¶") {
+		t.Errorf("the task is marked as a note: %q", task)
+	}
+	for _, l := range rest {
+		if strings.Contains(l, "¶") {
+			t.Errorf("a wrapped task line is marked as a note: %q", l)
+		}
+	}
+	// The text starts in the same column, marker or box.
+	if len(task) > 0 && len(note) > 0 {
+		col := func(l, sub string) int { return len([]rune(l[:strings.Index(l, sub)])) }
+		if a, b := col(task[0], "a task"), col(note[0], "just"); a != b {
+			t.Errorf("text starts at column %d for the task and %d for the note", a, b)
+		}
+	}
+}
+
 func TestNotesMoveBetweenTheEventAndTheGlobalList(t *testing.T) {
 	m, src := writeModel(t, 130, 34)
 	m, scope := openEvent(t, m)

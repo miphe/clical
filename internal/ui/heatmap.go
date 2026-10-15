@@ -54,10 +54,10 @@ const (
 const (
 	heatNone = "·"
 	heatNote = "∘"
-	// heatNoteMark leads a note in the day's list.
-	heatNoteMark = "¶"
-	heatDone     = "■"
-	heatSel      = "▣"
+	// noteMark leads a note, in a Write panel and in the Focus view's day list.
+	noteMark = "¶"
+	heatDone = "■"
+	heatSel  = "▣"
 )
 
 // heatState is the heatmap's data and where the user is in it.
