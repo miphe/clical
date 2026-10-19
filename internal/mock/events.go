@@ -191,6 +191,18 @@ func (g *eventGen) special() {
 	// Titles that don't fit, and ones that aren't ASCII.
 	g.timed("alignment", calWork, "Cross-functional alignment on the platform migration roadmap and Q4 staffing, pre-read required", t.AddDays(3), 15, 0, time.Hour)
 	g.timed("jp", calWork, "日本語 meeting 🎉", t.AddDays(1), 13, 0, time.Hour)
+	// A crowded day for the time grid (Week+): two events side by side, five
+	// at once, back to back, a long one under shorter ones, and a reminder.
+	c := t.AddDays(5)
+	g.timed("crunch-design", calWork, "Design review", c, 10, 0, 90*time.Minute)
+	g.timed("crunch-1on1", calWork, "1:1 with Sam", c, 10, 30, 30*time.Minute)
+	for i, title := range []string{"Incident triage", "Customer call", "Hiring panel", "Budget check"} {
+		g.timed(fmt.Sprintf("crunch-pile-%d", i), []string{calWork, calTeam, calWork, calFamily}[i], title, c, 14, 0, 45*time.Minute)
+	}
+	g.timed("crunch-workshop", calTeam, "Planning workshop", c, 13, 30, 3*time.Hour)
+	g.timed("crunch-b2b-1", calWork, "Interview: backend", c, 16, 30, 30*time.Minute)
+	g.timed("crunch-b2b-2", calWork, "Interview: platform", c, 17, 0, 30*time.Minute)
+	g.add(domain.NewTimedEvent("crunch-reminder/"+c.String(), calFamily, "Pick up the parcel", g.at(c, 12, 0), g.at(c, 12, 0), "", ""))
 	// Past midnight.
 	night := g.at(t.AddDays(12), 23, 0)
 	g.add(domain.NewTimedEvent("night-train/"+t.AddDays(12).String(), calFamily, "Night train to Berlin", night, night.Add(7*time.Hour+30*time.Minute), "Stockholm Central", ""))

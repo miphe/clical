@@ -70,7 +70,8 @@ const (
 	viewAgenda viewKind = iota
 	viewWeek
 	viewMonth
-	viewHeat // the focus view
+	viewHeat     // the focus view
+	viewWeekPlus // the week as a time grid (weekplus.go)
 	viewCount
 )
 
@@ -148,9 +149,13 @@ type Model struct {
 	pendingDay domain.CivilDate
 	hasPending bool
 
-	week  weekState
-	month monthState
-	heat  heatState // focus.go
+	week weekState
+	wp   weekPlusState
+	// workFrom and workTo are the working hours, in minutes of the day, which
+	// Week+ draws lines for.
+	workFrom, workTo int
+	month            monthState
+	heat             heatState // focus.go
 
 	detail  *detailView
 	openURL func(string) error // opens a link in the browser; swapped in tests
@@ -217,6 +222,8 @@ func New(src Source, loc *time.Location, now time.Time) Model {
 		tick:         30 * time.Second,
 		poll:         pollInterval,
 		weekStart:    time.Monday,
+		workFrom:     8 * 60,
+		workTo:       18 * 60,
 		calIndex:     map[string]int{},
 		needsSignIn:  map[string]bool{},
 		syncFailures: map[string]string{},
@@ -254,7 +261,10 @@ type Settings struct {
 	PulseGrace time.Duration // after the start; -1 for the whole event
 	PanelFlash bool          // a collapsed panel flashes when its content changes
 	Write      bool          // notes and tasks at all
-	Save       func(Prefs) error
+	// WorkStart and WorkEnd are the working hours in minutes of the day, which
+	// Week+ draws its hour lines inside; unset for 08:00 to 18:00.
+	WorkStart, WorkEnd int
+	Save               func(Prefs) error
 }
 
 // WithNotice shows text in the status line and the window title for as long
@@ -276,6 +286,9 @@ func (m Model) WithSettings(s Settings) Model {
 	m.pulse.grace = s.PulseGrace
 	m.panelFlash = s.PanelFlash
 	m.writeOn = s.Write
+	if s.WorkEnd > s.WorkStart {
+		m.workFrom, m.workTo = s.WorkStart, s.WorkEnd
+	}
 	if !m.writeOn && m.view == viewHeat {
 		m.view = viewAgenda // the focus view reads what Write keeps
 	}
@@ -364,12 +377,14 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.width, m.height = msg.Width, msg.Height
 		m.ensureVisible()
+		m.wpReveal()
 		return m, nil
 
 	case tickMsg:
 		m.now = time.Time(msg)
 		m.rebuild()
 		m.rebuildWeek()
+		m.rebuildWeekPlus()
 		m.rebuildMonth()
 		refresh := tea.Batch(m.pulseRefresh(), m.reloadWrite(), m.reloadHeat())
 		if m.poll != 0 && !m.syncing && !m.nextPoll.IsZero() && !m.now.Before(m.nextPoll) {
@@ -400,11 +415,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ensureSidebarSelection()
 		m.rebuild()
 		m.rebuildWeek()
+		m.rebuildWeekPlus()
 		m.rebuildMonth()
 		return m, nil
 
 	case weekLoadedMsg:
 		return m.weekLoaded(msg), nil
+
+	case weekPlusLoadedMsg:
+		return m.weekPlusLoaded(msg), nil
 
 	case monthLoadedMsg:
 		return m.monthLoaded(msg), nil
@@ -525,6 +544,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.week.pendingID = m.selectedWeekEventID()
 			m.week.pendingSelect = true
 			cmds = append(cmds, m.loadWeek())
+		}
+		if m.wp.loaded {
+			m.wp.pendingID = m.selectedWeekPlusEventID()
+			m.wp.pendingSelect = true
+			cmds = append(cmds, m.loadWeekPlus())
 		}
 		if m.month.loaded {
 			cmds = append(cmds, m.loadMonth())
@@ -647,6 +671,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.switchView(viewMonth)
 	case key.Matches(msg, m.keys.ViewHeat) && m.heatEnabled():
 		return m.switchView(viewHeat)
+	case key.Matches(msg, m.keys.ViewWeekPlus):
+		return m.switchView(viewWeekPlus)
 	case key.Matches(msg, m.keys.FocusList):
 		m.focus = focusSidebar
 		m.ensureSidebarSelection()
@@ -670,6 +696,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleSidebarKey(msg)
 	case m.view == viewWeek:
 		return m.handleWeekKey(msg)
+	case m.view == viewWeekPlus:
+		return m.handleWeekPlusKey(msg)
 	case m.view == viewMonth:
 		return m.handleMonthKey(msg)
 	case m.view == viewHeat && m.focus != focusMain:
@@ -693,6 +721,8 @@ func (m Model) switchView(to viewKind) (tea.Model, tea.Cmd) {
 	switch to {
 	case viewWeek:
 		return m.showWeek(day, id)
+	case viewWeekPlus:
+		return m.showWeekPlus(day, id, true)
 	case viewMonth:
 		return m.showMonth(day)
 	case viewHeat:
@@ -707,6 +737,8 @@ func (m Model) viewDay() (domain.CivilDate, string) {
 	switch m.view {
 	case viewWeek:
 		return m.selectedWeekDate(), m.selectedWeekEventID()
+	case viewWeekPlus:
+		return m.wpDate(), m.selectedWeekPlusEventID()
 	case viewMonth:
 		return m.month.sel, ""
 	case viewHeat:
@@ -1027,6 +1059,8 @@ func (m Model) goToday() (tea.Model, tea.Cmd) {
 	switch m.view {
 	case viewWeek:
 		return m.showWeek(m.today(), "")
+	case viewWeekPlus:
+		return m.showWeekPlus(m.today(), "", true)
 	case viewMonth:
 		return m.showMonth(m.today())
 	case viewHeat:

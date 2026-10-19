@@ -42,6 +42,8 @@ func (c *TUICmd) Run(cli *CLI) error {
 		PulseGrace:   cfg.PulseGrace,
 		PanelFlash:   cfg.PanelFlash,
 		Write:        cfg.Write,
+		WorkStart:    cfg.WorkStart,
+		WorkEnd:      cfg.WorkEnd,
 		Save: func(p ui.Prefs) error {
 			return config.SavePrefs(config.PrefsPath(), config.Prefs(p))
 		},

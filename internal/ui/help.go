@@ -26,7 +26,7 @@ func helpSections() []helpSection {
 	return []helpSection{
 		{"Everywhere", []helpEntry{
 			{"0", "Calendar list"},
-			{"1 2 3 4", "Agenda, week, month, focus"},
+			{"1 2 3 4 5", "Agenda, week, month, focus, week as a time grid"},
 			{"tab", "Next panel: the list, the view, the global Write panel"},
 			{"t", "Today"},
 			{"r", "Sync now (also in the background)"},
@@ -58,6 +58,19 @@ func helpSections() []helpSection {
 			{"g G", "First, last event of the day"},
 			{"[ ]  pgup pgdn", "Previous, next week"},
 			{"enter", "Event details"},
+		}},
+		{"Week+", []helpEntry{
+			{"h l  ← →", "Previous, next day, at the same time of day"},
+			{"j k  ↓ ↑", "Next, previous event of the day"},
+			{"g G", "First, last event of the day"},
+			{"[ ]", "Previous, next week"},
+			{"+ -", "Zoom: 15, 30 or 60 minutes a row"},
+			{"D", "Weekdays only, or all seven days"},
+			{"ctrl+d ctrl+u  pgdn pgup", "Scroll the time"},
+			{"t", "Today, and the time now"},
+			{"enter", "Event details"},
+			{"", "Events that overlap sit side by side; the selected one"},
+			{"", "takes the whole column. +N counts those with no room."},
 		}},
 		{"Month", []helpEntry{
 			{"h l  ← →", "Previous, next day"},

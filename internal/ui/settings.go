@@ -194,6 +194,15 @@ func (m *Model) setWeekStart(d time.Weekday) tea.Cmd {
 		m.week.loaded, m.week.loading = false, true
 		cmds = append(cmds, m.loadWeek())
 	}
+	if m.wp.loaded {
+		day := m.wpDate()
+		m.weekStart = d
+		m.wp.start = agenda.WeekStart(day, d)
+		m.wp.day = daysBetween(m.wp.start, day)
+		m.wp.pendingSelect, m.wp.pendingID = true, ""
+		m.wp.loaded, m.wp.loading = false, true
+		cmds = append(cmds, m.loadWeekPlus())
+	}
 	if m.month.loaded {
 		m.weekStart = d
 		m.month.start, m.month.weeks = agenda.MonthGrid(m.month.month, d)
