@@ -118,11 +118,30 @@ func (m Model) handleChooserKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// chooserNotes is what each source gives and what it can't: a + is a plus, a
+// - is what you give up by choosing it. The chosen row's notes are shown.
+var chooserNotes = [2][]string{
+	sourceICal: {
+		"+ Nothing to set up: paste the calendar's secret address",
+		"- Guests and replies only if the feed has them",
+		"- Events you declined still show",
+		"- Anyone who has the address can read the calendar",
+	},
+	sourceGoogle: {
+		"+ Always: who is invited, who has replied, who is optional",
+		"+ Events you declined are left out",
+		"+ All of an account's calendars, work accounts too",
+		"- A one-time setup of your own Google client (docs/GOOGLE.md)",
+		"  CLIcal asks for read-only access and can't change anything",
+	},
+}
+
 func (m Model) renderChooser() []string {
 	rows := []struct{ name, desc string }{
-		{"iCal link", "paste a calendar's secret iCal address"},
-		{"Google account", "sign in with Google (also work accounts)"},
+		{"iCal link", "a calendar's secret iCal address"},
+		{"Google account", "sign in with Google"},
 	}
+	w := min(m.width-4, 66)
 	var lines []string
 	for i, r := range rows {
 		text := fmt.Sprintf(" %d  %-15s %s", i+1, r.name, r.desc)
@@ -132,8 +151,17 @@ func (m Model) renderChooser() []string {
 			lines = append(lines, " "+text)
 		}
 	}
+	lines = append(lines, "")
+	for _, n := range chooserNotes[*m.chooser] {
+		// A note that doesn't fit wraps under its text, not under its sign.
+		for k, l := range strings.Split(ansi.Hardwrap(ansi.Wordwrap(n, w-6, ""), w-6, false), "\n") {
+			if k > 0 {
+				l = "  " + l
+			}
+			lines = append(lines, "  "+mutedStyle.Render(l))
+		}
+	}
 	lines = append(lines, "", " "+mutedStyle.Render("enter choose · esc cancel"))
-	w := min(m.width-4, 66)
 	return panel(w, len(lines)+2, frame{focused: true, tabs: []tab{{label: "Add a calendar", active: true}}}, lines)
 }
 

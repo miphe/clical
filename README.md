@@ -32,7 +32,8 @@ addresses. Press `a` to add a calendar, and `?` to see all keys.
   Treat it like a password.
 - **Google account:** you need your own Google OAuth client (a few minutes in
   the Google Cloud Console), which you enter once in CLIcal. Follow
-  [`docs/GOOGLE.md`](docs/GOOGLE.md). Prefer the iCal link when you can.
+  [`docs/GOOGLE.md`](docs/GOOGLE.md). Only this is sure to show who is invited
+  and who has replied; an iCal link shows guests only if the feed has them.
 
 **Your data:** feed addresses, the OAuth client and sign-in tokens are kept
 only in an encrypted vault on your machine. CLIcal talks only to your calendar

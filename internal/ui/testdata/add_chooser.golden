@@ -3,17 +3,17 @@
 │   ● Holidays           ││    ● all day      Name day                       Personal · Main    ││r│
 │   ● Main               ││    ● 09:00–09:30  Standup                        Personal · Main    ││i│
 │                        ││    ── now 14:30 ────────────────────────────────────────────────────││t│
-│                        ││    ● 15:00–16:00  Dentist                        Personal · Main    ││e│
-│                        ││    ● 23:00–…      Night train                    Personal · Main    ││ │
-│                ╭─ Add a calendar ───────────────────────────────────────────────╮             ││ │
-│                │▸ 1  iCal link       paste a calendar's secret iCal address     │             ││ │
-│                │  2  Google account  sign in with Google (also work accounts)   │al · Main    ││ │
-│                │                                                                │al · Main    ││ │
+│                ╭─ Add a calendar ───────────────────────────────────────────────╮al · Main    ││e│
+│                │▸ 1  iCal link       a calendar's secret iCal address           │al · Main    ││ │
+│                │  2  Google account  sign in with Google                        │             ││ │
+│                │                                                                │             ││ │
+│                │  + Nothing to set up: paste the calendar's secret address      │al · Main    ││ │
+│                │  - Guests and replies only if the feed has them                │al · Main    ││ │
+│                │  - Events you declined still show                              │al · Main    ││ │
+│                │  - Anyone who has the address can read the calendar            │             ││ │
+│                │                                                                │             ││ │
 │                │ enter choose · esc cancel                                      │al · Main    ││ │
-│                ╰────────────────────────────────────────────────────────────────╯             ││ │
-│                        ││   Thu 1 Oct                                                         ││ │
-│                        ││    ● all day      Conference                     Personal · Main    ││ │
-│                        ││    ● all day      Holiday                        Personal · Holidays││ │
+│                ╰────────────────────────────────────────────────────────────────╯al · Holidays││ │
 │                        ││                                                                     ││ │
 │                        ││   Fri 2 Oct                                                         ││ │
 │                        ││    ● 10:00–11:00  日本語 meeting 🎉              Personal · Main    ││ │
