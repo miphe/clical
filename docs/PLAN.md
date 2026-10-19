@@ -1299,6 +1299,30 @@ returns a `DayArchive{Tasks, Notes}` per day.)
   (never as a checked task); `clical write archived` marks notes. There's no
   command to archive a note and no unarchive in the TUI.
 
+## Guests in the event view — M16
+
+The event view lists who is invited: `domain.Guest` (name, address, answer,
+optional, organizer, you), `Event.Guests`, a `guests` JSON column in the store.
+
+- **Sources.** Google: the API's `attendees` (rooms and equipment, `resource`,
+  are left out). iCal: `ATTENDEE` lines, read from the feed by
+  `providers/ical/guests.go` because gocal drops `ROLE`; matched to events by
+  UID and RECURRENCE-ID. A feed may carry no guests, so an iCal calendar often
+  shows none. The chooser says so when adding a calendar.
+- **Privacy.** Rows show a name; the address only when there is no name.
+  Names and addresses are cleaned like all event text. Addresses are stored in
+  the local database like the rest of the event.
+- **Order.** Organizer, you, then by name, so a person is easy to spot.
+- **Long lists.** A list of up to 8 sits before the description, a longer one
+  after it. It scrolls with the body, and `/` finds a guest: it narrows the
+  list to those whose name or address contains each typed word. The address is
+  matched though it isn't shown. enter keeps the find, esc clears it, and a
+  second esc closes the event.
+- **Glyphs** (distinct, so they work without color): ✓ yes, ✗ no, ? maybe,
+  · no reply.
+- Not done: no cap on the number of guests, so a huge recurring meeting costs
+  database space.
+
 ## Verification
 
 - `go build ./...`, `go vet ./...`, `go test ./...` clean after every
