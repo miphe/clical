@@ -185,8 +185,10 @@ type Model struct {
 	// filterInput is non-nil while it's being typed.
 	filter      string
 	filterInput *textinput.Model
-	removing    bool
-	actionErr   error // last add/remove failure outside the form
+	// findInput is non-nil while a find among an event's guests is typed.
+	findInput *textinput.Model
+	removing  bool
+	actionErr error // last add/remove failure outside the form
 
 	syncing  bool
 	lastSync time.Time
@@ -433,6 +435,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.renamePaste(msg)
 		case m.filterInput != nil:
 			return m.filterPaste(msg)
+		case m.findInput != nil:
+			return m.findPaste(msg)
 		case m.urlForm != nil:
 			return m.urlPaste(msg)
 		case m.gflow != nil:
@@ -583,6 +587,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleHelpKey(msg)
 	case m.filterInput != nil:
 		return m.handleFilterKey(msg)
+	case m.findInput != nil:
+		return m.handleFindKey(msg)
 	case msg.String() == "?":
 		m.help = &helpView{}
 		return m, nil

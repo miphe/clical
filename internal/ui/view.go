@@ -287,6 +287,9 @@ func (m Model) renderFooter() []string {
 	if m.filterInput != nil {
 		line = m.filterLine()
 	}
+	if m.findInput != nil {
+		line = m.findLine()
+	}
 	hintLine := fit(" "+line, m.width)
 
 	left := " " + m.activity() + m.now.In(m.loc).Format("Mon 2 Jan ") + m.clock.Time(m.now.In(m.loc))
@@ -398,11 +401,24 @@ func (m Model) footerHints() []footHint {
 		return []footHint{h("j/k", "move", prioMid), h("space", "change", prioMust), h("esc", "close", prioMust)}
 	case m.help != nil:
 		return []footHint{h("j/k", "scroll", prioMid), h("pgup/pgdn", "page", prioLow), h("esc", "close", prioMust)}
-	case m.detail != nil && len(m.detail.Event.Links) > 0:
-		return []footHint{h("j/k", "select link", prioMid), h("enter", "open", prioHigh), h("w", "write", prioHigh), h("pgup/pgdn", "scroll", prioLow),
-			h("esc", "close", prioMust), help}
 	case m.detail != nil:
-		return []footHint{h("j/k", "scroll", prioMid), h("w", "write", prioHigh), h("esc", "close", prioMust), help}
+		var hints []footHint
+		if len(m.detail.Event.Links) > 0 {
+			hints = append(hints, h("j/k", "select link", prioMid), h("enter", "open", prioHigh))
+		} else {
+			hints = append(hints, h("j/k", "scroll", prioMid))
+		}
+		if len(m.detail.Event.Guests) > 0 {
+			hints = append(hints, h("/", "find guest", prioHigh))
+		}
+		hints = append(hints, h("w", "write", prioHigh))
+		if len(m.detail.Event.Links) > 0 {
+			hints = append(hints, h("pgup/pgdn", "scroll", prioLow))
+		}
+		if m.detail.find != "" {
+			return append(hints, h("esc", "clear find", prioMust), help)
+		}
+		return append(hints, h("esc", "close", prioMust), help)
 	}
 
 	// Pane keys first, the same everywhere.

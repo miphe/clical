@@ -144,13 +144,13 @@ func meeting(series, cal, title string, start time.Time, dur time.Duration) doma
 		"Agenda in the shared doc [2]. Join with [1].").WithLinks([]domain.Link{
 		{URL: "https://example.com/meet/" + series, Label: "Join the video call", Kind: domain.LinkVideoCall},
 		{URL: "https://example.com/docs/" + series + "-agenda", Label: "Agenda doc", Kind: domain.LinkDocument},
-	})
+	}).WithGuests(teamGuests())
 	return e
 }
 
 func withPlace(e domain.Event, place string) domain.Event {
-	start, end, _ := e.TimeRange()
-	return domain.NewTimedEvent(e.ID, e.CalendarID, e.Title, start, end, place, e.Notes)
+	e.Location = domain.SafeText(place)
+	return e
 }
 
 var longNotes = strings.Join([]string{
@@ -187,7 +187,7 @@ func (g *eventGen) special() {
 		{URL: "https://example.com/meet/quarterly", Label: "Join the video call", Kind: domain.LinkVideoCall},
 		{URL: "https://example.com/docs/quarterly-preread", Label: "Pre-read", Kind: domain.LinkDocument},
 		{URL: "https://example.com/docs/q3-numbers?view=full&section=summary&utm_source=calendar&utm_medium=invite&utm_campaign=quarterly-planning", Label: "Last quarter in numbers", Kind: domain.LinkDocument},
-	}))
+	}).WithGuests(crowd(60)))
 	// Titles that don't fit, and ones that aren't ASCII.
 	g.timed("alignment", calWork, "Cross-functional alignment on the platform migration roadmap and Q4 staffing, pre-read required", t.AddDays(3), 15, 0, time.Hour)
 	g.timed("jp", calWork, "日本語 meeting 🎉", t.AddDays(1), 13, 0, time.Hour)

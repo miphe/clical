@@ -97,6 +97,7 @@ func helpSections() []helpSection {
 			{"enter  o", "Open the link in the browser"},
 			{"", "The full address shows before opening"},
 			{"pgup pgdn  space", "Scroll"},
+			{"/", "Find a guest by name or address; enter keeps it, esc clears it"},
 			{"esc  q", "Close"},
 		}},
 		{"Write", []helpEntry{

@@ -281,3 +281,15 @@ func TestMockNotesAndArchive(t *testing.T) {
 		t.Errorf("only %d of %d tasks have an origin", withOrigin, len(archive))
 	}
 }
+
+func TestMockHasSmallAndLargeGuestLists(t *testing.T) {
+	f := open(t)
+	var small, large bool
+	for _, e := range f.Source.events {
+		small = small || (len(e.Guests) > 0 && len(e.Guests) <= 8)
+		large = large || len(e.Guests) >= 50
+	}
+	if !small || !large {
+		t.Errorf("guest lists: small %v, large %v", small, large)
+	}
+}

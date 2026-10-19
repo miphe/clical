@@ -16,7 +16,7 @@ import (
 	"github.com/miphe/clical/internal/domain"
 )
 
-// The event view shows an event's details and its links. Links never open
+// The event view shows an event's details, its links and who is invited. Links never open
 // blind: j/k (or 1–9) select one, and the selected link's full address is
 // always shown in a strip at the bottom — wrapped, never truncated, with its
 // host in bold — so it can be checked before enter opens it. If the window
@@ -26,8 +26,9 @@ import (
 
 type detailView struct {
 	agenda.Item
-	link   int // selected link
-	scroll int // first visible body line
+	link   int    // selected link
+	scroll int    // first visible body line
+	find   string // narrows the guests to the ones matching these words
 }
 
 type openedMsg struct {
@@ -58,9 +59,15 @@ func (m Model) handleDetailKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch s := msg.String(); {
 	case s == "ctrl+c":
 		return m, tea.Quit
+	case s == "esc" && d.find != "":
+		d.find = ""
+		m.clampDetailScroll()
+		return m, nil
 	case s == "esc" || s == "q":
 		m.closeDetail()
 		return m, nil
+	case s == "/" && len(d.Event.Guests) > 0:
+		return m.startFind()
 	case s == "enter" || s == "o":
 		return m.openSelectedLink()
 	case (s == "j" || s == "down") && len(links) > 0:
@@ -233,9 +240,22 @@ func (m Model) detailBody(textW int) []string {
 			lines = append(lines, " "+m.linkRow(i, textW))
 		}
 	}
+	// A short list is read with the event; a long one goes after the
+	// description, so it doesn't push it off the screen.
+	guests := func() {
+		if len(e.Guests) > 0 {
+			lines = append(lines, m.guestLines(textW)...)
+		}
+	}
+	if len(e.Guests) <= shortGuestList {
+		guests()
+	}
 	if notes := strings.TrimSpace(e.Notes); notes != "" {
 		lines = append(lines, "", " "+boldStyle.Render("Description"))
 		add(wrap(notes, textW))
+	}
+	if len(e.Guests) > shortGuestList {
+		guests()
 	}
 	return lines
 }
