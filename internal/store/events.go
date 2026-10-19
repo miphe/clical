@@ -54,8 +54,8 @@ func (s *Store) ApplySync(ctx context.Context, cal domain.Calendar, r domain.Syn
 		if len(r.Upserted) > 0 {
 			stmt, err := tx.PrepareContext(ctx, `
 				INSERT OR REPLACE INTO events
-					(id, calendar_id, account_id, title, all_day, start_utc, end_utc, start_date, end_date, location, notes, links, key)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					(id, calendar_id, account_id, title, all_day, start_utc, end_utc, start_date, end_date, location, notes, links, key, guests)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`)
 			if err != nil {
 				return fmt.Errorf("store: prepare upsert: %w", err)
@@ -74,8 +74,12 @@ func (s *Store) ApplySync(ctx context.Context, cal domain.Calendar, r domain.Syn
 				if err != nil {
 					return err
 				}
+				guests, err := encodeGuests(e.Guests)
+				if err != nil {
+					return err
+				}
 				if _, err := stmt.ExecContext(ctx,
-					e.ID, cal.ID, cal.AccountID, e.Title, e.AllDay, startUTC, endUTC, startDate, endDate, e.Location, e.Notes, links, e.Key,
+					e.ID, cal.ID, cal.AccountID, e.Title, e.AllDay, startUTC, endUTC, startDate, endDate, e.Location, e.Notes, links, e.Key, guests,
 				); err != nil {
 					return fmt.Errorf("store: upsert event: %w", err)
 				}
@@ -102,7 +106,7 @@ func (s *Store) EventsInRange(ctx context.Context, from, to time.Time) ([]domain
 	toDate := domain.CivilDateFromTime(to.Add(-time.Nanosecond)).AddDays(1).String()
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, calendar_id, title, all_day, start_utc, end_utc, start_date, end_date, location, notes, links, key
+		SELECT id, calendar_id, title, all_day, start_utc, end_utc, start_date, end_date, location, notes, links, key, guests
 		FROM events
 		WHERE (all_day = 0 AND start_utc < ? AND max(end_utc, start_utc + 1) > ?)
 		   OR (all_day = 1 AND start_date < ? AND end_date > ?)
@@ -116,15 +120,19 @@ func (s *Store) EventsInRange(ctx context.Context, from, to time.Time) ([]domain
 	var out []domain.Event
 	for rows.Next() {
 		var (
-			id, calID, title, location, notes, linksJSON, key string
-			allDay                                            bool
-			startUTC, endUTC                                  sql.NullInt64
-			startDate, endDate                                sql.NullString
+			id, calID, title, location, notes, linksJSON, key, guestsJSON string
+			allDay                                                        bool
+			startUTC, endUTC                                              sql.NullInt64
+			startDate, endDate                                            sql.NullString
 		)
-		if err := rows.Scan(&id, &calID, &title, &allDay, &startUTC, &endUTC, &startDate, &endDate, &location, &notes, &linksJSON, &key); err != nil {
+		if err := rows.Scan(&id, &calID, &title, &allDay, &startUTC, &endUTC, &startDate, &endDate, &location, &notes, &linksJSON, &key, &guestsJSON); err != nil {
 			return nil, fmt.Errorf("store: scan event: %w", err)
 		}
 		links, err := decodeLinks(linksJSON)
+		if err != nil {
+			return nil, fmt.Errorf("store: event %s: %w", id, err)
+		}
+		guests, err := decodeGuests(guestsJSON)
 		if err != nil {
 			return nil, fmt.Errorf("store: event %s: %w", id, err)
 		}
@@ -137,11 +145,11 @@ func (s *Store) EventsInRange(ctx context.Context, from, to time.Time) ([]domain
 			if err != nil {
 				return nil, fmt.Errorf("store: event %s: %w", id, err)
 			}
-			out = append(out, domain.NewAllDayEvent(id, calID, title, sd, ed, location, notes).WithLinks(links).WithKey(key))
+			out = append(out, domain.NewAllDayEvent(id, calID, title, sd, ed, location, notes).WithLinks(links).WithGuests(guests).WithKey(key))
 			continue
 		}
 		out = append(out, domain.NewTimedEvent(id, calID, title,
-			time.Unix(startUTC.Int64, 0), time.Unix(endUTC.Int64, 0), location, notes).WithLinks(links).WithKey(key))
+			time.Unix(startUTC.Int64, 0), time.Unix(endUTC.Int64, 0), location, notes).WithLinks(links).WithGuests(guests).WithKey(key))
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("store: events in range: %w", err)
@@ -185,4 +193,45 @@ func decodeLinks(s string) ([]domain.Link, error) {
 		links[i] = domain.Link{URL: l.URL, Label: l.Label, Kind: l.Kind}
 	}
 	return links, nil
+}
+
+// storedGuest is a guest's stored form, with short stable field names: a big
+// meeting has hundreds of them.
+type storedGuest struct {
+	Name      string          `json:"n,omitempty"`
+	Email     string          `json:"e,omitempty"`
+	Response  domain.Response `json:"r,omitempty"`
+	Optional  bool            `json:"o,omitempty"`
+	Organizer bool            `json:"org,omitempty"`
+	Self      bool            `json:"me,omitempty"`
+}
+
+func encodeGuests(guests []domain.Guest) (string, error) {
+	if len(guests) == 0 {
+		return "", nil
+	}
+	stored := make([]storedGuest, len(guests))
+	for i, g := range guests {
+		stored[i] = storedGuest{g.Name, g.Email, g.Response, g.Optional, g.Organizer, g.Self}
+	}
+	b, err := json.Marshal(stored)
+	if err != nil {
+		return "", fmt.Errorf("store: encode guests: %w", err)
+	}
+	return string(b), nil
+}
+
+func decodeGuests(s string) ([]domain.Guest, error) {
+	if s == "" {
+		return nil, nil
+	}
+	var stored []storedGuest
+	if err := json.Unmarshal([]byte(s), &stored); err != nil {
+		return nil, fmt.Errorf("decode guests: %w", err)
+	}
+	guests := make([]domain.Guest, len(stored))
+	for i, g := range stored {
+		guests[i] = domain.Guest{Name: g.Name, Email: g.Email, Response: g.Response, Optional: g.Optional, Organizer: g.Organizer, Self: g.Self}
+	}
+	return guests, nil
 }

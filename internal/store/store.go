@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS events (
 	notes       TEXT NOT NULL DEFAULT '',
 	links       TEXT NOT NULL DEFAULT '', -- JSON array of links; '' = none
 	key         TEXT NOT NULL DEFAULT '', -- stable identity, see domain.Event.Key
+	guests      TEXT NOT NULL DEFAULT '', -- JSON array of guests; '' = none
 	PRIMARY KEY (account_id, calendar_id, id),
 	FOREIGN KEY (account_id, calendar_id) REFERENCES calendars(account_id, id) ON DELETE CASCADE
 );
@@ -92,6 +93,7 @@ func (s *Store) migrate(ctx context.Context) error {
 	added := []struct{ table, column, def string }{
 		{"events", "links", "TEXT NOT NULL DEFAULT ''"},
 		{"events", "key", "TEXT NOT NULL DEFAULT ''"},
+		{"events", "guests", "TEXT NOT NULL DEFAULT ''"},
 		{"accounts", "nickname", "TEXT NOT NULL DEFAULT ''"},
 		{"calendars", "nickname", "TEXT NOT NULL DEFAULT ''"},
 	}

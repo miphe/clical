@@ -180,3 +180,24 @@ func TestCivilDateAddMonthsClamps(t *testing.T) {
 		t.Error("DaysInMonth wrong")
 	}
 }
+
+func TestGuestsAreCleanedAndOrderedOrganizerYouThenByName(t *testing.T) {
+	e := NewTimedEvent("e", "c", "t", time.Unix(0, 0), time.Unix(60, 0), "", "").WithGuests([]Guest{
+		{Name: "zed"}, {Name: "Amy"}, {Email: "bob@example.com"}, {Name: "Me", Self: true},
+		{Name: "Boss\x1b[31m", Organizer: true}, {},
+	})
+	var got []string
+	for _, g := range e.Guests {
+		got = append(got, g.Display())
+	}
+	want := []string{"Boss[31m", "Me", "Amy", "bob@example.com", "zed"}
+	if len(got) != len(want) {
+		t.Fatalf("guests = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("guests = %q, want %q", got, want)
+			break
+		}
+	}
+}

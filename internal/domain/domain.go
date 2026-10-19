@@ -7,6 +7,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -161,6 +163,72 @@ type Event struct {
 	// Links found in the event (conference link, documents, ...), in display
 	// order: video calls first. Notes refer to them as "[1]", "[2]", ...
 	Links []Link
+
+	// Guests are the people invited, when the source says: organizer first,
+	// then you, then the rest by name. See WithGuests.
+	Guests []Guest
+}
+
+// Response is a guest's answer to the invitation.
+type Response int
+
+const (
+	ResponseNone  Response = iota // no reply yet
+	ResponseYes                   // accepted
+	ResponseMaybe                 // tentative
+	ResponseNo                    // declined
+)
+
+// Guest is one person invited to an event. The text comes from whoever sent
+// the invite, so the constructors clean it; use WithGuests.
+type Guest struct {
+	Name      string // may be empty
+	Email     string // may be empty
+	Response  Response
+	Optional  bool
+	Organizer bool
+	Self      bool // the account's owner, when the source says
+}
+
+// Display is the name, or the address when there is no name.
+func (g Guest) Display() string {
+	if g.Name != "" {
+		return g.Name
+	}
+	return g.Email
+}
+
+// WithGuests returns e with guests attached, cleaned and in display order:
+// organizer, you, then the rest by name.
+func (e Event) WithGuests(guests []Guest) Event {
+	if len(guests) == 0 {
+		e.Guests = nil
+		return e
+	}
+	e.Guests = make([]Guest, 0, len(guests))
+	for _, g := range guests {
+		g.Name, g.Email = SafeText(g.Name), SafeText(g.Email)
+		if g.Display() != "" {
+			e.Guests = append(e.Guests, g)
+		}
+	}
+	rank := func(g Guest) int {
+		switch {
+		case g.Organizer:
+			return 0
+		case g.Self:
+			return 1
+		}
+		return 2
+	}
+	sort.SliceStable(e.Guests, func(a, b int) bool {
+		x, y := e.Guests[a], e.Guests[b]
+		if rx, ry := rank(x), rank(y); rx != ry {
+			return rx < ry
+		}
+		return strings.ToLower(x.Display()) < strings.ToLower(y.Display())
+	})
+	return e
 }
 
 // LinkKind says what a link is for.

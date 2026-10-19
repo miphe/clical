@@ -280,3 +280,24 @@ func TestKeyRoundTripsAndOldDatabasesGetTheColumn(t *testing.T) {
 		t.Errorf("key column: %v, %v", ok, err)
 	}
 }
+
+func TestGuestsRoundTripAndOldDatabasesGetTheColumn(t *testing.T) {
+	s := openTestStore(t)
+	cal := seedCalendar(t, s)
+	ctx := context.Background()
+	guests := []domain.Guest{
+		{Name: "Jane", Email: "jane@example.com", Response: domain.ResponseYes, Organizer: true},
+		{Name: "Bob", Response: domain.ResponseMaybe, Optional: true, Self: true},
+	}
+	e := timed("with-guests", day.Add(9*time.Hour), time.Hour).WithGuests(guests)
+	if err := s.ApplySync(ctx, cal, domain.SyncResult{Upserted: []domain.Event{e}, FullResync: true}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.EventsInRange(ctx, day, day.AddDate(0, 0, 1))
+	if err != nil || len(got) != 1 || len(got[0].Guests) != 2 || got[0].Guests[0] != e.Guests[0] || got[0].Guests[1] != e.Guests[1] {
+		t.Fatalf("guests = %+v, %v; want %+v", got, err, e.Guests)
+	}
+	if ok, err := s.hasColumn(ctx, "events", "guests"); err != nil || !ok {
+		t.Errorf("guests column: %v, %v", ok, err)
+	}
+}
