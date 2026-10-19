@@ -1,40 +1,40 @@
 ╭─ Keys ───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Everywhere                                                                                                           │
-│ 0                 Calendar list                                                                                      │
-│ 1 2 3 4           Agenda, week, month, focus                                                                         │
-│ tab               Next panel: the list, the view, the global Write panel                                             │
-│ t                 Today                                                                                              │
-│ r                 Sync now (also in the background)                                                                  │
-│ a                 Add a calendar: iCal link or Google                                                                │
-│ /                 Filter events by title or location                                                                 │
-│ w  W              Write: the event's panel; the global panel (show, hide)                                            │
-│ S  ,              Settings: clock, week, sync, pulse                                                                 │
-│ ?                 This help                                                                                          │
-│ q  ctrl+c         Quit                                                                                               │
+│ 0                         Calendar list                                                                              │
+│ 1 2 3 4 5                 Agenda, week, month, focus, week as a time grid                                            │
+│ tab                       Next panel: the list, the view, the global Write panel                                     │
+│ t                         Today                                                                                      │
+│ r                         Sync now (also in the background)                                                          │
+│ a                         Add a calendar: iCal link or Google                                                        │
+│ /                         Filter events by title or location                                                         │
+│ w  W                      Write: the event's panel; the global panel (show, hide)                                    │
+│ S  ,                      Settings: clock, week, sync, pulse                                                         │
+│ ?                         This help                                                                                  │
+│ q  ctrl+c                 Quit                                                                                       │
 │                                                                                                                      │
 │ Filter                                                                                                               │
-│ type              Narrows as you type; all words match                                                               │
-│ enter             Keep the filter, move around again                                                                 │
-│ esc               Clear the filter                                                                                   │
-│ /                 Change the filter                                                                                  │
-│                   The agenda searches a year ahead and                                                               │
-│                   [ ] jump between days with matches                                                                 │
+│ type                      Narrows as you type; all words match                                                       │
+│ enter                     Keep the filter, move around again                                                         │
+│ esc                       Clear the filter                                                                           │
+│ /                         Change the filter                                                                          │
+│                           The agenda searches a year ahead and                                                       │
+│                           [ ] jump between days with matches                                                         │
 │                                                                                                                      │
 │ Agenda                                                                                                               │
-│ j k  ↓ ↑          Next, previous event                                                                               │
-│ g G               First, last event                                                                                  │
-│ [ ]  pgup pgdn    Previous, next day                                                                                 │
-│ enter             Event details                                                                                      │
-│                   Moving past the end loads more days                                                                │
+│ j k  ↓ ↑                  Next, previous event                                                                       │
+│ g G                       First, last event                                                                          │
+│ [ ]  pgup pgdn            Previous, next day                                                                         │
+│ enter                     Event details                                                                              │
+│                           Moving past the end loads more days                                                        │
 │                                                                                                                      │
 │ Week                                                                                                                 │
-│ h l  ← →          Previous, next day                                                                                 │
-│ j k  ↓ ↑          Next, previous event of the day                                                                    │
-│ g G               First, last event of the day                                                                       │
-│ [ ]  pgup pgdn    Previous, next week                                                                                │
-│ enter             Event details                                                                                      │
+│ h l  ← →                  Previous, next day                                                                         │
+│ j k  ↓ ↑                  Next, previous event of the day                                                            │
+│ g G                       First, last event of the day                                                               │
+│ [ ]  pgup pgdn            Previous, next week                                                                        │
+│ enter                     Event details                                                                              │
 │                                                                                                                      │
-│ Month                                                                                                                │
-╰────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 123 ─╯
+│ Week+                                                                                                                │
+╰────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 136 ─╯
  j/k scroll · pgup/pgdn page · esc close                                                                                
  ◦ Idle        Tue 29 Sep 14:30                                                                            Synced 14:29 

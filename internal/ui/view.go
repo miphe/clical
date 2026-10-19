@@ -113,15 +113,20 @@ func (m Model) renderMain(width, height int) []string {
 	if m.heatEnabled() {
 		tabs = append(tabs, tab{label: "[4] Focus", active: m.view == viewHeat})
 	}
+	tabs = append(tabs, tab{label: "[5] Week+", active: m.view == viewWeekPlus})
 	inner, innerH := width-2, height-2
 	var content []string
-	var right string
+	var right, bottom string
 	switch m.view {
 	case viewHeat:
 		return m.renderFocus(width, height, tabs)
 	case viewWeek:
 		content = m.renderWeek(inner, innerH)
 		right = m.weekSpan()
+	case viewWeekPlus:
+		content = m.renderWeekPlus(inner, innerH)
+		right = m.wpSpan()
+		bottom = fmt.Sprintf("%d min/row", m.wpSlot())
 	case viewMonth:
 		content = m.renderMonth(inner, innerH)
 		right = m.monthWeekSpan()
@@ -133,7 +138,7 @@ func (m Model) renderMain(width, height int) []string {
 		}
 		right = m.agendaSpan()
 	}
-	return panel(width, height, frame{focused: m.focus == focusMain, tabs: tabs, right: right}, content)
+	return panel(width, height, frame{focused: m.focus == focusMain, tabs: tabs, right: right, bottom: bottom}, content)
 }
 
 // agendaSpan is the loaded agenda window, e.g. "29 Sep – 28 Oct 2026".
@@ -422,9 +427,9 @@ func (m Model) footerHints() []footHint {
 	}
 
 	// Pane keys first, the same everywhere.
-	views := "1-3"
+	views := "1-3,5"
 	if m.heatEnabled() {
-		views = "1-4"
+		views = "1-5"
 	}
 	hints := []footHint{h("0", "calendars", prioHigh), h("1-3", "views", prioHigh), h("tab", "switch pane", prioMid)}
 	hints[1].key = views
@@ -452,6 +457,9 @@ func (m Model) footerHints() []footHint {
 	case m.view == viewWeek:
 		view = []footHint{h("h/l", "day", prioMid), h("j/k", "move", prioLow), h("enter", "details", prioHigh),
 			h("[/]", "week", prioMid), h("t", "today", prioMid), h("/", "filter", prioMid)}
+	case m.view == viewWeekPlus:
+		view = []footHint{h("h/l", "day", prioMid), h("j/k", "move", prioLow), h("enter", "details", prioHigh),
+			h("+/-", "zoom", prioMid), h("D", "5/7 days", prioLow), h("[/]", "week", prioMid), h("t", "today", prioMid), h("/", "filter", prioMid)}
 	case m.view == viewMonth:
 		view = []footHint{h("h/l", "day", prioLow), h("j/k", "week", prioLow), h("enter", "open day", prioHigh),
 			h("[/]", "month", prioMid), h("t", "today", prioMid), h("/", "filter", prioMid)}

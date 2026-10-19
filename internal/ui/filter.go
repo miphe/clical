@@ -89,6 +89,7 @@ func (m Model) setFilter(value string) (tea.Model, tea.Cmd) {
 	m.filter = strings.TrimSpace(value)
 	m.rebuild()
 	m.rebuildWeek()
+	m.rebuildWeekPlus()
 	m.rebuildMonth()
 	if m.filter == "" || m.days >= filterDays {
 		return m, nil

@@ -280,7 +280,7 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "W":
 		return m.toggleGlobal(false)
-	case "0", "1", "2", "3", "4", "r", "t", "/":
+	case "0", "1", "2", "3", "4", "5", "r", "t", "/":
 		// The keys that work from every pane work from here too: the panel
 		// and view keys, sync, today and the filter. (Inside the event view
 		// they don't, as there.)
@@ -303,6 +303,8 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.switchView(viewAgenda)
 		case "2":
 			return m.switchView(viewWeek)
+		case "5":
+			return m.switchView(viewWeekPlus)
 		case "4":
 			if !m.heatEnabled() {
 				return m, nil
