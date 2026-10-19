@@ -42,7 +42,7 @@ test ./...` if a package imports something its layer doesn't allow.
 | Package                     | Role                                                                                             | May import (clical packages)                                     |
 | --------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
 | `internal/domain`           | Provider-agnostic types: `Event`, `Calendar`, `Account`, `CivilDate`, `CalendarProvider`, errors | —                                                                |
-| `internal/agenda`           | Pure layout shared by every front-end: group events into local days, `Item.TimeLabel`            | domain                                                           |
+| `internal/agenda`           | Pure layout shared by every front-end: group events into local days, `Item.TimeLabel`, a day's time grid (`BuildGrid`: rows, lanes) | domain                                                           |
 | `internal/secrets`          | age-encrypted vault for feed URLs                                                                | —                                                                |
 | `internal/config`           | The settings files: clock, week start, sync, pulse                                             | —                                                                |
 | `internal/store`            | SQLite cache: accounts, calendars, events, sync tokens                                           | domain                                                           |
@@ -97,6 +97,7 @@ Some concrete cases:
 | How links are listed, selected and opened                                     | `internal/ui/detail.go`                                         |
 | "Show only events matching X" as data                                         | `app` method (or `store` query exposed via `app`)               |
 | Which week a day belongs to, a month's grid (`agenda.WeekStart`, `MonthGrid`) | `agenda` (pure, reusable)                                       |
+| Where an event sits on a day's time axis, and which events share a row (`agenda.BuildGrid`) | `agenda` (pure, reusable)                                       |
 | The Week view's columns, keys, colors (`ui/week*.go`)                         | `internal/ui`                                                   |
 | A new CLI subcommand                                                          | `cmd/clical`, calling `app`                                     |
 | How a dead feed is _worded_ on screen                                         | the front-end (`app` reports it as `SyncOutcome.Unavailable()`) |
