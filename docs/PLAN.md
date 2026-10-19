@@ -1323,6 +1323,46 @@ optional, organizer, you), `Event.Guests`, a `guests` JSON column in the store.
 - Not done: no cap on the number of guests, so a huge recurring meeting costs
   database space.
 
+## Week+ — M17 (experimental, branch `columnal-view`)
+
+The Week view (`2`) lists each day's events one after the other. Week+ (`5`) is
+the week as a calendar grid: a column per day, the time of day down the side.
+It sits beside Week so the two can be compared; whether it replaces `2` is
+decided later. Nothing in Week changed.
+
+- **Layout** is pure and lives in `agenda/timegrid.go` (`BuildGrid`): each timed
+  item is clipped to the day in wall-clock minutes, given rows at the current
+  zoom, and put in lanes. The UI is `ui/weekplus.go` (state, load, keys) and
+  `ui/weekplusview.go` (drawing).
+- **Time scale:** 60, 30 (default) or 15 minutes a row (`+` `-`), scrolling. It
+  opens around "now" (this week), or at the week's first event, or 08:00.
+- **Overlaps** are packed into lanes by cluster (greedy, first free lane), and an
+  event may take free lanes to its right. Overlap is judged on rows, not minutes,
+  so two events in one row share it at a coarse zoom. A column has room for 1 to
+  3 lanes (about 6 columns each); events with no lane are counted as `+N` and are
+  still reached with `j/k`. The selected event is drawn across the whole column,
+  so it can always be read. The cap on lanes (`wpMaxLanes`, and 1 for "stack")
+  is the one thing to change to try "show only the first, count the rest".
+- **Time zones:** the axis is wall-clock in the zone the app runs in. On the day
+  the clocks go back an event is as tall as it lasts, from where it starts; on the
+  day they go forward the missing hour is empty. Events crossing midnight are
+  clipped per day, marked ▲ (from the day before) and ▼ (goes on). Not done: a
+  second zone in the gutter, marking events from another zone.
+- **Selection** is a time (`at`) and an entry of the day, so `h` `l` change day
+  and land on whatever is at that time. On a day with nothing the time itself is
+  selected (a `▸` in the column; `j` `k` move it): the seed for choosing a free
+  slot when events can be created.
+- **Columns** adapt to the width (14 columns each at least), sliding with the
+  selected day; `D` shows weekdays only. All-day events are a band above the grid
+  (up to three rows, then `+N`).
+- **No backgrounds:** an event is drawn with characters: its calendar's bullet,
+  an edge `│` down its rows (`┃` when selected), the selected title reversed.
+- **Settings:** `work_hours` (default 08:00-18:00) in `config.yaml`: hour lines
+  are drawn inside it only. Not in the S dialog.
+- **To decide** whether Week+ replaces Week: is `2` still wanted for a glance at
+  several days' lists; how it feels with real overlaps; whether 7 columns fit
+  the terminals in use; whether the lane cap should be 1 (stack).
+
 ## Verification
 
 - `go build ./...`, `go vet ./...`, `go test ./...` clean after every
