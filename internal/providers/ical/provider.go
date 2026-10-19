@@ -143,7 +143,11 @@ func eventsHash(events []domain.Event) string {
 		for _, l := range e.Links {
 			links = append(links, fmt.Sprintf("%s\x01%s\x01%d", l.URL, l.Label, l.Kind))
 		}
-		keys = append(keys, strings.Join([]string{e.ID, e.Key, e.Title, span, e.Location, e.Notes, strings.Join(links, "\x02")}, "\x00"))
+		var guests []string
+		for _, g := range e.Guests {
+			guests = append(guests, fmt.Sprintf("%s\x01%s\x01%d\x01%t\x01%t\x01%t", g.Name, g.Email, g.Response, g.Optional, g.Organizer, g.Self))
+		}
+		keys = append(keys, strings.Join([]string{e.ID, e.Key, e.Title, span, e.Location, e.Notes, strings.Join(links, "\x02"), strings.Join(guests, "\x02")}, "\x00"))
 	}
 	sort.Strings(keys)
 	h := sha256.New()

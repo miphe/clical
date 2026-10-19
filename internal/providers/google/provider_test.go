@@ -363,3 +363,35 @@ func TestCalendarNamesAreMadeSafe(t *testing.T) {
 		t.Errorf("ListCalendars() = %+v, %v", cals, err)
 	}
 }
+
+func TestGuestsComeFromTheAttendeesAndRoomsAreLeftOut(t *testing.T) {
+	var it apiEvent
+	err := json.Unmarshal([]byte(`{"id":"g","summary":"Sync","start":{"dateTime":"2026-10-06T08:00:00Z"},"end":{"dateTime":"2026-10-06T09:00:00Z"},
+		"attendees":[
+			{"email":"jane@example.com","displayName":"Jane","responseStatus":"accepted","organizer":true},
+			{"email":"me@example.com","self":true,"responseStatus":"tentative"},
+			{"email":"bob@example.com","responseStatus":"needsAction","optional":true},
+			{"email":"cy@example.com","responseStatus":"declined"},
+			{"email":"room@resource.calendar.google.com","displayName":"Room 4B","resource":true,"responseStatus":"accepted"}]}`), &it)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := toDomainEvent("cal", it)
+	if !ok {
+		t.Fatal("event dropped")
+	}
+	want := []domain.Guest{
+		{Name: "Jane", Email: "jane@example.com", Response: domain.ResponseYes, Organizer: true},
+		{Email: "me@example.com", Response: domain.ResponseMaybe, Self: true},
+		{Email: "bob@example.com", Optional: true},
+		{Email: "cy@example.com", Response: domain.ResponseNo},
+	}
+	if len(e.Guests) != len(want) {
+		t.Fatalf("guests = %+v, want %+v", e.Guests, want)
+	}
+	for i, w := range want {
+		if e.Guests[i] != w {
+			t.Errorf("guest %d = %+v, want %+v", i, e.Guests[i], w)
+		}
+	}
+}

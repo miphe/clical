@@ -34,12 +34,18 @@ func parse(r io.Reader, calendarID string, from, to time.Time) ([]domain.Event, 
 		return nil, fmt.Errorf("ical: parse feed: %w", err)
 	}
 
+	guests := readGuests(feed)
 	out := make([]domain.Event, 0, len(p.Events))
 	for _, e := range p.Events {
 		if e.Start == nil || strings.EqualFold(e.Status, "CANCELLED") {
 			continue
 		}
-		out = append(out, toDomainEvent(calendarID, e))
+		ev := toDomainEvent(calendarID, e)
+		g, found := guests[guestKey(e.Uid, e.RecurrenceID)]
+		if !found {
+			g = guests[guestKey(e.Uid, "")] // an occurrence with no override of its own
+		}
+		out = append(out, ev.WithGuests(g))
 	}
 	return out, nil
 }

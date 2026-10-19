@@ -194,7 +194,7 @@ func (p *Provider) SyncEvents(ctx context.Context, cal domain.Calendar, token st
 			"timeMax":      {to.UTC().Format(time.RFC3339)},
 			"maxResults":   {"2500"},
 			"fields": {"items(id,status,summary,description,location,start,end,hangoutLink,htmlLink," +
-				"conferenceData(entryPoints(entryPointType,uri)),attachments(fileUrl,title),attendees(self,responseStatus)),nextPageToken"},
+				"conferenceData(entryPoints(entryPointType,uri)),attachments(fileUrl,title),attendees(self,responseStatus,email,displayName,optional,organizer,resource)),nextPageToken"},
 		}
 		if page != "" {
 			q.Set("pageToken", page)
@@ -267,6 +267,11 @@ type apiEvent struct {
 	Attendees []struct {
 		Self           bool   `json:"self"`
 		ResponseStatus string `json:"responseStatus"`
+		Email          string `json:"email"`
+		DisplayName    string `json:"displayName"`
+		Optional       bool   `json:"optional"`
+		Organizer      bool   `json:"organizer"`
+		Resource       bool   `json:"resource"` // a room or equipment, not a person
 	} `json:"attendees"`
 }
 
@@ -280,6 +285,23 @@ func toDomainEvent(calendarID string, it apiEvent) (domain.Event, bool) {
 		if a.Self && a.ResponseStatus == "declined" {
 			return domain.Event{}, false
 		}
+	}
+
+	var guests []domain.Guest
+	for _, a := range it.Attendees {
+		if a.Resource {
+			continue
+		}
+		g := domain.Guest{Name: a.DisplayName, Email: a.Email, Optional: a.Optional, Organizer: a.Organizer, Self: a.Self}
+		switch a.ResponseStatus {
+		case "accepted":
+			g.Response = domain.ResponseYes
+		case "tentative":
+			g.Response = domain.ResponseMaybe
+		case "declined":
+			g.Response = domain.ResponseNo
+		}
+		guests = append(guests, g)
 	}
 
 	content := eventtext.Content{Description: it.Description, Location: it.Location}
@@ -313,14 +335,14 @@ func toDomainEvent(calendarID string, it apiEvent) (domain.Event, bool) {
 		if !start.Before(end) {
 			end = start.AddDays(1)
 		}
-		return domain.NewAllDayEvent(it.ID, calendarID, title, start, end, it.Location, notes).WithLinks(links), true
+		return domain.NewAllDayEvent(it.ID, calendarID, title, start, end, it.Location, notes).WithLinks(links).WithGuests(guests), true
 	}
 	start, err1 := time.Parse(time.RFC3339, it.Start.DateTime)
 	end, err2 := time.Parse(time.RFC3339, it.End.DateTime)
 	if err1 != nil || err2 != nil {
 		return domain.Event{}, false
 	}
-	return domain.NewTimedEvent(it.ID, calendarID, title, start, end, it.Location, notes).WithLinks(links), true
+	return domain.NewTimedEvent(it.ID, calendarID, title, start, end, it.Location, notes).WithLinks(links).WithGuests(guests), true
 }
 
 func eventsHash(events []domain.Event) string {
@@ -330,7 +352,8 @@ func eventsHash(events []domain.Event) string {
 			ID, Title, Location, Notes string
 			Start, End                 string
 			Links                      []domain.Link
-		}{e.ID, e.Title, e.Location, e.Notes, spanStart(e), spanEnd(e), e.Links})
+			Guests                     []domain.Guest
+		}{e.ID, e.Title, e.Location, e.Notes, spanStart(e), spanEnd(e), e.Links, e.Guests})
 		keys = append(keys, string(b))
 	}
 	sort.Strings(keys)
