@@ -24,7 +24,7 @@ func TestSampleIsTheDefaults(t *testing.T) {
 
 func TestSettings(t *testing.T) {
 	c, err := parse(Default(), []byte("time_format: 12H\nweek_start: Sunday\nsync_interval: 15m\n"))
-	want := Config{Clock12: true, WeekStart: time.Sunday, SyncInterval: 15 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute, PanelFlash: true, Write: true}
+	want := Config{Clock12: true, WeekStart: time.Sunday, SyncInterval: 15 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute, PanelFlash: true, Write: true, WorkStart: 8 * 60, WorkEnd: 18 * 60}
 	if err != nil || c != want {
 		t.Errorf("parse() = %+v, %v; want %+v", c, err, want)
 	}
@@ -33,6 +33,24 @@ func TestSettings(t *testing.T) {
 	}
 	if c, err := parse(Default(), []byte("# only comments\n")); err != nil || c != Default() {
 		t.Errorf("comments only = %+v, %v", c, err)
+	}
+}
+
+func TestWorkHours(t *testing.T) {
+	for in, want := range map[string][2]int{
+		"work_hours: 09:30-17:00\n":      {9*60 + 30, 17 * 60},
+		"work_hours: 00:00-24:00\n":      {0, 1440},
+		"work_hours: \"7:00 - 19:15\"\n": {7 * 60, 19*60 + 15},
+	} {
+		c, err := parse(Default(), []byte(in))
+		if err != nil || c.WorkStart != want[0] || c.WorkEnd != want[1] {
+			t.Errorf("parse(%q) = %d-%d, %v; want %v", in, c.WorkStart, c.WorkEnd, err, want)
+		}
+	}
+	for _, in := range []string{"18:00-08:00", "08:00", "08:00-25:00", "nine-five", "08:00-08:00"} {
+		if _, err := parse(Default(), []byte("work_hours: \""+in+"\"\n")); err == nil {
+			t.Errorf("work_hours %q error = nil", in)
+		}
 	}
 }
 

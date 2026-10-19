@@ -40,6 +40,9 @@ type Config struct {
 	PanelFlash bool
 	// Write turns notes and tasks on in the TUI.
 	Write bool
+	// WorkStart and WorkEnd are the working hours Week+ marks, in minutes
+	// of the day: [WorkStart, WorkEnd).
+	WorkStart, WorkEnd int
 }
 
 // GraceWholeEvent as a PulseGrace pulses until the event ends.
@@ -57,7 +60,7 @@ const MinSyncInterval = time.Minute
 
 // Default is what clical runs with when nothing is set.
 func Default() Config {
-	return Config{WeekStart: time.Monday, SyncInterval: 5 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute, PanelFlash: true, Write: true}
+	return Config{WeekStart: time.Monday, SyncInterval: 5 * time.Minute, PulseLead: 5 * time.Minute, PulseGrace: time.Minute, PanelFlash: true, Write: true, WorkStart: 8 * 60, WorkEnd: 18 * 60}
 }
 
 // DefaultPath is $XDG_CONFIG_HOME/clical/config.yaml
@@ -89,6 +92,10 @@ pulse_lead: 5m
 # How long the pulse goes on after the event has started: a duration like 5m,
 # 0s for none, or event for as long as the event lasts.
 pulse_grace: 1m
+
+# The working hours, as from-to in 24h time. Week+ (5) draws its hour lines
+# only inside them. 00:00-24:00 for all day.
+work_hours: 08:00-18:00
 
 # Notes and tasks in the TUI (the Write panels and their keys): true or false.
 # Turning it off hides them; the files are left alone, and "clical write"
@@ -123,6 +130,7 @@ type file struct {
 	WriteDir     string `yaml:"write_dir"`
 	PanelFlash   *bool  `yaml:"panel_flash"`
 	Write        *bool  `yaml:"write"`
+	WorkHours    string `yaml:"work_hours"`
 }
 
 // Load reads the settings file at path. A missing file gives the defaults;
@@ -303,6 +311,13 @@ func parse(c Config, data []byte) (Config, error) {
 		}
 		c.PulseGrace = d
 	}
+	if v := strings.TrimSpace(f.WorkHours); v != "" {
+		from, to, err := parseWorkHours(v)
+		if err != nil {
+			return Config{}, err
+		}
+		c.WorkStart, c.WorkEnd = from, to
+	}
 	if f.Write != nil {
 		c.Write = *f.Write
 	}
@@ -317,4 +332,30 @@ func parse(c Config, data []byte) (Config, error) {
 		c.WriteDir = dir
 	}
 	return c, nil
+}
+
+// parseWorkHours reads "08:00-18:00" as minutes of the day. The end may be
+// 24:00; the start is before it.
+func parseWorkHours(v string) (from, to int, err error) {
+	bad := fmt.Errorf("work_hours must be like 08:00-18:00 (from before to, 00:00 to 24:00), not %q", v)
+	a, b, ok := strings.Cut(v, "-")
+	if !ok {
+		return 0, 0, bad
+	}
+	clock := func(s string) (int, bool) {
+		t, err := time.Parse("15:04", strings.TrimSpace(s))
+		if err != nil {
+			if strings.TrimSpace(s) == "24:00" {
+				return 24 * 60, true
+			}
+			return 0, false
+		}
+		return t.Hour()*60 + t.Minute(), true
+	}
+	from, ok1 := clock(a)
+	to, ok2 := clock(b)
+	if !ok1 || !ok2 || from >= to {
+		return 0, 0, bad
+	}
+	return from, to, nil
 }
