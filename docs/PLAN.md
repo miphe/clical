@@ -46,6 +46,7 @@ multi-account merge → config/themes → in-process background polling.
 | — | Release pipeline: GoReleaser, GitHub releases, PolyForm Noncommercial license | `.goreleaser.yaml`, `LICENSE.md` | Done (v0.0.1) |
 | M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | Done (v0.0.2) |
 | M15 | Archivable notes, shown on their day in the Focus view | `internal/write/`, `internal/ui/focusview.go`, `internal/ui/heatview.go` | Done |
+| M17 | The week view as a time grid: zoom, lanes for overlaps, all-day band, `work_hours`; replaces the day-list week | `internal/agenda/timegrid.go`, `internal/ui/week*.go` | Done |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -374,7 +375,8 @@ title. Used by `clical agenda` now and by the TUI Agenda view in M5.
 `~/.config/clical/config.yaml` (`internal/config`), read once at startup by
 `cmd/clical` and handed to the TUI as `ui.Settings`; the TUI never reads
 files. Settings: `time_format` (24h/12h), `week_start` (monday/sunday),
-`sync_interval` (a duration of at least 1m, or off). Missing file = defaults;
+`sync_interval` (a duration of at least 1m, or off), and from M17
+`work_hours` (`08:00-18:00`, where the week view draws its hour lines). Missing file = defaults;
 unknown keys and bad values are errors naming the file and setting, shown
 before the passphrase prompt. `clical config` shows the path and values,
 `clical config init` writes a commented file with the defaults.
@@ -488,35 +490,29 @@ Implementation decisions:
   Calendar" action is dropped: the iCal feed carries no per-event link.
 - `agenda.Item.TimeLabel` is shared by the TUI and `clical agenda`.
 
-## Week view (`internal/ui/week.go`, `weekview.go`) — M6 done
+## Week view (`internal/ui/week.go`, `weekview.go`) — M6, redrawn in M17
 
-- **Monday-first** weeks (`weekFirstDay`; configurable in M9). While the week
-  view is open, its tab shows the ISO week number, `[2] Week 45`, since
-  talking about weeks by number is common in Sweden (and much of Europe).
-  The panel's top-right shows the dates, `2 Nov – 8 Nov 2026`. On a narrow
-  screen the dates drop first; the number stays in the tab.
-- Seven day columns of events in time order; each event takes two lines: a
-  calendar-colored bullet with its time (`all day`, start `HH:MM`, or
-  `…HH:MM` for one continuing from the day before), then the title. Under 9
-  columns per day the bullet is dropped and the time itself carries the
-  color. Under 6 the view shows a wrapped "too narrow, press 1" message.
-  Overflow shows `+N more`; the selected column scrolls to keep its
-  selection visible. Empty days show `–`, or `nothing` when selected.
-- Headers mark today in blue and the selected day with `▸` and underline,
-  as in the agenda.
-- Keys: `h`/`l` move between days, crossing into the previous/next week at
-  the ends (originally `h` on Monday moved focus to the sidebar; see "Pane
-  keys"), `j`/`k`/`g`/`G` within a day, `[`/`]` a week back/forward keeping
-  the weekday, `t` this week on today's next event, `enter` details.
-- **Views share the current day.** `tab` toggles Agenda ↔ Week (`1`/`2` jump
-  directly; `3` reserved for Month). Switching carries the selected day and,
-  if it exists in the other view, the selected event. The agenda reloads
-  from that day if it's outside its window.
-- The week loads its own 7-day window (`weekLoadedMsg`, stale loads
-  dropped) and reloads after a sync that changed something, keeping the
-  selected event. Hidden calendars are filtered as in the agenda.
-- Core addition: `agenda.WeekStart(day, first)` and `CivilDate.Weekday()`.
-  Grouping a week is just `agenda.Build(events, start, 7, loc)`.
+The week view is a time grid (see "Week as a time grid — M17" below). What
+M6 settled still holds:
+
+- **Monday-first** weeks by default (`weekStart`, configurable in M9). While
+  the week view is open its tab shows the ISO week number, `[2] Week 45` (not
+  when weeks start on Sunday), since talking about weeks by number is common in
+  Sweden and much of Europe. The panel's top-right shows the dates,
+  `2 Nov – 8 Nov 2026`.
+- Headers mark today in blue and the selected day with `▸`, as in the agenda.
+- **Views share the current day.** `tab` toggles Agenda ↔ Week (`1`/`2`/`3`/`4`
+  jump directly). Switching carries the selected day and, if it exists in the
+  other view, the selected event.
+- The week loads its own 7-day window (`weekLoadedMsg`, stale loads dropped)
+  and reloads after a sync that changed something, keeping the selected event.
+  Hidden calendars are filtered as in the agenda.
+- Core: `agenda.WeekStart(day, first)` and `CivilDate.Weekday()`; grouping a
+  week is `agenda.Build(events, start, 7, loc)`.
+
+The first version listed each day's events one after the other in seven
+columns, two lines an event. It showed what was coming but not when, or what
+overlapped, and was removed when the grid replaced it.
 
 ## Event links and readable notes — done
 
@@ -1045,8 +1041,8 @@ while the TUI is open (mtime check above).
 under day headers; scrolling past the end extends it; jump-to-date; a subtle
 "── now ──" marker among today's events, re-rendered on a UI-only ticker.
 
-**Week**: 7 day-list columns, not an hourly grid — each column is that day's
-events in order with a leading time.
+**Week**: a time grid, a column per day and the time of day down the side
+(M17; it started as 7 day-list columns, which the grid replaced).
 
 **Month**: fixed-width grid with "+N more" overflow (built last). Enter on a
 day switches to Agenda focused on that day.
@@ -1129,7 +1125,7 @@ do both).
 | M3 | `clical sync` into SQLite via `ApplySync`; `EventsInRange`; plain-text `clical agenda` | `internal/store/events.go`, `internal/engine/`, `internal/agenda/`, `cmd/clical/sync.go`, `cmd/clical/agenda.go` | Done |
 | M4 | Feed errors: `CalendarUnavailableError` for 401/403/404/410, backoff on 429/5xx/network, `calendars remove`, `calendars set-url`; confirm-passphrase prompt when creating a new vault | `internal/domain/errors.go`, `internal/providers/ical/provider.go`, `internal/store/calendars.go`, `cmd/clical/calendars.go`, `cmd/clical/prompt.go` | Done |
 | M5 | Bubble Tea shell: sidebar + main pane + footer; Agenda; event detail; calendar toggles; golden snapshots | `internal/ui/model.go`, `view.go`, `rows.go`, `keymap.go`, `styles.go`, `cmd/clical/tui.go` | Done |
-| M6 | Week view (day-list columns), view switching that keeps the current day | `internal/ui/week.go`, `internal/ui/weekview.go`, `internal/agenda` (`WeekStart`) | Done |
+| M6 | Week view (day-list columns, replaced by the time grid in M17), view switching that keeps the current day | `internal/ui/week.go`, `internal/ui/weekview.go`, `internal/agenda` (`WeekStart`) | Done |
 | M7 | Month view (week-number column, "+N more", Enter → Agenda) | `internal/ui/month.go`, `internal/ui/monthview.go`, `internal/agenda` (`MonthGrid`) | Done |
 | M8 | "/" filter, "?" help (multi-account merge, toggles, permanent colors and theming already done) | `internal/ui/filter.go`, `internal/ui/help.go` | Done |
 | M9 | YAML config for non-color settings (time format, first day of week, poll interval). No colors or themes: theming is delegated to the terminal | `internal/config/` | Done |
@@ -1330,17 +1326,17 @@ optional, organizer, you), `Event.Guests`, a `guests` JSON column in the store.
 - Not done: no cap on the number of guests, so a huge recurring meeting costs
   database space.
 
-## Week+ — M17 (experimental, branch `columnal-view`)
+## Week as a time grid — M17
 
-The Week view (`2`) lists each day's events one after the other. Week+ (`5`) is
-the week as a calendar grid: a column per day, the time of day down the side.
-It sits beside Week so the two can be compared; whether it replaces `2` is
-decided later. Nothing in Week changed.
+The week view (`2`) is the week as a calendar grid: a column per day, the time
+of day down the side. It replaced the first week view, which listed each day's
+events one after the other (and which was tried beside the grid, on `5`, until
+the grid was judged the better one).
 
 - **Layout** is pure and lives in `agenda/timegrid.go` (`BuildGrid`): each timed
   item is clipped to the day in wall-clock minutes, given rows at the current
-  zoom, and put in lanes. The UI is `ui/weekplus.go` (state, load, keys) and
-  `ui/weekplusview.go` (drawing).
+  zoom, and put in lanes. The UI is `ui/week.go` (state, load, keys) and
+  `ui/weekview.go` (drawing).
 - **Time scale:** 60, 30 (default) or 15 minutes a row (`+` `-`), scrolling. It
   opens around "now" (this week), or at the week's first event, or 08:00.
 - **Overlaps** are packed into lanes by cluster (greedy, first free lane), and an
@@ -1348,7 +1344,7 @@ decided later. Nothing in Week changed.
   so two events in one row share it at a coarse zoom. A column has room for 1 to
   3 lanes (about 6 columns each); events with no lane are counted as `+N` and are
   still reached with `j/k`. The selected event is drawn across the whole column,
-  so it can always be read. The cap on lanes (`wpMaxLanes`, and 1 for "stack")
+  so it can always be read. The cap on lanes (`weekMaxLanes`, and 1 for "stack")
   is the one thing to change to try "show only the first, count the rest".
 - **Time zones:** the axis is wall-clock in the zone the app runs in. On the day
   the clocks go back an event is as tall as it lasts, from where it starts; on the
@@ -1366,9 +1362,8 @@ decided later. Nothing in Week changed.
   an edge `│` down its rows (`┃` when selected), the selected title reversed.
 - **Settings:** `work_hours` (default 08:00-18:00) in `config.yaml`: hour lines
   are drawn inside it only. Not in the S dialog.
-- **To decide** whether Week+ replaces Week: is `2` still wanted for a glance at
-  several days' lists; how it feels with real overlaps; whether 7 columns fit
-  the terminals in use; whether the lane cap should be 1 (stack).
+- **Open:** how it feels with real overlaps; whether 7 columns fit the terminals
+  in use; whether the lane cap should be 1 (stack).
 
 ## Verification
 
