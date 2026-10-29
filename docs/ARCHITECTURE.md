@@ -98,7 +98,7 @@ Some concrete cases:
 | "Show only events matching X" as data                                         | `app` method (or `store` query exposed via `app`)               |
 | Which week a day belongs to, a month's grid (`agenda.WeekStart`, `MonthGrid`) | `agenda` (pure, reusable)                                       |
 | Where an event sits on a day's time axis, and which events share a row (`agenda.BuildGrid`) | `agenda` (pure, reusable)                                       |
-| The Week view's columns, keys, colors (`ui/week*.go`)                         | `internal/ui`                                                   |
+| The week view's grid, scrolling, keys, colors (`ui/week*.go`)                         | `internal/ui`                                                   |
 | A new CLI subcommand                                                          | `cmd/clical`, calling `app`                                     |
 | How a dead feed is _worded_ on screen                                         | the front-end (`app` reports it as `SyncOutcome.Unavailable()`) |
 
