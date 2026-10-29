@@ -26,7 +26,7 @@ func helpSections() []helpSection {
 	return []helpSection{
 		{"Everywhere", []helpEntry{
 			{"0", "Calendar list"},
-			{"1 2 3 4 5", "Agenda, week, month, focus, week as a time grid"},
+			{"1 2 3 4", "Agenda, week, month, focus"},
 			{"tab", "Next panel: the list, the view, the global Write panel"},
 			{"t", "Today"},
 			{"r", "Sync now (also in the background)"},
@@ -53,13 +53,6 @@ func helpSections() []helpSection {
 			{"", "Moving past the end loads more days"},
 		}},
 		{"Week", []helpEntry{
-			{"h l  ← →", "Previous, next day"},
-			{"j k  ↓ ↑", "Next, previous event of the day"},
-			{"g G", "First, last event of the day"},
-			{"[ ]  pgup pgdn", "Previous, next week"},
-			{"enter", "Event details"},
-		}},
-		{"Week+", []helpEntry{
 			{"h l  ← →", "Previous, next day, at the same time of day"},
 			{"j k  ↓ ↑", "Next, previous event of the day"},
 			{"g G", "First, last event of the day"},

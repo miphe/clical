@@ -40,7 +40,7 @@ type Config struct {
 	PanelFlash bool
 	// Write turns notes and tasks on in the TUI.
 	Write bool
-	// WorkStart and WorkEnd are the working hours Week+ marks, in minutes
+	// WorkStart and WorkEnd are the working hours the week view marks, in minutes
 	// of the day: [WorkStart, WorkEnd).
 	WorkStart, WorkEnd int
 }
@@ -93,8 +93,8 @@ pulse_lead: 5m
 # 0s for none, or event for as long as the event lasts.
 pulse_grace: 1m
 
-# The working hours, as from-to in 24h time. Week+ (5) draws its hour lines
-# only inside them. 00:00-24:00 for all day.
+# The working hours, as from-to in 24h time. The week view draws its hour
+# lines only inside them. 00:00-24:00 for all day.
 work_hours: 08:00-18:00
 
 # Notes and tasks in the TUI (the Write panels and their keys): true or false.

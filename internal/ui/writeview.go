@@ -370,13 +370,13 @@ func (m Model) renderEventView(width, height int) []string {
 	}
 	lay := m.eventLayout()
 	detail := m.renderDetail(lay.detailW, lay.detailH)
-	wp := m.renderWritePanel(writeEvent, lay.writeW, lay.writeH)
+	week := m.renderWritePanel(writeEvent, lay.writeW, lay.writeH)
 	var core []string
 	if lay.stacked {
-		core = append(detail, wp...)
+		core = append(detail, week...)
 	} else {
 		for i := range detail {
-			core = append(core, detail[i]+wp[i])
+			core = append(core, detail[i]+week[i])
 		}
 	}
 	gw, _ := m.globalRect()

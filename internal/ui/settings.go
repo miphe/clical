@@ -186,22 +186,13 @@ func (m *Model) setWeekStart(d time.Weekday) tea.Cmd {
 	}
 	var cmds []tea.Cmd
 	if m.week.loaded {
-		day := m.selectedWeekDate()
+		day := m.weekDate()
 		m.weekStart = d
 		m.week.start = agenda.WeekStart(day, d)
 		m.week.day = daysBetween(m.week.start, day)
 		m.week.pendingSelect, m.week.pendingID = true, ""
 		m.week.loaded, m.week.loading = false, true
 		cmds = append(cmds, m.loadWeek())
-	}
-	if m.wp.loaded {
-		day := m.wpDate()
-		m.weekStart = d
-		m.wp.start = agenda.WeekStart(day, d)
-		m.wp.day = daysBetween(m.wp.start, day)
-		m.wp.pendingSelect, m.wp.pendingID = true, ""
-		m.wp.loaded, m.wp.loading = false, true
-		cmds = append(cmds, m.loadWeekPlus())
 	}
 	if m.month.loaded {
 		m.weekStart = d

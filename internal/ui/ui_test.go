@@ -468,147 +468,6 @@ func TestEnterOnEmptyDayDoesNothing(t *testing.T) {
 	}
 }
 
-// toWeek switches to the week view and delivers the week load it requested.
-func toWeek(t *testing.T, m Model, events []domain.Event) Model {
-	t.Helper()
-	m, _ = send(t, m, press("2"))
-	return deliverWeek(t, m, events)
-}
-
-func deliverWeek(t *testing.T, m Model, events []domain.Event) Model {
-	t.Helper()
-	m, _ = send(t, m, weekLoadedMsg{start: m.week.start, events: events})
-	return m
-}
-
-func weekSelected(m Model) string {
-	date := m.selectedWeekDate().String()
-	if it, ok := m.selectedWeekItem(); ok {
-		return date + " " + it.Event.ID
-	}
-	return date + " nothing"
-}
-
-func TestGoldenWeek(t *testing.T) {
-	golden(t, "week", screen(toWeek(t, loaded(t, 100, 24), testEvents())))
-	golden(t, "week_narrow", screen(toWeek(t, loaded(t, 56, 16), testEvents())))
-	golden(t, "week_too_narrow", screen(toWeek(t, loaded(t, 40, 10), testEvents())))
-}
-
-func TestWeekLinesFitTheWindow(t *testing.T) {
-	for _, size := range [][2]int{{100, 24}, {56, 16}, {40, 10}, {30, 6}} {
-		m := toWeek(t, loaded(t, size[0], size[1]), testEvents())
-		lines := strings.Split(m.View().Content, "\n")
-		if len(lines) != size[1] {
-			t.Errorf("%dx%d: %d lines, want %d", size[0], size[1], len(lines), size[1])
-		}
-		for i, l := range lines {
-			if w := ansi.StringWidth(l); w != size[0] {
-				t.Errorf("%dx%d line %d width %d: %q", size[0], size[1], i, w, ansi.Strip(l))
-			}
-		}
-	}
-}
-
-func TestSwitchingViewsKeepsTheSelection(t *testing.T) {
-	m := loaded(t, 100, 24) // agenda on Dentist, Tue 29 Sep
-	m = toWeek(t, m, testEvents())
-	if m.week.start != domain.NewCivilDate(2026, 9, 28) || weekSelected(m) != "2026-09-29 dentist" {
-		t.Fatalf("week start %s, selected %s; want week of Mon 28 Sep with Dentist", m.week.start, weekSelected(m))
-	}
-
-	m, _ = send(t, m, press("l"), press("1")) // Wed 30, back to the agenda
-	if m.view != viewAgenda || selected(m) != "2026-09-30 conf" {
-		t.Errorf("after l, 1: view %v, agenda selected %s; want agenda on 2026-09-30 conf", m.view, selected(m))
-	}
-	m, _ = send(t, m, press("2"))
-	if m.view != viewWeek || weekSelected(m) != "2026-09-30 conf" {
-		t.Errorf("2 again: week selected %s, want 2026-09-30 conf (same week, no reload)", weekSelected(m))
-	}
-}
-
-func TestWeekNavigation(t *testing.T) {
-	m := toWeek(t, loaded(t, 100, 24), testEvents())
-
-	m, _ = send(t, m, press("j"))
-	if got := weekSelected(m); got != "2026-09-29 train" {
-		t.Errorf("j: selected %s, want 2026-09-29 train", got)
-	}
-	m, _ = send(t, m, press("g"))
-	if got := weekSelected(m); got != "2026-09-29 nameday" {
-		t.Errorf("g: selected %s, want 2026-09-29 nameday", got)
-	}
-
-	m, _ = send(t, m, press("h")) // Mon 28
-	if got := weekSelected(m); got != "2026-09-28 nothing" || m.focus != focusMain {
-		t.Errorf("h: selected %s focus %v, want Mon 28 with main focus", got, m.focus)
-	}
-	m, cmd := send(t, m, press("h")) // past Monday: the previous week's Sunday, not another pane
-	if m.focus != focusMain || cmd == nil || m.selectedWeekDate() != domain.NewCivilDate(2026, 9, 27) {
-		t.Errorf("h on Monday: focus %v day %s; want main focus on Sun 27 Sep (previous week)", m.focus, m.selectedWeekDate())
-	}
-	m = deliverWeek(t, m, testEvents())
-	m, _ = send(t, m, press("l"))
-	m = deliverWeek(t, m, testEvents())
-	if m.selectedWeekDate() != domain.NewCivilDate(2026, 9, 28) {
-		t.Errorf("l from Sunday: day %s, want Mon 28 Sep (next week)", m.selectedWeekDate())
-	}
-
-	m, cmd = send(t, m, press("]"))
-	if cmd == nil || m.week.start != domain.NewCivilDate(2026, 10, 5) {
-		t.Fatalf("]: week start %s, cmd %v; want 2026-10-05 and a load", m.week.start, cmd != nil)
-	}
-	m = deliverWeek(t, m, testEvents())
-	if got := weekSelected(m); got != "2026-10-05 nothing" {
-		t.Errorf("]: selected %s, want Monday 2026-10-05", got)
-	}
-
-	m, _ = send(t, m, press("t"))
-	m = deliverWeek(t, m, testEvents())
-	if got := weekSelected(m); got != "2026-09-29 dentist" {
-		t.Errorf("t: selected %s, want today's next event 2026-09-29 dentist", got)
-	}
-}
-
-func TestWeekOverflowShowsMoreAndScrollsToSelection(t *testing.T) {
-	var events []domain.Event
-	for h := 8; h < 20; h++ {
-		id := fmt.Sprintf("e%02d", h)
-		events = append(events, domain.NewTimedEvent(id, "main", "Event "+id, at(30, h, 0), at(30, h, 30), "", ""))
-	}
-	m := loaded(t, 100, 16)
-	m = toWeek(t, m, events)
-	m, _ = send(t, m, press("l")) // Wed 30, 12 events in a short column
-	if sc := screen(m); !strings.Contains(sc, "more") {
-		t.Fatalf("no \"+N more\" line for an overflowing column:\n%s", sc)
-	}
-	m, _ = send(t, m, press("G"))
-	if sc := screen(m); !strings.Contains(sc, "Event e19") {
-		t.Errorf("last event not scrolled into view after G:\n%s", sc)
-	}
-}
-
-func TestWeekEnterOpensDetail(t *testing.T) {
-	m := toWeek(t, loaded(t, 100, 24), testEvents())
-	m, _ = send(t, m, press("enter"))
-	if m.detail == nil || m.detail.Event.ID != "dentist" {
-		t.Fatal("enter in the week view didn't open the selected event")
-	}
-	m, _ = send(t, m, press("esc"))
-	if m.detail != nil || m.view != viewWeek {
-		t.Error("esc didn't return to the week view")
-	}
-}
-
-func TestWeekStaleLoadIgnored(t *testing.T) {
-	m := toWeek(t, loaded(t, 100, 24), testEvents())
-	m, _ = send(t, m, press("]"))
-	m, _ = send(t, m, weekLoadedMsg{start: domain.NewCivilDate(2026, 9, 28), events: nil})
-	if !m.week.loading {
-		t.Error("a load for the previous week was applied; want it ignored")
-	}
-}
-
 func activitySlot(m Model) string {
 	lines := strings.Split(screen(m), "\n")
 	return strings.TrimSpace(ansi.Truncate(lines[len(lines)-1], activityWidth+1, ""))
@@ -970,8 +829,8 @@ func screensToCheck(t *testing.T) map[string]Model {
 	syncing, _ := send(t, m, press("r"))
 	month := toMonth(t, m, testEvents())
 	heat := heatModel(t, 100, 24)
-	weekPlus := toWeekPlus(t, m, overlapEvents())
-	return map[string]Model{"agenda": m, "week": week, "weekplus": weekPlus, "month": month, "sidebar": side, "form": form, "syncing": syncing, "heat": heat}
+	weekOverlap := toWeek(t, m, overlapEvents())
+	return map[string]Model{"agenda": m, "week": week, "week_overlap": weekOverlap, "month": month, "sidebar": side, "form": form, "syncing": syncing, "heat": heat}
 }
 
 func TestOnlyANSIColorsReachTheTerminal(t *testing.T) {
@@ -1153,8 +1012,8 @@ func TestNumberKeysSwitchViewsKeepingTheDay(t *testing.T) {
 	m, _ = send(t, m, press("]")) // agenda on Wed 30 Sep
 	m, _ = send(t, m, press("2"))
 	m = deliverWeek(t, m, testEvents())
-	if m.view != viewWeek || m.selectedWeekDate() != domain.NewCivilDate(2026, 9, 30) {
-		t.Fatalf("2: view %v day %s", m.view, m.selectedWeekDate())
+	if m.view != viewWeek || m.weekDate() != domain.NewCivilDate(2026, 9, 30) {
+		t.Fatalf("2: view %v day %s", m.view, m.weekDate())
 	}
 	m, _ = send(t, m, press("3"))
 	m = deliverMonth(t, m, testEvents())
@@ -1224,7 +1083,7 @@ func TestFooterAlwaysStartsWithPaneKeys(t *testing.T) {
 		"list":   func() Model { m, _ := send(t, loaded(t, 100, 30), press("0")); return m }(),
 	} {
 		lines := strings.Split(screen(m), "\n")
-		if hints := strings.TrimSpace(lines[len(lines)-2]); !strings.HasPrefix(hints, "0 calendars · 1-5 views · tab switch pane │") {
+		if hints := strings.TrimSpace(lines[len(lines)-2]); !strings.HasPrefix(hints, "0 calendars · 1-4 views · tab switch pane │") {
 			t.Errorf("%s footer = %q", name, hints)
 		}
 	}
@@ -2186,10 +2045,12 @@ func TestFilterStepsBetweenMatchingDays(t *testing.T) {
 
 func TestFilterAppliesToWeekAndMonth(t *testing.T) {
 	m := toWeek(t, loaded(t, 120, 30), testEvents())
+	if !strings.Contains(screen(m), "Dentist") {
+		t.Fatalf("the week doesn't show the dentist before filtering:\n%s", screen(m))
+	}
 	m, _ = send(t, m, press("/"))
 	m = typeText(t, m, "train")
-	s := screen(m)
-	if !strings.Contains(s, "Night train") || strings.Contains(s, "Standup") {
+	if s := screen(m); strings.Contains(s, "Dentist") {
 		t.Errorf("week not filtered:\n%s", s)
 	}
 	m, _ = send(t, m, press("enter"), press("3"))
