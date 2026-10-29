@@ -179,7 +179,7 @@ func (m *Model) toggleVisibility(r sideRow) {
 	}
 	m.rebuild()
 	m.rebuildWeek()
-	m.rebuildWeekPlus()
+	m.rebuildWeek()
 	m.rebuildMonth()
 }
 

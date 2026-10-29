@@ -1,7 +1,7 @@
 ╭─ Keys ───────────────────────────────────────────────────╮
 │ Everywhere                                               │
 │ 0                         Calendar list                  │
-│ 1 2 3 4 5                 Agenda, week, month, focus, we…│
+│ 1 2 3 4                   Agenda, week, month, focus     │
 │ tab                       Next panel: the list, the view…│
 │ t                         Today                          │
 │ r                         Sync now (also in the backgrou…│
@@ -15,6 +15,6 @@
 │ Filter                                                   │
 │ type                      Narrows as you type; all words…│
 │ enter                     Keep the filter, move around a…│
-╰────────────────────────────────────── lines 1–16 of 137 ─╯
+╰────────────────────────────────────── lines 1–16 of 130 ─╯
  j/k scroll · pgup/pgdn page · esc close                    
  ◦ Idle        Tue 29 Sep 14:30                Synced 14:29 

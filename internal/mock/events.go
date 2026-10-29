@@ -191,7 +191,7 @@ func (g *eventGen) special() {
 	// Titles that don't fit, and ones that aren't ASCII.
 	g.timed("alignment", calWork, "Cross-functional alignment on the platform migration roadmap and Q4 staffing, pre-read required", t.AddDays(3), 15, 0, time.Hour)
 	g.timed("jp", calWork, "日本語 meeting 🎉", t.AddDays(1), 13, 0, time.Hour)
-	// A crowded day for the time grid (Week+): two events side by side, five
+	// A crowded day for the week view's time grid: two events side by side, five
 	// at once, back to back, a long one under shorter ones, and a reminder.
 	c := t.AddDays(5)
 	g.timed("crunch-design", calWork, "Design review", c, 10, 0, 90*time.Minute)

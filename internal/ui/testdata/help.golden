@@ -1,7 +1,7 @@
 ╭─ Keys ───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Everywhere                                                                                                           │
 │ 0                         Calendar list                                                                              │
-│ 1 2 3 4 5                 Agenda, week, month, focus, week as a time grid                                            │
+│ 1 2 3 4                   Agenda, week, month, focus                                                                 │
 │ tab                       Next panel: the list, the view, the global Write panel                                     │
 │ t                         Today                                                                                      │
 │ r                         Sync now (also in the background)                                                          │
@@ -28,13 +28,13 @@
 │                           Moving past the end loads more days                                                        │
 │                                                                                                                      │
 │ Week                                                                                                                 │
-│ h l  ← →                  Previous, next day                                                                         │
+│ h l  ← →                  Previous, next day, at the same time of day                                                │
 │ j k  ↓ ↑                  Next, previous event of the day                                                            │
 │ g G                       First, last event of the day                                                               │
-│ [ ]  pgup pgdn            Previous, next week                                                                        │
-│ enter                     Event details                                                                              │
-│                                                                                                                      │
-│ Week+                                                                                                                │
-╰────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 137 ─╯
+│ [ ]                       Previous, next week                                                                        │
+│ + -                       Zoom: 15, 30 or 60 minutes a row                                                           │
+│ D                         Weekdays only, or all seven days                                                           │
+│ ctrl+d ctrl+u  pgdn pgup  Scroll the time                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────── lines 1–36 of 130 ─╯
  j/k scroll · pgup/pgdn page · esc close                                                                                
  ◦ Idle        Tue 29 Sep 14:30                                                                            Synced 14:29 
