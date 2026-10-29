@@ -121,6 +121,7 @@ func helpSections() []helpSection {
 			{"e  enter", "Edit"},
 			{"", "A task starts with [ ], a note with ¶."},
 			{"space", "Check or uncheck a task"},
+			{"!", "Mark an open task as a priority, or clear it (checking it clears it too)"},
 			{"d", "Delete (asks first)"},
 			{"m", "Move a task or note: event ↔ global (global → the open event)"},
 			{"alt+j / alt+k", "Move the item down / up (also alt+↓ / alt+↑)"},

@@ -942,3 +942,49 @@ func TestZArchivesANoteAndBigZLeavesNotes(t *testing.T) {
 		t.Errorf("no hint:\n%s", screen(m))
 	}
 }
+
+func TestBangTogglesPriorityAndCheckingClearsIt(t *testing.T) {
+	m, src := writeModel(t, 130, 34)
+	m, scope := openEvent(t, m)
+	m = keys(t, m, "w", "a")
+	m = typed(t, m, "ship it")
+	m = keys(t, m, "enter", "esc", "!")
+	if items := listOf(t, src, scope); !items[0].Priority {
+		t.Fatalf("not a priority: %+v", items)
+	}
+	var row string
+	for _, l := range strings.Split(m.View().Content, "\n") {
+		if strings.Contains(ansi.Strip(l), "[!] ship it") {
+			row = l
+		}
+	}
+	if row == "" {
+		t.Fatalf("no [!] row:\n%s", screen(m))
+	}
+	if !strings.Contains(row, "\x1b[1;35m[!]") || strings.Contains(row, "\x1b[7m") || strings.Contains(row, "\x1b[45m") {
+		t.Errorf("priority row is not bold magenta without a background: %q", row)
+	}
+	m = keys(t, m, "!")
+	if items := listOf(t, src, scope); items[0].Priority || !strings.Contains(screen(m), "[ ] ship it") {
+		t.Errorf("not toggled off:\n%s", screen(m))
+	}
+	m = keys(t, m, "!", "space")
+	if items := listOf(t, src, scope); !items[0].Done || items[0].Priority || !strings.Contains(screen(m), "[x] ship it") {
+		t.Errorf("checking kept the priority: %+v\n%s", items, screen(m))
+	}
+	m = keys(t, m, "!")
+	if !strings.Contains(screen(m), "Only an open task can have a priority") {
+		t.Errorf("no hint for a done task:\n%s", screen(m))
+	}
+}
+
+func TestBangOnANoteSaysSo(t *testing.T) {
+	m, _ := writeModel(t, 130, 34)
+	m, _ = openEvent(t, m)
+	m = keys(t, m, "w", "A")
+	m = typed(t, m, "just a note")
+	m = keys(t, m, "enter", "esc", "!")
+	if !strings.Contains(screen(m), "Only an open task can have a priority") {
+		t.Errorf("no hint:\n%s", screen(m))
+	}
+}

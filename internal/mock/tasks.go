@@ -55,6 +55,9 @@ func (s *seeder) done(text string, origin write.Ref, ago time.Duration) write.It
 	return it
 }
 
+// prio marks a task as a priority.
+func prio(it write.Item) write.Item { it.Priority = true; return it }
+
 func note(text string) write.Item { return write.Item{Text: text} }
 
 // event finds the next occurrence of a series from now (or the latest before
@@ -91,11 +94,11 @@ func (s *seeder) globalList() error {
 		l.Items = []write.Item{
 			s.todo("Renew passport", write.Ref{}),
 			s.todo("Reply to the landlord about the lease", write.Ref{}),
-			s.todo("Draft the Q4 roadmap one-pager", write.Ref{}),
+			prio(s.todo("Draft the Q4 roadmap one-pager", write.Ref{})),
 			s.todo("Review Sam's design doc", write.Ref{}),
 			note("Ideas for the offsite: a hike, a hackathon half-day, no slides"),
-			s.todo("Send the deck to the board", origin),
-			s.todo("Fix the flaky integration test in CI", write.Ref{}),
+			prio(s.todo("Send the deck to the board", origin)),
+			prio(s.todo("Fix the flaky integration test in CI", write.Ref{})),
 			s.todo("Look into ergonomic chairs: compare three models, and ask facilities whether the budget covers a standing desk too", write.Ref{}),
 			s.todo("Order a birthday present for Alex", write.Ref{}),
 			s.todo("Book the dentist", write.Ref{}),

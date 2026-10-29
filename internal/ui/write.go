@@ -352,6 +352,13 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 			return l.Check(id, now)
 		})
+	case "!":
+		if !have || !item.Todo || item.Done {
+			p.note = "Only an open task can have a priority"
+			break
+		}
+		id := item.ID
+		return m, m.updateList(*p, func(l *write.List) error { return l.TogglePriority(id) })
 	case "d":
 		if have {
 			p.mode = wConfirm
