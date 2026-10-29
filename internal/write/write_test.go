@@ -514,3 +514,58 @@ func TestStoreMoveNote(t *testing.T) {
 		t.Errorf("event after = %+v", ev.Items)
 	}
 }
+
+func TestPriorityTogglesAndCompletingClearsIt(t *testing.T) {
+	l := List{}
+	l.AddTodo("a", "11111111")
+	l.AddNote("just a note")
+	if err := l.TogglePriority("11"); err != nil || !l.Items[0].Priority {
+		t.Fatalf("not set: %v %+v", err, l.Items[0])
+	}
+	if err := l.TogglePriority("11"); err != nil || l.Items[0].Priority {
+		t.Fatalf("not cleared: %v %+v", err, l.Items[0])
+	}
+	l.TogglePriority("11")
+	l.Check("11", t0)
+	if l.Items[0].Priority {
+		t.Error("a checked task kept its priority")
+	}
+	l.Uncheck("11")
+	if l.Items[0].Priority {
+		t.Error("reopening brought the priority back")
+	}
+	l.Check("11", t0)
+	if err := l.TogglePriority("11"); !errors.Is(err, ErrDone) {
+		t.Errorf("toggling a done task: %v", err)
+	}
+}
+
+func TestPriorityRoundTripsAndHandEditsAreCleaned(t *testing.T) {
+	l := eventList(meeting)
+	l.AddTodo("first", "11111111")
+	l.AddTodo("second", "22222222")
+	l.TogglePriority("22")
+	got := Parse(Format(l))
+	if got.Items[0].Priority || !got.Items[1].Priority {
+		t.Errorf("round trip lost it: %+v", got.Items)
+	}
+	hand := Parse([]byte(`- [x] done <!--{"id":"33333333","priority":true}-->` + "\n"))
+	if hand.Items[0].Priority {
+		t.Error("a hand-edited done task kept its priority")
+	}
+	if bytes := string(Format(hand)); strings.Contains(bytes, "priority") {
+		t.Errorf("written back with it: %s", bytes)
+	}
+}
+
+func TestPrioritySurvivesAMove(t *testing.T) {
+	from, to := eventList(meeting), eventList(other)
+	from.AddTodo("move me", "11111111")
+	from.TogglePriority("11")
+	if err := Move(&from, &to, "11"); err != nil {
+		t.Fatal(err)
+	}
+	if len(to.Items) != 1 || !to.Items[0].Priority {
+		t.Errorf("priority lost in the move: %+v", to.Items)
+	}
+}

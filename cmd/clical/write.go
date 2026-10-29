@@ -23,6 +23,7 @@ type WriteCmd struct {
 	Add       WriteAddCmd       `cmd:"" help:"Add a task (or --note), globally or to an event."`
 	Done      WriteDoneCmd      `cmd:"" help:"Check a task."`
 	Undo      WriteUndoCmd      `cmd:"" help:"Uncheck a task."`
+	Prio      WritePrioCmd      `cmd:"" help:"Mark a task as a priority, or clear it."`
 	Rm        WriteRmCmd        `cmd:"" help:"Delete a task."`
 	Move      WriteMoveCmd      `cmd:"" help:"Move a task to an event, or to the global list."`
 	Archive   WriteArchiveCmd   `cmd:"" help:"File a checked task away in the archive."`
@@ -215,8 +216,11 @@ func itemLine(it write.Item, scope write.Ref) string {
 		return "    " + text
 	}
 	box := "[ ]"
-	if it.Done {
+	switch {
+	case it.Done:
 		box = "[x]"
+	case it.Priority:
+		box = "[!]"
 	}
 	line := fmt.Sprintf("%s %s  %s", box, it.ID, text)
 	var notes []string
@@ -330,6 +334,22 @@ func (c *WriteUndoCmd) Run() error {
 		return err
 	}
 	fmt.Printf("Reopened %s: %s\n", it.ID, it.Text)
+	return nil
+}
+
+// WritePrioCmd toggles a task's priority.
+type WritePrioCmd struct{ todoID }
+
+func (c *WritePrioCmd) Run() error {
+	it, err := c.change(func(l *write.List, id string) error { return l.TogglePriority(id) })
+	if err != nil {
+		return err
+	}
+	if it.Priority {
+		fmt.Printf("Cleared the priority of %s: %s\n", it.ID, it.Text)
+	} else {
+		fmt.Printf("Priority: %s: %s\n", it.ID, it.Text)
+	}
 	return nil
 }
 

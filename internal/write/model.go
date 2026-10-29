@@ -20,6 +20,7 @@ var (
 	ErrNotTodo   = errors.New("write: not a task")
 	ErrNotANote  = errors.New("write: not a note")
 	ErrNotDone   = errors.New("write: only a checked task can be archived")
+	ErrDone      = errors.New("write: a checked task has no priority")
 	ErrChanged   = errors.New("write: the file changed while it was being updated")
 	ErrSameScope = errors.New("write: already there")
 )
@@ -57,6 +58,10 @@ type Item struct {
 	// zero when it isn't done.
 	Done      bool
 	Completed time.Time
+
+	// Priority marks an open task as the one to work on. Completing a task
+	// clears it.
+	Priority bool
 
 	// Origin is where the task was created, and never changes: the zero Ref
 	// for global. Last is the most recent event it was in, or zero if it has
@@ -157,7 +162,21 @@ func (l *List) Check(id string, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	l.Items[i].Done, l.Items[i].Completed = true, now
+	l.Items[i].Done, l.Items[i].Completed, l.Items[i].Priority = true, now, false
+	return nil
+}
+
+// TogglePriority turns a task's priority on or off. A done task can't have
+// one, so it is an error to try.
+func (l *List) TogglePriority(id string) error {
+	i, err := l.find(id)
+	if err != nil {
+		return err
+	}
+	if l.Items[i].Done {
+		return ErrDone
+	}
+	l.Items[i].Priority = !l.Items[i].Priority
 	return nil
 }
 

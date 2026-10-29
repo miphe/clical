@@ -41,6 +41,9 @@ type meta struct {
 	Done   string `json:"done,omitempty"`
 	Origin *Ref   `json:"from,omitempty"`
 	Last   *Ref   `json:"last,omitempty"`
+
+	// Priority is set on a task that matters most; it is never set on a done one.
+	Priority bool `json:"priority,omitempty"`
 }
 
 type headerJSON struct {
@@ -74,12 +77,14 @@ func Parse(data []byte) List {
 		}
 		it := Item{Todo: true, Done: m[1] != " "}
 		var originSet bool
-		it.Text, it.ID, it.Completed, it.Origin, originSet, it.Last = splitMeta(m[2])
+		it.Text, it.ID, it.Completed, it.Origin, originSet, it.Last, it.Priority = splitMeta(m[2])
 		if !originSet {
 			it.Origin = l.Scope() // written here, which is all the file says
 		}
 		if !it.Done {
 			it.Completed = time.Time{}
+		} else {
+			it.Priority = false // a done task is no longer the one to work on
 		}
 		if it.ID == "" {
 			// Worked out from the text so it's the same on every read, until
@@ -117,14 +122,14 @@ func parseHeader(lines []string) (*Header, int) {
 	return &Header{Event: hj.Ref, Calendar: hj.Calendar, Start: hj.Start}, used
 }
 
-func splitMeta(s string) (text, id string, done time.Time, origin Ref, originSet bool, last Ref) {
+func splitMeta(s string) (text, id string, done time.Time, origin Ref, originSet bool, last Ref, priority bool) {
 	i := strings.LastIndex(s, metaOpen)
 	if i < 0 || !strings.HasSuffix(s, metaClose) {
-		return strings.TrimSpace(s), "", time.Time{}, Ref{}, false, Ref{}
+		return strings.TrimSpace(s), "", time.Time{}, Ref{}, false, Ref{}, false
 	}
 	var m meta
 	if json.Unmarshal([]byte(s[i+len("<!--"):len(s)-len("-->")]), &m) != nil {
-		return strings.TrimSpace(s), "", time.Time{}, Ref{}, false, Ref{}
+		return strings.TrimSpace(s), "", time.Time{}, Ref{}, false, Ref{}, false
 	}
 	text = strings.TrimSpace(s[:i])
 	if m.Done != "" {
@@ -136,7 +141,7 @@ func splitMeta(s string) (text, id string, done time.Time, origin Ref, originSet
 	if m.Last != nil {
 		last = *m.Last
 	}
-	return text, m.ID, done, origin, originSet, last
+	return text, m.ID, done, origin, originSet, last, m.Priority
 }
 
 // Format writes a list in its markdown form.
@@ -187,6 +192,7 @@ func metaFor(it Item, scope Ref) meta {
 		la := it.Last
 		m.Last = &la
 	}
+	m.Priority = it.Priority && !it.Done
 	if !it.derived || m != (meta{}) {
 		m.ID = it.ID
 	}
