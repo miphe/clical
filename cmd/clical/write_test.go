@@ -26,6 +26,7 @@ func TestItemLine(t *testing.T) {
 		{"done", write.Item{ID: "ab12", Todo: true, Done: true, Completed: done, Text: "call"}, write.Ref{}, "[x] ab12  call  (done 5 Oct 12:30)"},
 		{"began global, now in an event", write.Item{ID: "ab12", Todo: true, Text: "call", Last: weekly}, weekly, "[ ] ab12  call  (from global)"},
 		{"another event on the way", write.Item{ID: "ab12", Todo: true, Text: "call", Origin: weekly, Last: dental}, write.Ref{}, "[ ] ab12  call  (from Weekly sync; last in Dentist)"},
+		{"priority", write.Item{ID: "ab12", Todo: true, Priority: true, Text: "call"}, write.Ref{}, "[!] ab12  call"},
 		{"note", write.Item{Text: "agenda"}, write.Ref{}, "    agenda"},
 		{"control characters", write.Item{ID: "ab12", Todo: true, Text: "a\x1b[2Jb"}, write.Ref{}, "[ ] ab12  a[2Jb"},
 	}
