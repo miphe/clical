@@ -308,7 +308,8 @@ func (p writePanel) inputLines(inner, maxRows int) []string {
 // writeLine is line k of an item's text. The selected item is marked with a
 // chevron in the margin; a finished task has its box checked, in the success
 // color. A note's first line has a pilcrow where a task has its box, so it
-// can't be mistaken for the wrapped line of the task above it.
+// can't be mistaken for the wrapped line of the task above it. A priority
+// task has a bold magenta [!] and bold magenta text, with no background.
 func writeLine(it write.Item, k int, text string, selected bool, inner int) string {
 	marker, box := " ", "    "
 	if selected && k == 0 {
@@ -317,11 +318,17 @@ func writeLine(it write.Item, k int, text string, selected bool, inner int) stri
 	switch {
 	case k == 0 && it.Todo:
 		box = "[ ] "
-		if it.Done {
+		switch {
+		case it.Done:
 			box = successStyle.Render("[x]") + " "
+		case it.Priority:
+			box = featuredStyle.Render("[!]") + " "
 		}
 	case k == 0:
 		box = " " + mutedStyle.Render(noteMark) + "  "
+	}
+	if it.Todo && it.Priority && !it.Done {
+		text = featuredStyle.Render(text)
 	}
 	return fit(marker+" "+box+text, inner)
 }

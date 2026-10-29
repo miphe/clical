@@ -40,10 +40,11 @@ var (
 // thin "now" line, with the words beside them in the default color, except
 // errors, which are bold red to stand out.
 var (
-	colorAccent  = ansiBlue  // focus, the active tab, today, work in progress
-	colorSuccess = ansiGreen // a finished sync
-	colorError   = ansiRed   // failures
-	colorNow     = ansiRed   // the "now" line: red by calendar convention, not an error
+	colorAccent   = ansiBlue    // focus, the active tab, today, work in progress
+	colorSuccess  = ansiGreen   // a finished sync
+	colorError    = ansiRed     // failures
+	colorNow      = ansiRed     // the "now" line: red by calendar convention, not an error
+	colorFeatured = ansiMagenta // a priority task: the one thing that is not blue, green or red
 	// colorWarning is ANSI yellow. Nothing uses it yet: yellow text reads
 	// poorly on light backgrounds, so it's reserved for genuine warnings.
 	colorWarning = ansiYellow
@@ -58,6 +59,10 @@ var (
 	successStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSuccess)
 	errorStyle   = lipgloss.NewStyle().Bold(true).Foreground(colorError)
 	nowStyle     = lipgloss.NewStyle().Foreground(colorNow)
+
+	// featuredStyle is for a priority task's box and text: bold, so it still
+	// stands out with colors off, and never a background.
+	featuredStyle = lipgloss.NewStyle().Bold(true).Foreground(colorFeatured)
 
 	// The heatmap is flat: every day with tasks is the same square, in one hue.
 	// The busier the day the stronger it is: the accent faint, the accent, then
