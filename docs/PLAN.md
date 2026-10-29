@@ -941,12 +941,18 @@ Under `$XDG_DATA_HOME/clical/write/` (or `write_dir`):
   `w` focuses the event's Write panel (event view only),
   `W` collapses or expands the global panel. Inside Write: `j k` move,
   `a` add a task, `A` add a note (inline input, no popup; `?` and other keys
-  are text while typing), `e` edit, `space` check or uncheck, `x` delete
-  (asks), `m` move to the other scope (global → the open event only while an
+  are text while typing), `e` edit, `space` check or uncheck, `!` mark or clear a priority, `d` delete
+  (asks; `x` only hints), `m` move to the other scope (global → the open event only while an
   event is open), `z` archive a checked task. A mode label in the panel title
   shows INSERT while typing.
-- **Checked tasks stay in place** (struck through) until archived; no
-  reordering.
+- **Checked tasks stay in place** (box checked, not struck through) until
+  archived. Order is the user's (`alt+j/k`); nothing sorts.
+- **Priority** (`!`): an open task can be marked as the one to work on. It is
+  a bold magenta `[!]` and bold magenta text, with no background, and does not
+  change the order. Checking a task clears it (`List.Check`, so the CLI too),
+  and a hand-edited done task with the flag is cleaned on read. It is a
+  `priority` key in the task's JSON comment, so no migration. Magenta is the
+  one hue with no other role.
 - **Origin** shows on each task that was moved ("from Weekly sync"), from the
   snapshot when the event is gone.
 - **Flash:** a collapsed panel whose content changes flashes its border once
@@ -962,6 +968,7 @@ Under `$XDG_DATA_HOME/clical/write/` (or `write_dir`):
     clical write [list] [-e EVENT] [--on DATE] [--all]  # global by default
     clical write add TEXT... [--note] [-e EVENT]        # a task, or a note
     clical write done|undo|rm ID                        # check, uncheck, delete
+    clical write prio ID                                # mark or clear a priority
     clical write move ID [-e EVENT]                     # to an event; to global without -e
     clical write archive ID                             # file a checked task away
     clical write archived                               # list the archive
