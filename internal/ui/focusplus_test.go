@@ -247,3 +247,19 @@ func TestFocusPlusNewSelectionShowsTheNewestCompleted(t *testing.T) {
 		}
 	}
 }
+
+func TestFocusPlusFromTheFocusViewShowsTheNewestCompleted(t *testing.T) {
+	m := keys(t, plusModel(t, 110, 40), "4", "space", "space") // a month on 4, at its top
+	if m.view != viewHeat || m.heat.scroll != 0 {
+		t.Fatalf("4: view %v, scroll %d", m.view, m.heat.scroll)
+	}
+	m = keys(t, m, "5", "tab", "tab") // the heatmap, the completed tasks large
+	w, room := m.tasksView()
+	lines, _ := m.heatTaskLines(w)
+	if len(lines) <= room {
+		t.Fatalf("%d lines fit in %d; the test needs a larger selection", len(lines), room)
+	}
+	if want := fmt.Sprintf("–%d of %d", len(lines), len(lines)); !strings.Contains(screen(m), want) {
+		t.Errorf("4 then 5: the completed tasks aren't at their end (%q):\n%s", want, screen(m))
+	}
+}
