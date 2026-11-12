@@ -3,6 +3,12 @@
 A read-only terminal calendar for macOS and Linux. It merges iCal feeds and
 Google accounts into one agenda, week and month view.
 
+[![CLIcal's Focus+ view: what's on now and next and a strip of the day, a month of completed tasks, a heatmap of completed tasks, and the Write panel of tasks and notes](screenshots/focus-plus-completed.png)](screenshots/focus-plus-completed.png)
+
+<sub>Focus+, on made-up data. Click it for full size, and see
+[all the screenshots](screenshots/README.md): the agenda, week and month
+views, today in Focus+, and an event with its notes.</sub>
+
 ## Install
 
 Download the archive for your system from the

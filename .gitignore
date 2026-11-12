@@ -2,3 +2,4 @@
 /dist/
 *.log
 /clical
+.DS_Store
