@@ -138,6 +138,49 @@ func refName(r write.Ref) string {
 	return domain.SafeText(r.Title)
 }
 
+// listHeight is the lines a panel's list gets of its innerH: less what's
+// being typed, which takes the bottom, and a line for a note.
+func (p writePanel) listHeight(inner, innerH int) int {
+	h := innerH
+	if p.mode == wInsert {
+		h -= len(p.inputLines(inner, innerH-1))
+	}
+	if p.note != "" {
+		h-- // room for what the last key couldn't do
+	}
+	return max(h, 1)
+}
+
+// writeBreath is the free lines kept under the last item, above the input
+// or the panel's bottom, in a list h lines tall: 1 to 3, with the height.
+func writeBreath(h int) int { return min(max(h/6, 1), 3) }
+
+// viewOffset is the first line of the list shown in h lines: a run of the
+// items in their order, as many as fit, with the selected one always among
+// them. The list is never scrolled past its end: nothing above is hidden to
+// leave emptiness below, and when it overflows, the end shows the last item
+// with writeBreath lines under it. Selecting the last item scrolls to it.
+func (p writePanel) viewOffset(inner, h int) int {
+	rows := p.rows()
+	if len(rows) == 0 || h <= 0 {
+		return 0
+	}
+	lastTop, total := p.blockSpan(len(rows)-1, inner)
+	end := max(min(total+writeBreath(h)-h, lastTop), 0)
+	if p.sel >= len(rows)-1 {
+		return end
+	}
+	off := min(max(p.offset, 0), end)
+	top, bottom := p.blockSpan(p.sel, inner)
+	if bottom > off+h {
+		off = bottom - h
+	}
+	if top < off {
+		off = top
+	}
+	return max(off, 0)
+}
+
 // blockSpan is the lines [top, bottom) that the item at position idx takes.
 func (p writePanel) blockSpan(idx, inner int) (top, bottom int) {
 	line := 0
@@ -188,14 +231,10 @@ func (m Model) renderWritePanel(which writeWhich, width, height int) []string {
 		return panel(width, height, f, []string{mutedStyle.Render(" Notes aren't available.")})
 	}
 
-	listH := innerH
+	listH := p.listHeight(inner, innerH)
 	var input []string
 	if p.mode == wInsert {
 		input = p.inputLines(inner, innerH-1)
-		listH -= len(input)
-	}
-	if p.note != "" {
-		listH-- // room for what the last key couldn't do
 	}
 	rows := p.rows()
 	var lines []string
@@ -213,8 +252,9 @@ func (m Model) renderWritePanel(which writeWhich, width, height int) []string {
 	if len(rows) == 0 && p.loaded {
 		lines = []string{mutedStyle.Render(" Nothing yet."), mutedStyle.Render(" a adds a task, A a note.")}
 	}
-	if p.offset < len(lines) {
-		lines = lines[p.offset:]
+	off := p.viewOffset(inner, listH)
+	if off < len(lines) {
+		lines = lines[off:]
 	} else {
 		lines = nil
 	}

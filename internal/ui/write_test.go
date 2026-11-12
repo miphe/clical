@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -986,5 +987,64 @@ func TestBangOnANoteSaysSo(t *testing.T) {
 	m = keys(t, m, "enter", "esc", "!")
 	if !strings.Contains(screen(m), "Only an open task can have a priority") {
 		t.Errorf("no hint:\n%s", screen(m))
+	}
+}
+
+// tasksPanel is a Write panel of n one-line tasks, "task 1" to "task n".
+func tasksPanel(n int) writePanel {
+	p := writePanel{loaded: true, editAt: -1}
+	for i := range n {
+		p.list.Items = append(p.list.Items, write.Item{Todo: true, Text: fmt.Sprintf("task %d", i+1)})
+	}
+	return p
+}
+
+func TestWriteListKeepsTheSelectionInViewAndFillsIt(t *testing.T) {
+	const inner, h = 30, 12 // two free lines under the last item
+	for _, c := range []struct {
+		name        string
+		n, sel, off int
+		want        int
+	}{
+		{"what fits isn't scrolled", 5, 0, 0, 0},
+		{"the last selected, the end with room under it", 20, 19, 0, 10},
+		{"the first selected, the top", 20, 0, 0, 0},
+		{"a selection in view stays where it is", 20, 8, 4, 4},
+		{"a selection under the view brings it up", 20, 12, 0, 1},
+		{"a selection over the view brings it down", 20, 2, 6, 2},
+		{"never past the end, however far it was", 20, 12, 1000, 10},
+		{"never past the end with the top hidden", 14, 3, 9, 3},
+		{"what only just fits makes room under the last", 11, 10, 0, 1},
+	} {
+		p := tasksPanel(c.n)
+		p.sel, p.offset = c.sel, c.off
+		if got := p.viewOffset(inner, h); got != c.want {
+			t.Errorf("%s: offset %d, want %d", c.name, got, c.want)
+		}
+	}
+	// A panel too short for the room still shows the last item.
+	p := tasksPanel(20)
+	p.sel = 19
+	if got := p.viewOffset(inner, 1); got != 19 {
+		t.Errorf("one line: offset %d, want the last item's 19", got)
+	}
+}
+
+func TestWritePanelNeverHidesItemsToShowEmptiness(t *testing.T) {
+	m, _ := writeModel(t, 110, 30)
+	p := m.panel(writeGlobal)
+	*p = tasksPanel(40)
+	p.sel, p.offset = 39, 1000 // left behind by a longer list, or a narrower panel
+	lines := m.renderWritePanel(writeGlobal, 30, 14)
+	body := ansi.Strip(strings.Join(lines, "\n"))
+	if !strings.Contains(body, "task 40") || !strings.Contains(body, "task 31") || strings.Contains(body, "task 30\n") {
+		t.Errorf("the end, task 31 to 40, should fill the panel:\n%s", body)
+	}
+	// Two blank lines under the last item, then the bottom border.
+	n := len(lines)
+	for _, l := range lines[n-3 : n-1] {
+		if strings.TrimSpace(strings.Trim(ansi.Strip(l), "│┃")) != "" {
+			t.Errorf("no room under the last item:\n%s", body)
+		}
 	}
 }

@@ -548,18 +548,7 @@ func (m *Model) clampWrite(which writeWhich) {
 	rows := p.rows()
 	p.sel = min(max(p.sel, 0), max(len(rows)-1, 0))
 	w, h := m.writeInner(which)
-	if p.mode == wInsert {
-		h -= len(p.inputLines(w, h-1)) // what's being typed takes the bottom
-		h = max(h, 1)
-	}
-	top, bottom := p.blockSpan(p.sel, w)
-	switch {
-	case top < p.offset:
-		p.offset = top
-	case bottom > p.offset+h:
-		p.offset = bottom - h
-	}
-	p.offset = max(p.offset, 0)
+	p.offset = p.viewOffset(w, p.listHeight(w, h))
 }
 
 // focusOrder is the panels tab goes through, in order: the calendar list,
