@@ -158,6 +158,19 @@ func (m Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
+// heatSelected sets where the completed tasks start after the heatmap's
+// selection changed: at the top in the focus view, and in Focus+ at the end,
+// so the newest are in view however many days are selected. The end is kept
+// as the data arrives and the panel changes size, until the list is
+// scrolled.
+func (m Model) heatSelected() Model {
+	m.heat.scroll = 0
+	if m.view == viewFocusPlus {
+		m.heat.scroll = tasksAtEnd
+	}
+	return m
+}
+
 // handleHeatKey moves the heatmap's cursor. It reports false for keys that
 // aren't the heatmap's, which then work as everywhere.
 func (m Model) handleHeatKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
@@ -182,16 +195,16 @@ func (m Model) handleHeatKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		dir, extend = heatRight, true
 	case "space":
 		m.heat = m.heat.cycleUnit()
-		m.heat.scroll = 0
+		m = m.heatSelected()
 		return m.heatFit(), nil, true
 	case "t":
 		m.heat = m.heat.goTo(m.today(), m.today())
-		m.heat.scroll = 0
+		m = m.heatSelected()
 		return m.heatFit(), nil, true
 	case "esc":
 		h, ok := m.heat.collapse()
 		m.heat = h
-		m.heat.scroll = 0
+		m = m.heatSelected()
 		return m.heatFit(), nil, ok
 	case "pgdown":
 		_, room := m.tasksView()
@@ -203,6 +216,6 @@ func (m Model) handleHeatKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		return m, nil, false
 	}
 	m.heat = m.heat.move(dir, extend, m.today())
-	m.heat.scroll = 0
+	m = m.heatSelected()
 	return m.heatFit(), nil, true
 }

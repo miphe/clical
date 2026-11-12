@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -222,6 +223,27 @@ func TestFocusPlusFitsEveryWindow(t *testing.T) {
 					t.Errorf("%v %q: line %d is %d wide: %q", size, k, i, w, l)
 				}
 			}
+		}
+	}
+}
+
+func TestFocusPlusNewSelectionShowsTheNewestCompleted(t *testing.T) {
+	m := keys(t, plusModel(t, 110, 40), "tab", "tab") // the heatmap
+	for _, sel := range [][]string{{"space", "space"}, {"H", "H", "H", "H", "H", "H"}, {"h", "h", "h", "h", "h", "h", "h", "H", "H", "H", "H", "H", "H"}} {
+		m := keys(t, m, sel...)
+		w, room := m.tasksView()
+		lines, _ := m.heatTaskLines(w)
+		if len(lines) <= room {
+			t.Fatalf("%v: %d lines fit in %d; the test needs a larger selection", sel, len(lines), room)
+		}
+		s := screen(m)
+		if want := fmt.Sprintf("–%d of %d", len(lines), len(lines)); !strings.Contains(s, want) {
+			t.Errorf("%v: the completed tasks aren't at their end (%q):\n%s", sel, want, s)
+		}
+		// Scrolling up from there moves one line up from the end.
+		m = keys(t, m, "shift+tab", "k") // the completed tasks, above the heatmap
+		if want := fmt.Sprintf("–%d of %d", len(lines)-1, len(lines)); !strings.Contains(screen(m), want) {
+			t.Errorf("%v: k from the end: want %q", sel, want)
 		}
 	}
 }

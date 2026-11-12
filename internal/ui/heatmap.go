@@ -73,7 +73,7 @@ type heatState struct {
 	unit           heatUnit
 	left           domain.CivilDate // first visible week
 	pinned         bool             // the window ends at the newest column, and follows it as days pass
-	scroll         int              // first visible line of the tasks list
+	scroll         int              // first visible line of the tasks list, or tasksAtEnd
 }
 
 func isSet(d domain.CivilDate) bool { return d.Year != 0 }

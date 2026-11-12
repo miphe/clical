@@ -98,6 +98,7 @@ func (m Model) showFocusPlus() (tea.Model, tea.Cmd) {
 	m.view = viewFocusPlus
 	if from != viewHeat {
 		m.heat = m.heat.goTo(m.today(), m.today())
+		m = m.heatSelected()
 	}
 	if !m.sidebarCollapsed {
 		m.sidebarCollapsed, m.sideAuto = true, true

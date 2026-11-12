@@ -1057,6 +1057,9 @@ func (m Model) goToday() (tea.Model, tea.Cmd) {
 			return m.jumpTo(m.today())
 		}
 		m.heat = m.heat.goTo(m.today(), m.today())
+		if m.view == viewFocusPlus {
+			m = m.heatSelected()
+		}
 		return m.heatFit(), nil
 	}
 	return m.jumpTo(m.today())

@@ -1398,6 +1398,9 @@ event gets at least one row, so its title is never cut.
   the tasks grow and Today keeps its now/next lines and its strip. `5`
   focuses Today; `tab` goes list, Today, completed tasks, heatmap, Write,
   top to bottom.
+- **A new selection in the heatmap shows the newest completed tasks:** the
+  list starts at its end (and stays there as the data arrives or the panel
+  grows) until it is scrolled. In `4` it still starts at the top.
 - **Now and next:** the event on now (the one that started last, `+N` for
   others on too), its times and "15 min left"; else "free until 15:00" or
   "nothing more today". Next: its times and "in 8 min" (or "tomorrow 09:30"),

@@ -133,7 +133,7 @@ func (m Model) renderTasks(width, height int, tabs []tab) []string {
 		content = append(content, mutedStyle.Render(msg))
 	} else {
 		room = max(room, 1)
-		start := min(max(m.heat.scroll, 0), max(len(lines)-room, 0))
+		start := m.tasksStart(len(lines), room)
 		end := min(start+room, len(lines))
 		content = append(content, lines[start:end]...)
 		if len(lines) > room {
@@ -258,10 +258,22 @@ func oneLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
+// tasksAtEnd is a scroll that keeps the task list at its end.
+const tasksAtEnd = -1
+
+// tasksStart is the first line of n shown in room lines.
+func (m Model) tasksStart(n, room int) int {
+	last := max(n-max(room, 1), 0)
+	if m.heat.scroll == tasksAtEnd {
+		return last
+	}
+	return min(max(m.heat.scroll, 0), last)
+}
+
 // scrollTasks moves the task list by n lines, within what there is.
 func (m Model) scrollTasks(n int) Model {
 	w, room := m.tasksView()
 	lines, _ := m.heatTaskLines(w)
-	m.heat.scroll = min(max(m.heat.scroll+n, 0), max(len(lines)-max(room, 1), 0))
+	m.heat.scroll = min(max(m.tasksStart(len(lines), room)+n, 0), max(len(lines)-max(room, 1), 0))
 	return m
 }
