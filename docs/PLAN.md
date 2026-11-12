@@ -47,6 +47,7 @@ multi-account merge → config/themes → in-process background polling.
 | M14 | Focus view (`4`): slim agenda, tasks panel, completion heatmap | `internal/write/`, `internal/ui/focus*.go`, `internal/ui/heatmap.go` | Done (v0.0.2) |
 | M15 | Archivable notes, shown on their day in the Focus view | `internal/write/`, `internal/ui/focusview.go`, `internal/ui/heatview.go` | Done |
 | M17 | The week view as a time grid: zoom, lanes for overlaps, all-day band, `work_hours`; replaces the day-list week | `internal/agenda/timegrid.go`, `internal/ui/week*.go` | Done |
+| M18 | Focus+ (`5`), on trial beside the Focus view: a Today panel (now/next, a day strip, titles in full) over the completed tasks and the heatmap | `internal/agenda/daystrip.go`, `internal/ui/focusplus.go`, `internal/ui/today.go` | In trial; `4` unchanged |
 
 Work (Google Workspace) calendars, where admins disabled secret iCal
 addresses, connect as Google accounts via OAuth (revived 2026-10-02; see
@@ -1364,6 +1365,80 @@ the grid was judged the better one).
   are drawn inside it only. Not in the S dialog.
 - **Open:** how it feels with real overlaps; whether 7 columns fit the terminals
   in use; whether the lane cap should be 1 (stack).
+
+## Focus+, a Today panel, on key 5 — M18 (in trial)
+
+The Focus view is meant to be left open all day and glanced at in meetings,
+and the day is what it showed worst: the "Next" panel is the agenda at 26
+columns, so titles are cut ("Daily stand…"), there is no sense of the day's
+shape (gaps, lengths, time left, time to the next), and the calendar list
+and the completed tasks take the room. Focus+ is the rework, tried on `5`
+**beside** the Focus view, which stays exactly as it is until Focus+ has been
+used and judged the better one. Then a later step makes it `4` and removes
+the old view, as the time grid replaced the week (M17).
+
+Borrowed from glanceable calendars: a countdown line at the top (menu-bar
+meeting apps, Apple's Smart Stack guidance), a strip of the day above a list
+with full titles (Fantastical's DayTicker), a coarse colored busy map
+(calcurse), compressed hours (Timepage), and "height is not duration": every
+event gets at least one row, so its title is never cut.
+
+### Decisions
+
+- **One column:** Today on top, the completed tasks, the heatmap along the
+  bottom at full width. The calendar list starts collapsed (`0` still opens
+  it; another view gives it back). The global Write panel is narrower here:
+  a third of the room, 32–48 columns, and a strip when the main area would
+  drop under 52 (the view tabs). On a wide window, once the main area keeps
+  80 columns, Write takes the rest, up to 96 (from about 130 columns). The
+  view tabs sit in Today's top edge.
+- **The focused part gets the room.** Day mode (Today, the list or Write
+  focused): Today is large, the completed tasks show their newest lines (2–5,
+  with the window's height). History mode (the heatmap or the tasks focused):
+  the tasks grow and Today keeps its now/next lines and its strip. `5`
+  focuses Today; `tab` goes list, Today, heatmap, completed tasks, Write.
+- **Now and next:** the event on now (the one that started last, `+N` for
+  others on too), its times and "15 min left"; else "free until 15:00" or
+  "nothing more today". Next: its times and "in 8 min" (or "tomorrow 09:30"),
+  `+N` for others at the same time. A title takes two lines at most up here,
+  one when the panel is short; the list has it in full. Below 60 columns the
+  times go on their own line.
+- **The strip:** `work_hours` widened to the whole hours of the day's timed
+  events, in cells of the finest of 5/10/15/20/30/60 minutes that fits. `━`
+  busy in the calendar's color (a glyph, never a background), `═` where
+  events overlap, `┄` free inside work hours, blank outside; cells before now
+  faint. Under it `▲` marks now and `└─┘` the selected event, so the list and
+  the strip point at each other. It goes whole or not at all.
+- **The list** is the agenda's rows and selection (`j`/`k`, `enter`, `/`,
+  `t`, pulse, later days under their headers), with titles wrapped onto
+  continuation lines, never cut; the range from 40 columns, the label from 60;
+  `▶` on what's on now; a muted "free 1h" line before a later event of today
+  that leaves half an hour or more. A selection far below the view (a fresh
+  load) is brought near the top with one row above it.
+- **State is shared with `4`:** the agenda, the heatmap, the archive.
+  `isFocusView()` covers what both do (the archive reload, the heatmap's and
+  tasks' keys, Write passing view keys through); `focus.go` and
+  `focusview.go` gained only the Focus+ branches (the list collapse is left to
+  Focus+, the tasks' scroll room is its own).
+
+### Where the code is
+
+- `internal/agenda/daystrip.go`: `StripRange`, `StripStep`, `Strip`, `Free`
+  and `NowNext`, pure and table-tested (DST days, crossing midnight,
+  overlaps, empty days). It builds on `BuildGrid`, so the strip gets its
+  wall-clock axis.
+- `internal/ui/today.go`: the header, the strip, the wrapped rows and their
+  scrolling. `internal/ui/focusplus.go`: layout, modes, the Write width,
+  rendering. `theme.go`: `stripMark`.
+
+### Open
+
+- Whether the day/history switch on focus feels right, or the tasks should
+  keep a fixed size.
+- Whether "free" lines and the strip's hour labels earn their room on a
+  laptop screen.
+- When it's judged: Focus+ becomes `4`, and the old view, its code and its
+  golden files go.
 
 ## Verification
 
