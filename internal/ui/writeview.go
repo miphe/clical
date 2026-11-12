@@ -253,6 +253,9 @@ func (m Model) renderWritePanel(which writeWhich, width, height int) []string {
 		lines = []string{mutedStyle.Render(" Nothing yet."), mutedStyle.Render(" a adds a task, A a note.")}
 	}
 	off := p.viewOffset(inner, listH)
+	if len(rows) > 0 {
+		f.scroll = scrollbar{rows: listH, first: off, total: len(lines)}
+	}
 	if off < len(lines) {
 		lines = lines[off:]
 	} else {

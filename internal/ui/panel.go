@@ -25,6 +25,39 @@ type frame struct {
 	legend  string // top-right, already styled; used instead of right
 	bottom  string // bottom-right, e.g. a list position "3 of 15"
 	flash   bool   // the border is lit for a moment
+	scroll  scrollbar
+}
+
+// scrollbar is the part of a panel's content that scrolls, for the bar in
+// its right border: the content rows it takes, from top, and which of its
+// lines they show. Every panel whose content can be more than it shows sets
+// it; the bar appears only while something is out of view. The zero value
+// is no bar.
+type scrollbar struct {
+	top, rows    int // content rows [top, top+rows) scroll
+	first, total int // they show lines [first, first+rows) of total
+}
+
+// thumb is where the bar's thumb is in rows rows: its first row and its
+// length, in proportion to what is shown. It is at the top only when nothing
+// is hidden above and at the bottom only when nothing is hidden below, so a
+// glance tells whether there is more either way. ok is false when everything
+// is shown.
+func (s scrollbar) thumb() (at, size int, ok bool) {
+	total := max(s.total, s.first+s.rows) // a list kept above its end, with room under it
+	if s.rows < 2 || total <= s.rows {
+		return 0, 0, false
+	}
+	size = min(max((s.rows*s.rows+total/2)/total, 1), s.rows-1)
+	travel := s.rows - size
+	at = (s.first*travel + (total-s.rows)/2) / (total - s.rows)
+	if s.first > 0 {
+		at = max(at, 1)
+	}
+	if s.first+s.rows < total {
+		at = min(at, travel-1)
+	}
+	return min(max(at, 0), travel), size, true
 }
 
 // panel draws content inside a width×height box. content lines are fitted to
@@ -45,12 +78,18 @@ func panel(width, height int, f frame, content []string) []string {
 
 	lines := make([]string, 0, height)
 	lines = append(lines, panelTop(inner, border, focused, tabs, right, f.legend))
+	at, size, bar := f.scroll.thumb()
+	at += f.scroll.top
 	for i := 0; i < innerH; i++ {
 		line := ""
 		if i < len(content) {
 			line = content[i]
 		}
-		lines = append(lines, border.Render("│")+fit(line, inner)+border.Render("│"))
+		edge := "│"
+		if bar && i >= at && i < at+size {
+			edge = "┃"
+		}
+		lines = append(lines, border.Render("│")+fit(line, inner)+border.Render(edge))
 	}
 	lines = append(lines, panelBottom(inner, border, f.bottom))
 	return lines

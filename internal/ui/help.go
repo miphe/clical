@@ -242,7 +242,8 @@ func (m Model) renderHelp(width, height int) []string {
 	if len(lines) > bodyH && bodyH > 0 {
 		position = fmt.Sprintf("lines %d–%d of %d", scroll+1, end, len(lines))
 	}
-	return panel(width, height, frame{focused: true, tabs: []tab{{label: "Keys", active: true}}, bottom: position}, lines[scroll:end])
+	bar := scrollbar{rows: bodyH, first: scroll, total: len(lines)}
+	return panel(width, height, frame{focused: true, tabs: []tab{{label: "Keys", active: true}}, bottom: position, scroll: bar}, lines[scroll:end])
 }
 
 func (m Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

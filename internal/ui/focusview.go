@@ -93,7 +93,7 @@ func (m Model) renderAgendaPanel(width, height int, tabs []tab) []string {
 	for i := range content {
 		content[i] = " " + content[i]
 	}
-	return panel(width, height, frame{focused: m.focus == focusMain, tabs: tabs}, content)
+	return panel(width, height, frame{focused: m.focus == focusMain, tabs: tabs, scroll: m.agendaBar(innerH)}, content)
 }
 
 // tasksView is the room for the task lines: inside the border, and under the
@@ -129,18 +129,20 @@ func (m Model) renderTasks(width, height int, tabs []tab) []string {
 		room -= 2
 	}
 	var bottom string
+	var bar scrollbar
 	if lines, msg := m.heatTaskLines(inner); msg != "" {
 		content = append(content, mutedStyle.Render(msg))
 	} else {
 		room = max(room, 1)
 		start := m.tasksStart(len(lines), room)
 		end := min(start+room, len(lines))
+		bar = scrollbar{top: len(content), rows: room, first: start, total: len(lines)}
 		content = append(content, lines[start:end]...)
 		if len(lines) > room {
 			bottom = fmt.Sprintf("%d–%d of %d", start+1, end, len(lines))
 		}
 	}
-	return panel(width, height, frame{focused: m.focus == focusTasks, tabs: tabs, bottom: bottom}, content)
+	return panel(width, height, frame{focused: m.focus == focusTasks, tabs: tabs, bottom: bottom, scroll: bar}, content)
 }
 
 // heatHeader names a selection of several days and how much was done in it:

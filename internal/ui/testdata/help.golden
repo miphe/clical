@@ -1,13 +1,13 @@
 ╭─ Keys ───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Everywhere                                                                                                           │
-│ 0                         Calendar list                                                                              │
-│ 1 2 3 4 5                 Agenda, week, month, focus, focus+                                                         │
-│ tab                       Next panel: the list, the view, the global Write panel                                     │
-│ t                         Today                                                                                      │
-│ r                         Sync now (also in the background)                                                          │
-│ a                         Add a calendar: iCal link or Google                                                        │
-│ /                         Filter events by title or location                                                         │
-│ w  W                      Write: the event's panel; the global panel (show, hide)                                    │
+│ Everywhere                                                                                                           ┃
+│ 0                         Calendar list                                                                              ┃
+│ 1 2 3 4 5                 Agenda, week, month, focus, focus+                                                         ┃
+│ tab                       Next panel: the list, the view, the global Write panel                                     ┃
+│ t                         Today                                                                                      ┃
+│ r                         Sync now (also in the background)                                                          ┃
+│ a                         Add a calendar: iCal link or Google                                                        ┃
+│ /                         Filter events by title or location                                                         ┃
+│ w  W                      Write: the event's panel; the global panel (show, hide)                                    ┃
 │ S  ,                      Settings: clock, week, sync, pulse                                                         │
 │ ?                         This help                                                                                  │
 │ q  ctrl+c                 Quit                                                                                       │

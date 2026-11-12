@@ -156,6 +156,7 @@ func (m Model) renderTodayPanel(width, height int, tabs []tab, compact bool) []s
 	if cw >= todayMinStrip && len(content)+todayStripH <= height-2 {
 		content = append(content, m.todayStrip(cw)...)
 	}
+	var bar scrollbar
 	if !compact {
 		content = append(content, "")
 		room := height - 2 - len(content)
@@ -166,6 +167,9 @@ func (m Model) renderTodayPanel(width, height int, tabs []tab, compact bool) []s
 				list = m.renderAgenda(cw, 1)
 			default:
 				lines, _ := m.todayLines(min(m.offset, len(m.rows)-1), cw)
+				all, _ := m.todayLines(0, cw)
+				// What's shown from the offset is the end of the whole list.
+				bar = scrollbar{top: len(content), rows: room, first: len(all) - len(lines), total: len(all)}
 				list = lines[:min(room, len(lines))]
 			}
 			content = append(content, list...)
@@ -175,7 +179,7 @@ func (m Model) renderTodayPanel(width, height int, tabs []tab, compact bool) []s
 		content[i] = " " + content[i]
 	}
 	right := m.today().In(m.loc).Format("Mon 2 Jan")
-	return panel(width, height, frame{focused: m.focus == focusMain, tabs: tabs, right: right}, content)
+	return panel(width, height, frame{focused: m.focus == focusMain, tabs: tabs, right: right, scroll: bar}, content)
 }
 
 // renderTasksTail is the completed tasks when another panel leads: the newest
@@ -184,17 +188,20 @@ func (m Model) renderTasksTail(width, height int, tabs []tab) []string {
 	inner, room := width-2, height-2
 	lo, hi := m.heat.span(m.weekStart)
 	var content []string
+	var bar scrollbar
 	lines, msg := m.heatTaskLines(inner)
 	if msg != "" {
 		content = []string{mutedStyle.Render(msg)}
 	} else {
-		content = lines[max(len(lines)-room, 0):]
+		first := max(len(lines)-room, 0)
+		content = lines[first:]
+		bar = scrollbar{rows: room, first: first, total: len(lines)}
 	}
 	right := m.heatTitle(lo, hi)
 	if tasks, notes, _ := m.heatTally(lo, hi); tasks+notes > 0 && m.heat.loaded {
 		right += " · " + itemCount(tasks, notes)
 	}
-	return panel(width, height, frame{focused: m.focus == focusTasks, tabs: tabs, right: right}, content)
+	return panel(width, height, frame{focused: m.focus == focusTasks, tabs: tabs, right: right, scroll: bar}, content)
 }
 
 // itemCount is "2 tasks", "1 note", "3 tasks, 1 note".

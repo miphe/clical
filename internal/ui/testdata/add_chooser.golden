@@ -1,11 +1,11 @@
 ╭─ [0] Calendars ────────╮╭─ [1] Agenda ─ [2] Week ─ [3] Month ─ [4] Focus ─ [5] Focus+ ────────╮╭─╮
-│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                ││W│
-│   ● Holidays           ││    ● all day      Name day                       Personal · Main    ││r│
-│   ● Main               ││    ● 09:00–09:30  Standup                        Personal · Main    ││i│
-│                        ││    ── now 14:30 ────────────────────────────────────────────────────││t│
-│                ╭─ Add a calendar ───────────────────────────────────────────────╮al · Main    ││e│
-│                │▸ 1  iCal link       a calendar's secret iCal address           │al · Main    ││ │
-│                │  2  Google account  sign in with Google                        │             ││ │
+│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                ┃│W│
+│   ● Holidays           ││    ● all day      Name day                       Personal · Main    ┃│r│
+│   ● Main               ││    ● 09:00–09:30  Standup                        Personal · Main    ┃│i│
+│                        ││    ── now 14:30 ────────────────────────────────────────────────────┃│t│
+│                ╭─ Add a calendar ───────────────────────────────────────────────╮al · Main    ┃│e│
+│                │▸ 1  iCal link       a calendar's secret iCal address           │al · Main    ┃│ │
+│                │  2  Google account  sign in with Google                        │             ┃│ │
 │                │                                                                │             ││ │
 │                │  + Nothing to set up: paste the calendar's secret address      │al · Main    ││ │
 │                │  - Guests and replies only if the feed has them                │al · Main    ││ │

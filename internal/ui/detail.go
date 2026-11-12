@@ -205,7 +205,8 @@ func (m Model) renderDetail(width, height int) []string {
 		position = fmt.Sprintf("lines %d–%d of %d", scroll+1, end, len(body))
 	}
 	focused := m.focus != focusEventWrite && m.focus != focusGlobalWrite
-	return panel(width, height, frame{focused: focused, tabs: []tab{{label: "Event", active: true}}, bottom: position}, content)
+	bar := scrollbar{rows: bodyH, first: scroll, total: len(body)}
+	return panel(width, height, frame{focused: focused, tabs: []tab{{label: "Event", active: true}}, bottom: position, scroll: bar}, content)
 }
 
 // detailBody is every line of the scrollable part, already width-limited.

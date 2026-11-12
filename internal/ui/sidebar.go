@@ -235,7 +235,8 @@ func (m Model) renderSidebar(height int) []string {
 	if !m.sidebarCollapsed && len(rows) > innerH && innerH > 0 {
 		position = fmt.Sprintf("%d of %d", sel+1, len(rows))
 	}
-	return panel(width+2, height, frame{focused: focused, tabs: tabs, bottom: position}, lines)
+	bar := scrollbar{rows: innerH, first: m.side.offset, total: len(rows)}
+	return panel(width+2, height, frame{focused: focused, tabs: tabs, bottom: position, scroll: bar}, lines)
 }
 
 func (m Model) renderSidebarRow(r sideRow, width int, selected bool) string {

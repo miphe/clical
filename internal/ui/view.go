@@ -7,6 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/miphe/clical/internal/agenda"
 )
 
 const (
@@ -117,6 +119,7 @@ func (m Model) renderMain(width, height int) []string {
 	inner, innerH := width-2, height-2
 	var content []string
 	var right, bottom string
+	var bar scrollbar
 	switch m.view {
 	case viewHeat:
 		return m.renderFocus(width, height, tabs)
@@ -125,6 +128,10 @@ func (m Model) renderMain(width, height int) []string {
 	case viewWeek:
 		content = m.renderWeek(inner, innerH)
 		right = m.weekSpan()
+		if g := m.weekGeometryIn(inner, innerH); !g.tooSmall && m.week.loaded {
+			// The hours scroll, under the day headers and the all-day band.
+			bar = scrollbar{top: 2 + g.band, rows: g.body, first: m.week.top, total: agenda.Rows(m.weekSlot())}
+		}
 		bottom = fmt.Sprintf("%d min/row", m.weekSlot())
 	case viewMonth:
 		content = m.renderMonth(inner, innerH)
@@ -136,8 +143,14 @@ func (m Model) renderMain(width, height int) []string {
 			content[i] = " " + content[i]
 		}
 		right = m.agendaSpan()
+		bar = m.agendaBar(innerH)
 	}
-	return panel(width, height, frame{focused: m.focus == focusMain, tabs: tabs, right: right, bottom: bottom}, content)
+	return panel(width, height, frame{focused: m.focus == focusMain, tabs: tabs, right: right, bottom: bottom, scroll: bar}, content)
+}
+
+// agendaBar is the agenda's scrollbar in rows rows: its rows from m.offset.
+func (m Model) agendaBar(rows int) scrollbar {
+	return scrollbar{rows: rows, first: m.offset, total: len(m.rows)}
 }
 
 // agendaSpan is the loaded agenda window, e.g. "29 Sep – 28 Oct 2026".

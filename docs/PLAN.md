@@ -1444,6 +1444,47 @@ event gets at least one row, so its title is never cut.
 - When it's judged: Focus+ becomes `4`, and the old view, its code and its
   golden files go.
 
+## Overflow: a scrollbar in the panel border
+
+Panels whose content can be longer than they are tall (the agenda, the
+calendar list, the week's hours, the event view, help, the Write panels, the
+completed tasks, Focus+'s Today list) used to say so in different ways or not
+at all. They now share one sign, drawn by `panel()` from `frame.scroll`.
+
+- **A thumb in the right border.** Where the border is `│`, the rows matching
+  what's shown are `┃`, placed and sized in proportion to the content. It
+  takes no row or column, so it costs nothing in a small panel, and it is a
+  shape, so it reads without color; it has the border's style (the accent
+  when focused, faint otherwise). With everything in view there is no bar.
+- **"More above" and "more below" at a glance:** the thumb touches the top
+  only when nothing is hidden above, and the bottom only when nothing is
+  hidden below, however long the content.
+- **Only the part that scrolls:** a panel names the rows that scroll
+  (`scrollbar{top, rows}`), so fixed headers (the week's day names, the
+  completed tasks' title, Today's now/next and strip) keep a plain border.
+- **The bottom edge keeps its text:** a list with a selection says where it
+  is ("3 of 18"); one without says what's shown ("12–24 of 40").
+- **Every new scrolling panel sets `frame.scroll`.**
+
+The week view also keeps its ▲/▼ in the hour gutter.
+
+**Alternative, if the bars make the UI too busy:** arrows instead, a `▲` in
+the right border at the first scrolling row while something is hidden above
+and a `▼` at the last while something is hidden below. They say only that
+there is more, not how much or where in it you are, but they are quieter.
+They would be drawn from the same `frame.scroll`, so switching is a change
+to `panel()` alone.
+
+### The Write panel's scroll
+
+The list shows a run of its items in order, as many as fit, and the
+selected one is always among them; moving the selection scrolls with it.
+It is never scrolled past its end, so items are never hidden above while
+there is empty room below, and at its end the last item has 1–3 free lines
+under it (with the panel's height) before the input or the border.
+`viewOffset` works this out from the list each time it is drawn, so a
+shorter list or a roomier panel never leaves a stale scroll.
+
 ## Verification
 
 - `go build ./...`, `go vet ./...`, `go test ./...` clean after every

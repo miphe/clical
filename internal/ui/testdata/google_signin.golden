@@ -1,11 +1,11 @@
 ╭─ [0] Calendars ────────╮╭─ [1] Agenda ─ [2] Week ─ [3] Month ─ [4] Focus ─ [5] Focus+ ────────╮╭─╮
-│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                ││W│
-│   ● Holidays           ││    ● all day      Name day                       Personal · Main    ││r│
-│   ● Main               ││    ● 09:00–09:30  Standup                        Personal · Main    ││i│
-│             ╭─ Add a Google account ───────────────────────────────────────────────╮──────────││t│
-│             │ Your browser should open on Google's sign-in page. If it doesn't,    │· Main    ││e│
-│             │ open this address (o tries again):                                   │· Main    ││ │
-│             │                                                                      │          ││ │
+│ ▾ Personal (2)         ││ ▸ Tue 29 Sep · today                                                ┃│W│
+│   ● Holidays           ││    ● all day      Name day                       Personal · Main    ┃│r│
+│   ● Main               ││    ● 09:00–09:30  Standup                        Personal · Main    ┃│i│
+│             ╭─ Add a Google account ───────────────────────────────────────────────╮──────────┃│t│
+│             │ Your browser should open on Google's sign-in page. If it doesn't,    │· Main    ┃│e│
+│             │ open this address (o tries again):                                   │· Main    ┃│ │
+│             │                                                                      │          ┃│ │
 │             │ https://accounts.google.com/o/oauth2/auth?client_id=cid.apps.googleu │          ││ │
 │             │ sercontent.com&redirect_uri=http%3A%2F%2F127.0.0.1%3A49152%2Fcallbac │· Main    ││ │
 │             │ k&response_type=code&scope=openid+email+https%3A%2F%2Fwww.googleapis │· Main    ││ │
