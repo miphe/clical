@@ -1396,7 +1396,8 @@ event gets at least one row, so its title is never cut.
   focused): Today is large, the completed tasks show their newest lines (2–5,
   with the window's height). History mode (the heatmap or the tasks focused):
   the tasks grow and Today keeps its now/next lines and its strip. `5`
-  focuses Today; `tab` goes list, Today, heatmap, completed tasks, Write.
+  focuses Today; `tab` goes list, Today, completed tasks, heatmap, Write,
+  top to bottom.
 - **Now and next:** the event on now (the one that started last, `+N` for
   others on too), its times and "15 min left"; else "free until 15:00" or
   "nothing more today". Next: its times and "in 8 min" (or "tomorrow 09:30"),

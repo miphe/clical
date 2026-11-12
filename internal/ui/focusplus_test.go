@@ -54,7 +54,7 @@ func TestFocusPlusGolden(t *testing.T) {
 	golden(t, "focusplus_write_open", screen(keys(t, plusModel(t, 110, 40), "W")))
 	golden(t, "focusplus_laptop", screen(plusModel(t, 80, 30)))
 	golden(t, "focusplus_small", screen(plusModel(t, 56, 16)))
-	golden(t, "focusplus_history", screen(keys(t, plusModel(t, 110, 40), "tab")))
+	golden(t, "focusplus_history", screen(keys(t, plusModel(t, 110, 40), "tab", "tab")))
 }
 
 func TestFocusPlusIsKey5AndLeavesFocusAlone(t *testing.T) {
@@ -155,14 +155,14 @@ func TestFocusPlusModesFollowTheFocus(t *testing.T) {
 	if day.history || day.todayCompact || day.tasksH > plusTasksMaxH || day.tasksH == 0 {
 		t.Errorf("day mode: %+v", day)
 	}
-	m = keys(t, m, "tab") // the heatmap
+	m = keys(t, m, "tab") // the completed tasks, under Today
 	hist := m.focusPlusLayout()
-	if m.focus != focusHeat || !hist.history || !hist.todayCompact || hist.tasksH <= day.tasksH {
+	if m.focus != focusTasks || !hist.history || !hist.todayCompact || hist.tasksH <= day.tasksH {
 		t.Errorf("history mode (focus %v): %+v", m.focus, hist)
 	}
-	m = keys(t, m, "tab") // the completed tasks
-	if m.focus != focusTasks || !m.focusPlusLayout().history {
-		t.Errorf("tab from the heatmap: focus %v", m.focus)
+	m = keys(t, m, "tab") // the heatmap, under them
+	if m.focus != focusHeat || !m.focusPlusLayout().history {
+		t.Errorf("tab from the completed tasks: focus %v", m.focus)
 	}
 	m = keys(t, m, "esc", "5")
 	if m.focus != focusMain || m.focusPlusLayout().history {

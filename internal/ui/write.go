@@ -578,12 +578,13 @@ func (m Model) focusOrder() []focus {
 		if lay.todayH > 0 {
 			order = append(order, focusMain)
 		}
-		order = append(order, focusHeat)
+		// The completed tasks before the heatmap: they sit between Today and
+		// it. In the day mode they are compact, or dropped for room; focusing
+		// them makes them lead, which gives them the room.
 		if lay.tasksH > 0 || !lay.history {
-			// In the day mode the tasks are compact, or dropped for room;
-			// focusing them makes them lead, which gives them the room.
 			order = append(order, focusTasks)
 		}
+		order = append(order, focusHeat)
 	} else if m.view == viewHeat {
 		order = []focus{focusSidebar}
 		lay := m.focusLayout()

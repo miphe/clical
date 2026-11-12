@@ -103,7 +103,7 @@ func helpSections() []helpSection {
 			{"", "The strip: the day in cells, ━ busy, ═ overlapping,"},
 			{"", "┄ free in work hours; ▲ is now, └─┘ the selected event"},
 			{"j k  enter", "Today's list works as the agenda; titles wrap in full"},
-			{"tab", "Next panel: list, Today, heatmap, completed tasks"},
+			{"tab", "Next panel: list, Today, completed tasks, heatmap"},
 			{"", "Focusing the heatmap or the tasks gives them the room;"},
 			{"", "Today keeps its now/next lines and the strip. 5 goes back."},
 		}},
