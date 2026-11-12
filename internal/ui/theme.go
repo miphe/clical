@@ -147,6 +147,12 @@ func calendarBullet(slot int) string {
 	return lipgloss.NewStyle().Foreground(calendarColor(slot)).Render(calendarGlyph(slot, false))
 }
 
+// stripMark is a cell of the Today panel's day strip in its calendar's color,
+// faint once that part of the day is past. Like a bullet, it is a glyph.
+func stripMark(slot int, glyph string, past bool) string {
+	return lipgloss.NewStyle().Foreground(calendarColor(slot)).Faint(past).Render(glyph)
+}
+
 func slotIndex(slot int) int {
 	return max(slot, 1) - 1
 }

@@ -26,7 +26,7 @@ func helpSections() []helpSection {
 	return []helpSection{
 		{"Everywhere", []helpEntry{
 			{"0", "Calendar list"},
-			{"1 2 3 4", "Agenda, week, month, focus"},
+			{"1 2 3 4 5", "Agenda, week, month, focus, focus+"},
 			{"tab", "Next panel: the list, the view, the global Write panel"},
 			{"t", "Today"},
 			{"r", "Sync now (also in the background)"},
@@ -97,6 +97,16 @@ func helpSections() []helpSection {
 			{"", "faint blue 1–3, blue 4–6, bold text color 7+. Archived only."},
 			{"", "Archived notes don't count; ∘ marks a day that has only notes."},
 		}},
+		{"Focus+ (trial)", []helpEntry{
+			{"", "Today on top, completed tasks, the heatmap below"},
+			{"", "now / next: what's on, how long is left, what's next"},
+			{"", "The strip: the day in cells, ━ busy, ═ overlapping,"},
+			{"", "┄ free in work hours; ▲ is now, └─┘ the selected event"},
+			{"j k  enter", "Today's list works as the agenda; titles wrap in full"},
+			{"tab", "Next panel: list, Today, heatmap, completed tasks"},
+			{"", "Focusing the heatmap or the tasks gives them the room;"},
+			{"", "Today keeps its now/next lines and the strip. 5 goes back."},
+		}},
 		{"Event details", []helpEntry{
 			{"j k  ↓ ↑", "Select a link, or scroll without links"},
 			{"1–9", "Select a link by number"},
@@ -121,7 +131,7 @@ func helpSections() []helpSection {
 			{"z", "Archive a checked task, or a note (it keeps its day)"},
 			{"Z", "Archive every checked task in the panel (end of the day; notes stay)"},
 			{"tab", "Next panel (list, view, global Write)"},
-			{"0–3  r  t  /", "Work here too, as in every pane (not in the event view)"},
+			{"0–5  r  t  /", "Work here too, as in every pane (not in the event view)"},
 			{"esc", "Back"},
 			{"", "A collapsed global panel flashes when it changes"},
 		}},

@@ -111,7 +111,8 @@ func (m Model) renderMain(width, height int) []string {
 		{label: monthLabel, active: m.view == viewMonth},
 	}
 	if m.heatEnabled() {
-		tabs = append(tabs, tab{label: "[4] Focus", active: m.view == viewHeat})
+		tabs = append(tabs, tab{label: "[4] Focus", active: m.view == viewHeat},
+			tab{label: "[5] Focus+", active: m.view == viewFocusPlus})
 	}
 	inner, innerH := width-2, height-2
 	var content []string
@@ -119,6 +120,8 @@ func (m Model) renderMain(width, height int) []string {
 	switch m.view {
 	case viewHeat:
 		return m.renderFocus(width, height, tabs)
+	case viewFocusPlus:
+		return m.renderFocusPlus(width, height, tabs)
 	case viewWeek:
 		content = m.renderWeek(inner, innerH)
 		right = m.weekSpan()
@@ -425,7 +428,7 @@ func (m Model) footerHints() []footHint {
 	// Pane keys first, the same everywhere.
 	views := "1-3"
 	if m.heatEnabled() {
-		views = "1-4"
+		views = "1-5"
 	}
 	hints := []footHint{h("0", "calendars", prioHigh), h("1-3", "views", prioHigh), h("tab", "switch pane", prioMid)}
 	hints[1].key = views
@@ -447,7 +450,7 @@ func (m Model) footerHints() []footHint {
 			h("a", "add", prioHigh), h("n", "rename", prioMid), h("d", "remove", prioMid), h("c", "collapse", prioLow))
 	case m.focus == focusTasks:
 		view = []footHint{h("j/k", "scroll", prioHigh), h("pgup/pgdn", "page", prioMid), h("esc", "back", prioMid)}
-	case m.view == viewHeat && m.focus != focusMain:
+	case m.isFocusView() && m.focus != focusMain:
 		view = []footHint{h("h/l", "week", prioMid), h("j/k", "day", prioMid), h("shift", "extend", prioHigh),
 			h("space", "day/week/month", prioHigh), h("pgup/pgdn", "scroll tasks", prioLow), h("t", "today", prioMid)}
 	case m.view == viewWeek:

@@ -77,8 +77,8 @@ func TestKey2ShowsTheWeekAndLoadsIt(t *testing.T) {
 	if weekSelected(m) != "2026-09-29 dentist" {
 		t.Errorf("selected %s, want the next event today", weekSelected(m))
 	}
-	// 5 is not a view any more.
-	if m, _ = send(t, m, press("5")); m.view != viewWeek {
+	// 5 is Focus+ now, not the week grid it once was.
+	if m, _ = send(t, m, press("5")); m.view != viewFocusPlus {
 		t.Errorf("5 went to view %v", m.view)
 	}
 }

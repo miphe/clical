@@ -280,7 +280,7 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "W":
 		return m.toggleGlobal(false)
-	case "0", "1", "2", "3", "4", "r", "t", "/":
+	case "0", "1", "2", "3", "4", "5", "r", "t", "/":
 		// The keys that work from every pane work from here too: the panel
 		// and view keys, sync, today and the filter. (Inside the event view
 		// they don't, as there.)
@@ -308,6 +308,11 @@ func (m Model) handleWriteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m.switchView(viewHeat)
+		case "5":
+			if !m.heatEnabled() {
+				return m, nil
+			}
+			return m.switchView(viewFocusPlus)
 		}
 		return m.switchView(viewMonth)
 	case "j", "down":
@@ -566,6 +571,18 @@ func (m Model) focusOrder() []focus {
 		order = []focus{focusMain}
 		if m.writeOn {
 			order = append(order, focusEventWrite)
+		}
+	} else if m.view == viewFocusPlus {
+		order = []focus{focusSidebar}
+		lay := m.focusPlusLayout()
+		if lay.todayH > 0 {
+			order = append(order, focusMain)
+		}
+		order = append(order, focusHeat)
+		if lay.tasksH > 0 || !lay.history {
+			// In the day mode the tasks are compact, or dropped for room;
+			// focusing them makes them lead, which gives them the room.
+			order = append(order, focusTasks)
 		}
 	} else if m.view == viewHeat {
 		order = []focus{focusSidebar}

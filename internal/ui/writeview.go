@@ -65,6 +65,9 @@ func (m Model) globalRect() (w, h int) {
 	if m.sidebarCollapsed {
 		side = collapsedSidebarInner + 2
 	}
+	if m.view == viewFocusPlus {
+		return m.plusWriteWidth(m.width - side), h
+	}
 	return m.globalWidth(m.width-side, mainMinWidth), h
 }
 

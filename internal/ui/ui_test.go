@@ -830,7 +830,8 @@ func screensToCheck(t *testing.T) map[string]Model {
 	month := toMonth(t, m, testEvents())
 	heat := heatModel(t, 100, 24)
 	weekOverlap := toWeek(t, m, overlapEvents())
-	return map[string]Model{"agenda": m, "week": week, "week_overlap": weekOverlap, "month": month, "sidebar": side, "form": form, "syncing": syncing, "heat": heat}
+	plus := plusModel(t, 110, 40)
+	return map[string]Model{"agenda": m, "week": week, "week_overlap": weekOverlap, "month": month, "sidebar": side, "form": form, "syncing": syncing, "heat": heat, "focusplus": plus}
 }
 
 func TestOnlyANSIColorsReachTheTerminal(t *testing.T) {
@@ -1083,7 +1084,7 @@ func TestFooterAlwaysStartsWithPaneKeys(t *testing.T) {
 		"list":   func() Model { m, _ := send(t, loaded(t, 100, 30), press("0")); return m }(),
 	} {
 		lines := strings.Split(screen(m), "\n")
-		if hints := strings.TrimSpace(lines[len(lines)-2]); !strings.HasPrefix(hints, "0 calendars · 1-4 views · tab switch pane │") {
+		if hints := strings.TrimSpace(lines[len(lines)-2]); !strings.HasPrefix(hints, "0 calendars · 1-5 views · tab switch pane │") {
 			t.Errorf("%s footer = %q", name, hints)
 		}
 	}

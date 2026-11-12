@@ -70,7 +70,8 @@ const (
 	viewAgenda viewKind = iota
 	viewWeek
 	viewMonth
-	viewHeat // the focus view
+	viewHeat      // the focus view
+	viewFocusPlus // Focus+, tried beside the focus view
 	viewCount
 )
 
@@ -282,7 +283,7 @@ func (m Model) WithSettings(s Settings) Model {
 	if s.WorkEnd > s.WorkStart {
 		m.workFrom, m.workTo = s.WorkStart, s.WorkEnd
 	}
-	if !m.writeOn && m.view == viewHeat {
+	if !m.writeOn && m.isFocusView() {
 		m.view = viewAgenda // the focus view reads what Write keeps
 	}
 	return m
@@ -631,12 +632,12 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.detail != nil {
 		return m.handleDetailKey(msg)
 	}
-	if m.view == viewHeat && m.focus == focusHeat {
+	if m.isFocusView() && m.focus == focusHeat {
 		if next, cmd, ok := m.handleHeatKey(msg); ok {
 			return next, cmd
 		}
 	}
-	if m.view == viewHeat && m.focus == focusTasks {
+	if m.isFocusView() && m.focus == focusTasks {
 		if next, cmd, ok := m.handleTasksKey(msg); ok {
 			return next, cmd
 		}
@@ -661,6 +662,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.switchView(viewMonth)
 	case key.Matches(msg, m.keys.ViewHeat) && m.heatEnabled():
 		return m.switchView(viewHeat)
+	case key.Matches(msg, m.keys.ViewFocusPlus) && m.heatEnabled():
+		return m.switchView(viewFocusPlus)
 	case key.Matches(msg, m.keys.FocusList):
 		m.focus = focusSidebar
 		m.ensureSidebarSelection()
@@ -686,7 +689,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleWeekKey(msg)
 	case m.view == viewMonth:
 		return m.handleMonthKey(msg)
-	case m.view == viewHeat && m.focus != focusMain:
+	case m.isFocusView() && m.focus != focusMain:
 		return m, nil // the heatmap's own keys came first; the agenda's follow
 	}
 	return m.handleMainKey(msg)
@@ -711,6 +714,8 @@ func (m Model) switchView(to viewKind) (tea.Model, tea.Cmd) {
 		return m.showMonth(day)
 	case viewHeat:
 		return m.showHeat(day)
+	case viewFocusPlus:
+		return m.showFocusPlus()
 	}
 	return m.showAgenda(day, id)
 }
@@ -963,6 +968,10 @@ func (m Model) agendaHeight() int {
 // ensureVisible scrolls so the selection is on screen, keeping its day
 // header in view when there's room.
 func (m *Model) ensureVisible() {
+	if m.view == viewFocusPlus {
+		m.ensureTodayVisible()
+		return
+	}
 	h := m.agendaHeight()
 	if h <= 0 {
 		return
@@ -1043,7 +1052,7 @@ func (m Model) goToday() (tea.Model, tea.Cmd) {
 		return m.showWeek(m.today(), "", true)
 	case viewMonth:
 		return m.showMonth(m.today())
-	case viewHeat:
+	case viewHeat, viewFocusPlus:
 		if m.focus == focusMain { // the agenda panel
 			return m.jumpTo(m.today())
 		}

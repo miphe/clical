@@ -100,11 +100,15 @@ func (m Model) renderAgendaPanel(width, height int, tabs []tab) []string {
 // header and its blank line when the selection has one.
 func (m Model) tasksView() (width, height int) {
 	lay := m.focusLayout()
-	height = lay.tasksH - 2
+	tasksW, tasksH := lay.tasksW, lay.tasksH
+	if m.view == viewFocusPlus {
+		tasksW, tasksH = m.mainWidth(), m.focusPlusLayout().tasksH
+	}
+	height = tasksH - 2
 	if m.heatHasHeader() {
 		height -= 2
 	}
-	return lay.tasksW - 2, height
+	return tasksW - 2, height
 }
 
 // heatHasHeader reports whether the selection is named above the list: only

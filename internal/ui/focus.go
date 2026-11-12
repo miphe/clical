@@ -35,7 +35,7 @@ func (m Model) loadHeat() tea.Cmd {
 // reloadHeat rereads the archive while the heatmap is on screen, since
 // `clical write` or another editor may have changed it.
 func (m Model) reloadHeat() tea.Cmd {
-	if m.view != viewHeat {
+	if !m.isFocusView() {
 		return nil
 	}
 	return m.loadHeat()
@@ -72,6 +72,9 @@ func (m Model) showHeat(day domain.CivilDate) (tea.Model, tea.Cmd) {
 func (m Model) fitFocusView() Model {
 	if m.width == 0 {
 		return m
+	}
+	if m.view == viewFocusPlus {
+		return m.fitFocusPlus() // it collapsed the list itself, and keeps it so
 	}
 	open := m
 	open.sidebarCollapsed = false
